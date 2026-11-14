@@ -1423,7 +1423,7 @@ static void rotulosAbas(char (*rot)[180]) {
   nomesFontesColecao(nomeAba, n);
   for (int i = 0; i < n; i++) {
     const ColSource *s = &collection->sources[i];
-    const char *tipo = i18n(!strcmp(s->type, "series") ? "Séries" : "Filmes");
+    const char *tipo = i18n(fonteSerie(s) ? "Séries" : "Filmes");
     int repete = 0;
     for (int j = 0; j < n; j++)
       if (j != i && !strcmp(nomeAba[i], nomeAba[j])) repete = 1;
@@ -2587,7 +2587,7 @@ static void abaRotulos(char rot[][180], int nAbas) {
   nomesFontesColecao(nomeAba, nAbas);
   for (int i = 0; i < nAbas; i++) {
     const ColSource *s = &collection->sources[i];
-    const char *tipo = i18n(!strcmp(s->type, "series") ? "Séries" : "Filmes");
+    const char *tipo = i18n(fonteSerie(s) ? "Séries" : "Filmes");
     int repete = 0;
     for (int j = 0; j < nAbas; j++)
       if (j != i && !strcmp(nomeAba[i], nomeAba[j])) repete = 1;
