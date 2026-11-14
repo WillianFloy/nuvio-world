@@ -48,8 +48,8 @@ int main(void) {
     assert(pastas == 1 && fontes == 2 && ativas == 2);
   }
 
-  // Mesmo quando o JSON original inclui fontes diretas TMDB/Trakt, o World
-  // conserva somente os catalogos de addons instalados e ativos.
+  // O modelo original guarda TMDB/Trakt em sources; catalogSources e so
+  // a projecao de addon usada para agrupamento, nao substitui a lista completa.
   const char *fontesComProjecao =
     "{\"collections\":[{\"id\":\"mix\",\"title\":\"Mix\",\"viewMode\":\"TABBED_GRID\",\"showAllTab\":false,\"folders\":[{\"id\":\"f\",\"title\":\"Todas\","
     "\"sources\":["
@@ -60,32 +60,37 @@ int main(void) {
   assert(col_definir_json(fontesComProjecao) == 1);
   f = col_folder(0);
   assert(f->viewMode == COL_VIEW_TABBED_GRID && f->showAllTab == 0);
-  assert(f->nSources == 1);
-  assert(!strcmp(f->sources[0].addonId, "org.x"));
-  puts("ok  sources ignora TMDB/Trakt e conserva catalogo de addon");
+  assert(f->nSources == 3);
+  assert(!strcmp(f->sources[0].prov, "tmdb") &&
+         !strcmp(f->sources[0].tmdbTipo, "DISCOVER") &&
+         !strcmp(f->sources[0].title, "Filmes Populares"));
+  assert(!strcmp(f->sources[1].prov, "trakt") &&
+         f->sources[1].traktLista == 123 &&
+         !strcmp(f->sources[1].title, "Lista Trakt"));
+  assert(!strcmp(f->sources[2].addonId, "org.x"));
+  assert(col_fonte_utilizavel(&f->sources[0]) &&
+         col_fonte_utilizavel(&f->sources[1]) &&
+         col_fonte_utilizavel(&f->sources[2]));
+  puts("ok  sources conserva TMDB, Trakt e addon mesmo com catalogSources separado");
 
-  // Quando a lista completa tem apenas provedores, a projecao de catalogos
-  // ainda pode fornecer as fontes validas para o World.
-  assert(col_definir_json("{\"collections\":[{\"id\":\"projection\",\"title\":\"Projection\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[{\"provider\":\"tmdb\",\"title\":\"Popular\"}],\"catalogSources\":[{\"addonId\":\"org.x\",\"type\":\"movie\",\"catalogId\":\"popular\"}]}]}]}") == 1);
-  assert(col_folder(0)->nSources == 1 &&
-         !strcmp(col_folder(0)->sources[0].addonId, "org.x"));
-  puts("ok  catalogSources prevalece quando sources so tem provedores externos");
-
-  // catalogSources vazio e explicito: nao deve cair em sources (TMDB/Trakt).
-  assert(col_definir_json("{\"collections\":[{\"id\":\"empty-projection\",\"title\":\"Empty projection\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Popular\"},{\"provider\":\"trakt\",\"traktListId\":123,\"title\":\"List\"}],\"catalogSources\":[]}]}]}") == 0);
+  // catalogSources vazio so diz que nao ha fontes de addon. Nao apaga as
+  // fontes TMDB/Trakt presentes na lista completa da pasta.
+  assert(col_definir_json("{\"collections\":[{\"id\":\"empty-projection\",\"title\":\"Empty projection\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Popular\"},{\"provider\":\"trakt\",\"traktListId\":123,\"title\":\"List\"}],\"catalogSources\":[]}]}]}") == 1);
   {
     ColDiagnostico d;
     col_snapshot_diagnostico(&d);
-    assert(col_n() == 0);
-    assert(d.fontes == 0 && d.fontesNaoAddon == 0 && d.pastasValidas == 0);
+    assert(col_n() == 1 && col_folder(0)->nSources == 2);
+    assert(!strcmp(col_folder(0)->sources[0].prov, "tmdb"));
+    assert(!strcmp(col_folder(0)->sources[1].prov, "trakt"));
+    assert(d.fontes == 2 && d.fontesNaoAddon == 0);
+    assert(d.fontesValidas == 2 && d.pastasValidas == 1);
   }
-  puts("ok  catalogSources vazio nao ressuscita fontes TMDB/Trakt");
+  puts("ok  catalogSources vazio nao apaga fontes TMDB/Trakt");
 
-
-  // Importacao antiga: quando sources esta ausente/vazio, usa catalogSources.
-  assert(col_definir_json("{\"collections\":[{\"id\":\"old\",\"title\":\"Old\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[],\"catalogSources\":[{\"addonId\":\"org.x\",\"type\":\"movie\",\"catalogId\":\"old\"}]}]}]}") == 1);
+  // Exportacao legada sem sources completo: catalogSources continua aceito.
+  assert(col_definir_json("{\"collections\":[{\"id\":\"old\",\"title\":\"Old\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"catalogSources\":[{\"addonId\":\"org.x\",\"type\":\"movie\",\"catalogId\":\"old\"}]}]}]}") == 1);
   assert(col_folder(0)->nSources == 1 && !strcmp(col_folder(0)->sources[0].catId, "old"));
-  puts("ok  catalogSources usado como compatibilidade quando sources esta vazio");
+  puts("ok  catalogSources e fallback somente quando sources esta ausente");
 
   // Addon reconfigurado: o ID antigo sozinho nao identifica a instancia atual,
   // mas um addonBaseUrl salvo ainda pode resolver com seguranca pela URL exata.
