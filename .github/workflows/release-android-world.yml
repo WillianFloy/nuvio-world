@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - nuvio-world-2.0.14-catalogos-addon-only
-      - nuvio-world-collections-follow-layout-fix
 
 permissions:
   contents: write
