@@ -746,7 +746,6 @@ static int lerColecaoWeb(const char *c, const char *ce) {
     js_texto_raiz_em(p, pe, "title", v->title, sizeof v->title);
     if (!v->title[0]) js_texto_raiz_em(p, pe, "name", v->title, sizeof v->title);
     if (!v->id[0] && v->title[0]) snprintf(v->id, sizeof v->id, "%s", v->title);
-    int somenteLancados = pastaDescobertaSomenteLancados(group, v->title);
     js_texto(p, pe, "coverImageUrl", v->cover, sizeof v->cover);
     js_texto(p, pe, "heroBackdropUrl", v->hero, sizeof v->hero);
     snprintf(v->groupBackdrop, sizeof v->groupBackdrop, "%s", fundo);
