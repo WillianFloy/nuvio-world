@@ -756,9 +756,13 @@ static int lerColecaoWeb(const char *c, const char *ce) {
     // catalogSources e uma projecao derivada de fontes addon. Se a chave
     // existe e esta vazia, isso e intencional: nao ressuscitar TMDB/Trakt de
     // sources. O fallback so vale para formatos antigos sem a chave.
-    const char *src = js_array(p, pe, "catalogSources");
-    if (!src) src = js_array(p, pe, "catalog_sources");
-    if (!src) src = js_array(p, pe, "sources");
+    const char *src = NULL;
+    if (js_tem(p, pe, "catalogSources"))
+      src = js_array(p, pe, "catalogSources");
+    else if (js_tem(p, pe, "catalog_sources"))
+      src = js_array(p, pe, "catalog_sources");
+    else
+      src = js_array(p, pe, "sources");
     for (const char *s = src, *se = NULL; s && v->nSources < COL_SOURCE_MAX; s = js_prox(se)) {
       se = js_fim(s); ColSource *a = &v->sources[v->nSources]; char prov[16] = "";
       ultimoDiagnostico.fontes++;
@@ -1062,8 +1066,8 @@ static int prepararResposta(const char *json, char **solto, const char **arrOut)
       if (!titulo[0] && id[0]) snprintf(titulo, sizeof titulo, "%s", id);
       if (!id[0] && titulo[0]) snprintf(id, sizeof id, "%s", titulo);
       const char *fontes = valorColecoes(pf, "\"catalogSources\"");
-      if (!fontes || *fontes == ']') fontes = valorColecoes(pf, "\"catalog_sources\"");
-      if (!fontes || *fontes == ']') fontes = valorColecoes(pf, "\"sources\"");
+      if (!fontes) fontes = valorColecoes(pf, "\"catalog_sources\"");
+      if (!fontes) fontes = valorColecoes(pf, "\"sources\"");
       if (!id[0] || !titulo[0] || !arrayCompleto(fontes)) return 0;
     }
   }
