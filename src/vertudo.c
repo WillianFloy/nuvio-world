@@ -1029,7 +1029,10 @@ static int estiloAbas(void) {
   int e = ajustes_abas_estilo();
   return nAbas() && e > VT_AB_CHIPS && e <= VT_AB_TOPO ? e : VT_AB_CHIPS;
 }
-static int abaSerie(int i) { return !strcmp(collection->sources[i].type, "series"); }
+static int fonteSerie(const ColSource *s) {
+  return s && (s->prov[0] ? !strcasecmp(s->midia, "TV") : !strcmp(s->type, "series"));
+}
+static int abaSerie(int i) { return fonteSerie(&collection->sources[i]); }
 // So ha primeiro nivel (Filmes/Séries) quando a colecao tem os dois tipos.
 static int doisTipos(void) {
   int f = 0, s = 0;
@@ -1404,7 +1407,7 @@ static void nomesFontesColecao(char nomes[][180], int n) {
   for (int i = 0; i < n; i++) {
     const ColSource *s = &collection->sources[i];
     char base[128] = "";
-    const char *tipo = i18n(!strcmp(s->type, "series") ? "Séries" : "Filmes");
+    const char *tipo = i18n(fonteSerie(s) ? "Séries" : "Filmes");
     col_nome_fonte(s, desc_nome_catalogo(baseDaFonte(s), s->type, s->catId), base, sizeof base);
     if (!base[0]) snprintf(base, sizeof base, "%s", tipo);
     if (!s->prov[0] && s->genre[0] && strcasecmp(s->genre, "None"))
