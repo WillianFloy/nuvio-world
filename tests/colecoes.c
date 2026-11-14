@@ -71,6 +71,17 @@ int main(void) {
          !strcmp(col_folder(0)->sources[0].addonId, "org.x"));
   puts("ok  catalogSources prevalece quando sources so tem provedores externos");
 
+  // catalogSources vazio e explicito: nao deve cair em sources (TMDB/Trakt).
+  assert(col_definir_json("{\\"collections\\":[{\\"id\\":\\"empty-projection\\",\\"title\\":\\"Empty projection\\",\\"folders\\":[{\\"id\\":\\"f\\",\\"title\\":\\"F\\",\\"sources\\":[{\\"provider\\":\\"tmdb\\",\\"tmdbSourceType\\":\\"DISCOVER\\",\\"title\\":\\"Popular\\"},{\\"provider\\":\\"trakt\\",\\"traktListId\\":123,\\"title\\":\\"List\\"}],\\"catalogSources\\":[]}]}]}") == 1);
+  {
+    ColDiagnostico d;
+    col_snapshot_diagnostico(&d);
+    assert(col_folder(0)->nSources == 0);
+    assert(d.fontes == 0 && d.fontesNaoAddon == 0 && d.pastasValidas == 0);
+  }
+  puts("ok  catalogSources vazio nao ressuscita fontes TMDB/Trakt");
+
+
   // Importacao antiga: quando sources esta ausente/vazio, usa catalogSources.
   assert(col_definir_json("{\"collections\":[{\"id\":\"old\",\"title\":\"Old\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[],\"catalogSources\":[{\"addonId\":\"org.x\",\"type\":\"movie\",\"catalogId\":\"old\"}]}]}]}") == 1);
   assert(col_folder(0)->nSources == 1 && !strcmp(col_folder(0)->sources[0].catId, "old"));
