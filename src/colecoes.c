@@ -792,6 +792,7 @@ static int lerColecaoWeb(const char *c, const char *ce) {
       if (!strcasecmp(prov, "tmdb")) {
         js_texto(s, se, "title", a->title, sizeof a->title);
         js_texto(s, se, "tmdbSourceType", a->tmdbTipo, sizeof a->tmdbTipo);
+        if (!a->tmdbTipo[0]) snprintf(a->tmdbTipo, sizeof a->tmdbTipo, "DISCOVER");
         a->tmdbId = (long)js_num(s, se, "tmdbId", 0.0);
         js_texto(s, se, "mediaType", a->midia, sizeof a->midia);
         if (!a->midia[0]) snprintf(a->midia, sizeof a->midia, "MOVIE");
