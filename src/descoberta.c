@@ -9301,9 +9301,11 @@ int desc_colecao_inicial(const ColSource *fonte, const char *base,
   if (!fonte || !itens || !resultado || limite < 1 || limite > 20 ||
       !descSessaoVincular(sessao)) return 0;
   f = *fonte;
-  // Uma Collection so aceita fontes de catalogos de addons. Provedores
-  // diretos como TMDB/Trakt nao sao addons ativos e nao podem buscar aqui.
-  prov = f.prov[0] ? -1 : 0;
+  // O mesmo modelo do Nuvio original: 0=addon, 1=TMDB, 2=Trakt.
+  // Provedores diretos nao carregam base/type/catalogId de addon; validam
+  // seus proprios identificadores e usam os resolvedores ja implementados.
+  prov = !strcmp(f.prov, "tmdb") ? 1 :
+         !strcmp(f.prov, "trakt") ? 2 : (f.prov[0] ? -1 : 0);
   r.pagina = 0;
   snprintf(origem, sizeof origem, "%s", base ? base : f.base);
   if (prov < 0 || (!prov && (!origem[0] || !f.type[0] || !f.catId[0] ||
