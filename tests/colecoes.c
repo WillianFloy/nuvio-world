@@ -76,7 +76,7 @@ int main(void) {
   {
     ColDiagnostico d;
     col_snapshot_diagnostico(&d);
-    assert(col_folder(0)->nSources == 0);
+    assert(col_n() == 0);
     assert(d.fontes == 0 && d.fontesNaoAddon == 0 && d.pastasValidas == 0);
   }
   puts("ok  catalogSources vazio nao ressuscita fontes TMDB/Trakt");
