@@ -258,11 +258,36 @@ int col_fonte_base_ativa(const ColSource *fonte, char *base, unsigned tam) {
   snprintf(base, tam, "%s", atual);
   return 1;
 }
-static int pastaTemFonteAtiva(const ColFolder *pasta) {
+static int tmdbTipoColecaoValido(const char *tipo) {
+  static const char *const tipos[] = {
+    "DISCOVER", "LIST", "COLLECTION", "COMPANY", "NETWORK", "PERSON", "DIRECTOR"
+  };
+  if (!tipo || !tipo[0]) return 0;
+  for (size_t i = 0; i < sizeof tipos / sizeof tipos[0]; i++)
+    if (!strcasecmp(tipo, tipos[i])) return 1;
+  return 0;
+}
+
+// Uma fonte pode ser utilizavel sem ser um catalogo de addon. TMDB e Trakt
+// continuam a ser fontes da pasta mesmo quando a chave/servico ainda nao esta
+// configurado nesta TV: Ver Tudo mostra a mensagem correspondente, em vez de
+// apagar a pasta inteira da Home.
+int col_fonte_utilizavel(const ColSource *fonte) {
   char base[NV_ADDON_URL_MAX];
+  if (!fonte) return 0;
+  if (!strcmp(fonte->prov, "tmdb")) {
+    if (!tmdbTipoColecaoValido(fonte->tmdbTipo)) return 0;
+    if (strcasecmp(fonte->tmdbTipo, "DISCOVER") && fonte->tmdbId <= 0) return 0;
+    return 1;
+  }
+  if (!strcmp(fonte->prov, "trakt")) return fonte->traktLista > 0;
+  if (fonte->prov[0]) return 0;
+  return col_fonte_base_ativa(fonte, base, sizeof base);
+}
+static int pastaTemFonteAtiva(const ColFolder *pasta) {
   if (!pasta) return 0;
   for (int s = 0; s < pasta->nSources; s++)
-    if (col_fonte_base_ativa(&pasta->sources[s], base, sizeof base)) return 1;
+    if (col_fonte_utilizavel(&pasta->sources[s])) return 1;
   return 0;
 }
 static void resolverBases(ColFolder *v) {
@@ -750,27 +775,56 @@ static int lerColecaoWeb(const char *c, const char *ce) {
       v->forma = col_forma_texto(forma); }
     { char b[8];
       if (js_bruto(p, pe, "focusGifEnabled", b, sizeof b) && strstr(b, "false")) v->focusGif[0] = 0; }
-    // No World, Collection usa somente catalogos de addons. catalogSources
-    // e a projecao especifica dessas fontes e tem prioridade; sources e o
-    // fallback para exports antigos que nao trazem essa projecao.
-    // catalogSources e uma projecao derivada de fontes addon. Se a chave
-    // existe e esta vazia, isso e intencional: nao ressuscitar TMDB/Trakt de
-    // sources. O fallback so vale para formatos antigos sem a chave.
+    // sources e a lista completa do Original: pode conter addon, TMDB e
+    // Trakt. catalogSources e somente uma projecao derivada das fontes addon;
+    // portanto NUNCA pode substituir sources quando ambas existem.
     const char *src = NULL;
-    if (js_tem(p, pe, "catalogSources"))
-      src = js_array(p, pe, "catalogSources");
-    else if (js_tem(p, pe, "catalog_sources"))
-      src = js_array(p, pe, "catalog_sources");
-    else
+    if (js_tem(p, pe, "sources"))
       src = js_array(p, pe, "sources");
+    else if (js_tem(p, pe, "catalogSources"))
+      src = js_array(p, pe, "catalogSources");
+    else
+      src = js_array(p, pe, "catalog_sources");
     for (const char *s = src, *se = NULL; s && v->nSources < COL_SOURCE_MAX; s = js_prox(se)) {
       se = js_fim(s); ColSource *a = &v->sources[v->nSources]; char prov[16] = "";
       ultimoDiagnostico.fontes++;
       memset(a, 0, sizeof *a);
       js_texto(s, se, "provider", prov, sizeof prov);
-      // Collections no World usam exclusivamente catalogos de addons.
-      // Fontes diretas TMDB/Trakt nao sao addons instalados/ativos e portanto
-      // nao podem alimentar uma pasta, mesmo que o JSON da conta as contenha.
+      if (!strcasecmp(prov, "tmdb")) {
+        js_texto(s, se, "title", a->title, sizeof a->title);
+        js_texto(s, se, "tmdbSourceType", a->tmdbTipo, sizeof a->tmdbTipo);
+        a->tmdbId = (long)js_num(s, se, "tmdbId", 0.0);
+        js_texto(s, se, "mediaType", a->midia, sizeof a->midia);
+        if (!a->midia[0]) snprintf(a->midia, sizeof a->midia, "MOVIE");
+        js_texto(s, se, "sortBy", a->ordenar, sizeof a->ordenar);
+        js_bruto(s, se, "filters", a->filtros, sizeof a->filtros);
+        a->somenteLancados = pastaDescobertaSomenteLancados(group, v->title);
+        if (!a->title[0])
+          snprintf(a->title, sizeof a->title, "%s", a->tmdbTipo[0] ? a->tmdbTipo : "TMDB");
+        snprintf(a->prov, sizeof a->prov, "tmdb");
+        if (!col_fonte_utilizavel(a)) {
+          fPulProvedor++; ultimoDiagnostico.fontesNaoAddon++; continue;
+        }
+        ultimoDiagnostico.fontesValidas++;
+        v->nSources++;
+        continue;
+      }
+      if (!strcasecmp(prov, "trakt")) {
+        js_texto(s, se, "title", a->title, sizeof a->title);
+        a->traktLista = (long)js_num(s, se, "traktListId", 0.0);
+        js_texto(s, se, "mediaType", a->midia, sizeof a->midia);
+        if (!a->midia[0]) snprintf(a->midia, sizeof a->midia, "MOVIE");
+        js_texto(s, se, "sortBy", a->ordenar, sizeof a->ordenar);
+        js_texto(s, se, "sortHow", a->ordem, sizeof a->ordem);
+        if (!a->title[0]) snprintf(a->title, sizeof a->title, "Lista Trakt");
+        snprintf(a->prov, sizeof a->prov, "trakt");
+        if (!col_fonte_utilizavel(a)) {
+          fPulProvedor++; ultimoDiagnostico.fontesNaoAddon++; continue;
+        }
+        ultimoDiagnostico.fontesValidas++;
+        v->nSources++;
+        continue;
+      }
       if (prov[0] && strcasecmp(prov, "addon")) {
         fPulProvedor++; ultimoDiagnostico.fontesNaoAddon++; continue;
       }
@@ -1065,9 +1119,9 @@ static int prepararResposta(const char *json, char **solto, const char **arrOut)
       if (!titulo[0]) js_texto_raiz_em(pf, pfFim, "name", titulo, sizeof titulo);
       if (!titulo[0] && id[0]) snprintf(titulo, sizeof titulo, "%s", id);
       if (!id[0] && titulo[0]) snprintf(id, sizeof id, "%s", titulo);
-      const char *fontes = valorColecoes(pf, "\"catalogSources\"");
+      const char *fontes = valorColecoes(pf, "\"sources\"");
+      if (!fontes) fontes = valorColecoes(pf, "\"catalogSources\"");
       if (!fontes) fontes = valorColecoes(pf, "\"catalog_sources\"");
-      if (!fontes) fontes = valorColecoes(pf, "\"sources\"");
       if (!id[0] || !titulo[0] || !arrayCompleto(fontes)) return 0;
     }
   }
