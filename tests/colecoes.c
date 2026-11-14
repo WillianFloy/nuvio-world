@@ -72,7 +72,7 @@ int main(void) {
   puts("ok  catalogSources prevalece quando sources so tem provedores externos");
 
   // catalogSources vazio e explicito: nao deve cair em sources (TMDB/Trakt).
-  assert(col_definir_json("{\\"collections\\":[{\\"id\\":\\"empty-projection\\",\\"title\\":\\"Empty projection\\",\\"folders\\":[{\\"id\\":\\"f\\",\\"title\\":\\"F\\",\\"sources\\":[{\\"provider\\":\\"tmdb\\",\\"tmdbSourceType\\":\\"DISCOVER\\",\\"title\\":\\"Popular\\"},{\\"provider\\":\\"trakt\\",\\"traktListId\\":123,\\"title\\":\\"List\\"}],\\"catalogSources\\":[]}]}]}") == 1);
+  assert(col_definir_json("{\"collections\":[{\"id\":\"empty-projection\",\"title\":\"Empty projection\",\"folders\":[{\"id\":\"f\",\"title\":\"F\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Popular\"},{\"provider\":\"trakt\",\"traktListId\":123,\"title\":\"List\"}],\"catalogSources\":[]}]}]}") == 1);
   {
     ColDiagnostico d;
     col_snapshot_diagnostico(&d);
