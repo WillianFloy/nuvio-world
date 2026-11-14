@@ -566,6 +566,13 @@ static const char *baseDaFonte(const ColSource *s) {
   if (!col_fonte_base_ativa(s, base, sizeof base)) base[0] = 0;
   return base;
 }
+static int fonteDisponivel(const ColSource *s, const char *base) {
+  if (!s) return 0;
+  if (!strcmp(s->prov, "tmdb")) return desc_chave_tmdb()[0] != 0;
+  if (!strcmp(s->prov, "trakt")) return nuvem_trakt_cliente()[0] != 0;
+  if (s->prov[0]) return 0;
+  return base && base[0] && desc_catalogo_resolver(base, s->type, s->catId, NULL);
+}
 static const char *mensagemSemFonte(const ColSource *s) {
   if (s && !strcmp(s->prov, "tmdb"))
     return i18n("O TMDB não está configurado nesta TV.");
@@ -605,8 +612,16 @@ static void carregarFonte(void) {
   toqueLivre = 0;
   toquerol_limpar(&toqueAbas);
 #endif
-  // No World, Collections so consultam catalogos de addons.
-  if (s->prov[0]) { semFonte = 1; desc_vertudo_fechar(); return; }
+  // TMDB e Trakt sao fontes nativas da Collection, nao catalogos de addon.
+  // O conteudo e buscado pelos resolvedores diretos que ja atendem o Ver Tudo.
+  if (s->prov[0]) {
+    snprintf(catalogId, sizeof catalogId, "%s", s->title);
+    semFonte = !fonteDisponivel(s, base);
+    if (semFonte) { desc_vertudo_fechar(); return; }
+    if (lay == VT_LAY_VITRINE) desc_vertudo_fonte_desde(s, vitPaginaFonte());
+    else desc_vertudo_fonte(s);
+    return;
+  }
   // BASE VAZIA NAO VIRA PEDIDO.
   //
   // desc_vertudo_filtro so recusa ponteiro NULO, e `base` e um vetor dentro da
@@ -1731,7 +1746,7 @@ static void vitCarregar(Uint32 agora) {
     // TMDB e Trakt sao fontes reais da Collection, nao addons ausentes.
     // A disponibilidade do servico e verificada abaixo; se estiver configurado,
     // a mesma fila limitada carrega a fonte sem transforma-la em uma linha vazia.
-    int desligada = !base[0] || !desc_catalogo_resolver(base, s->type, s->catId, NULL);
+    int desligada = !fonteDisponivel(s, base);
     if (vitDesligada[r] != desligada) {
       if (vitManualFonte == r) vitManualFonte = -1;
       vitManualPendente[r] = 0;
@@ -1741,7 +1756,7 @@ static void vitCarregar(Uint32 agora) {
       vitLin[r].n = vitLin[r].brutoN = vitLin[r].extraN = 0;
       vitLin[r].mais = 0; vitLin[r].pagina = 0;
       vitLin[r].estado = desligada ? VIT_VAZIA : VIT_PEND;
-      vitLin[r].semFonte = 0; vitRetentarEm[r] = 0;
+      vitLin[r].semFonte = desligada; vitRetentarEm[r] = 0;
       vitProjetoSujo = 1;
     }
     // Desligada na conta: vazia, sem rede nem tentativa repetida. Religar
@@ -1751,7 +1766,7 @@ static void vitCarregar(Uint32 agora) {
     if (p && __atomic_load_n(&p->pronto, __ATOMIC_ACQUIRE)) {
       vitPedidos[r] = NULL;
       if (p->geracao == vitGeracao && p->sessao == vitSessao && p->atual &&
-          (p->base[0] && desc_catalogo_resolver(p->base, p->fonte.type, p->fonte.catId, NULL)))
+          fonteDisponivel(&p->fonte, p->base))
         vitGuardarInicial(r, p);
       else {
         vitLin[r].estado = VIT_PEND;
@@ -1765,7 +1780,7 @@ static void vitCarregar(Uint32 agora) {
     if (l->estado != VIT_PEND) continue;
     if (vitRetentarEm[r] && (Sint32)(agora - vitRetentarEm[r]) < 0) continue;
     vitRetentarEm[r] = 0;
-    int disponivel = base[0] && desc_catalogo_resolver(base, s->type, s->catId, NULL);
+    int disponivel = fonteDisponivel(s, base);
     if (!disponivel) {
       l->estado = VIT_VAZIA; l->semFonte = 1; continue;
     }
@@ -1879,8 +1894,10 @@ static int vitVoltarTudo(void) {
 }
 
 static int primeiraFonte(void) {
-  for (int i = 0; i < collection->nSources; i++)
-    if (!collection->sources[i].prov[0] && baseDaFonte(&collection->sources[i])[0]) return i;
+  for (int i = 0; i < collection->nSources; i++) {
+    const ColSource *s = &collection->sources[i];
+    if (s->prov[0] || baseDaFonte(s)[0]) return i;
+  }
   return 0;
 }
 // A EXIBICAO ESCOLHIDA no trilho aberto, e ela fica gravada para esta pasta.
