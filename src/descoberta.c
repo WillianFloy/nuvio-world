@@ -9453,7 +9453,10 @@ int desc_colecao_inicial(const ColSource *fonte, const char *base,
                            !raw ? "empty_page" : !novos ? "no_new_items" : "ok");
     free(corpo);
     if (prov == 2 && raw < 40) fim = 1;
-    r.mais = paginavel && raw > 0 && novos > 0 && total < teto && !fim;
+    // TMDB pagina por total_pages; Trakt por lote de 40. Addons usam
+    // o suporte a skip declarado no manifesto.
+    int podeMais = prov == 1 || prov == 2 ? !fim : paginavel;
+    r.mais = podeMais && raw > 0 && novos > 0 && total < teto && !fim;
     r.pagina = prov ? pagina + (r.mais ? 1 : 0) : skip + raw;
     if (!raw || !novos || total >= teto || fim || !ocultar || visiveis) break;
     skip += raw;
