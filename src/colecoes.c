@@ -753,9 +753,12 @@ static int lerColecaoWeb(const char *c, const char *ce) {
     // No World, Collection usa somente catalogos de addons. catalogSources
     // e a projecao especifica dessas fontes e tem prioridade; sources e o
     // fallback para exports antigos que nao trazem essa projecao.
+    // catalogSources e uma projecao derivada de fontes addon. Se a chave
+    // existe e esta vazia, isso e intencional: nao ressuscitar TMDB/Trakt de
+    // sources. O fallback so vale para formatos antigos sem a chave.
     const char *src = js_array(p, pe, "catalogSources");
-    if (!src || *src == ']') src = js_array(p, pe, "catalog_sources");
-    if (!src || *src == ']') src = js_array(p, pe, "sources");
+    if (!src) src = js_array(p, pe, "catalog_sources");
+    if (!src) src = js_array(p, pe, "sources");
     for (const char *s = src, *se = NULL; s && v->nSources < COL_SOURCE_MAX; s = js_prox(se)) {
       se = js_fim(s); ColSource *a = &v->sources[v->nSources]; char prov[16] = "";
       ultimoDiagnostico.fontes++;
