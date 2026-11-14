@@ -216,10 +216,12 @@ int main(void) {
     puts("ok  collection com 249 pastas e uma pasta com 52 fontes preservada por inteiro");
   }
 
-  // Fontes diretas TMDB/Trakt nao sao fontes validas de Collection no World.
-  assert(col_definir_json("{\"collections\":[{\"id\":\"providers\",\"title\":\"Providers\",\"folders\":[{\"id\":\"p\",\"title\":\"Providers\",\"sources\":[{\"provider\":\"tmdb\",\"title\":\"Popular\",\"tmdbSourceType\":\"DISCOVER\"},{\"provider\":\"trakt\",\"title\":\"Trending\",\"traktListId\":123}]}]}]}") == 0);
-  assert(col_n() == 0);
-  puts("ok  fontes TMDB/Trakt rejeitadas nas Collections");
+  // Fontes diretas TMDB/Trakt sao fontes validas mesmo sem addon na pasta.
+  assert(col_definir_json("{\"collections\":[{\"id\":\"providers\",\"title\":\"Providers\",\"folders\":[{\"id\":\"p\",\"title\":\"Providers\",\"sources\":[{\"provider\":\"tmdb\",\"title\":\"Popular\",\"tmdbSourceType\":\"DISCOVER\"},{\"provider\":\"trakt\",\"title\":\"Trending\",\"traktListId\":123}]}]}]}") == 1);
+  assert(col_n() == 1 && col_folder(0)->nSources == 2);
+  assert(col_fonte_utilizavel(&col_folder(0)->sources[0]) &&
+         col_fonte_utilizavel(&col_folder(0)->sources[1]));
+  puts("ok  pastas formadas so por TMDB/Trakt continuam validas");
 
   // string escapada, como parseRemoteCollectionsPayload aceita
   const char *esc = "{\"collections_json\":\"{\\\"collections\\\":[{\\\"id\\\":\\\"c9\\\",\\\"title\\\":\\\"T\\\",\\\"folders\\\":[{\\\"id\\\":\\\"g\\\",\\\"title\\\":\\\"G\\\",\\\"sources\\\":[{\\\"addonBaseUrl\\\":\\\"https://a\\\",\\\"type\\\":\\\"movie\\\",\\\"catalogId\\\":\\\"k\\\"}]}]}]}\"}";
