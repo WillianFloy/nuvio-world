@@ -17,10 +17,10 @@
 #define COL_FONTES_MAX 4096
 typedef struct {
   char title[128], base[600], type[8], catId[96], genre[96]; char addonId[96];
-  // Campo legado: o World descarta fontes diretas de TMDB/Trakt. As fontes
-  // validas de Collection sao sempre catalogos de addons instalados e ativos.
+  // provider da fonte: vazio/addon para catalogo Stremio, tmdb ou trakt para
+  // provedores diretos definidos no editor do Nuvio original.
   char prov[8];
-  char tmdbTipo[16];   // campos preservados apenas para compatibilidade com JSON antigo
+  char tmdbTipo[16];   // DISCOVER|LIST|COLLECTION|COMPANY|NETWORK|PERSON|DIRECTOR
   long tmdbId;
   char midia[8];
   char ordenar[48];
@@ -146,6 +146,9 @@ unsigned col_revisao(void);
 int col_tem_conta(void);
 const ColFolder *col_folder(int i);
 int col_fonte_base_ativa(const ColSource *fonte, char *base, unsigned tam);
+// 1 para fonte de addon ativa ou fonte TMDB/Trakt estruturalmente valida.
+// A configuracao do servico e verificada ao abrir a pasta, nao ao exibi-la na Home.
+int col_fonte_utilizavel(const ColSource *fonte);
 // IMPRESSAO DA ESTRUTURA das colecoes para o snapshot da Home (homeestado.c):
 // grupo, id e fontes de cada pasta, SEM arte (URL de arte muda sem criar
 // fileira nova). Calculada inteira sob a trava das colecoes (#203): pode ser
