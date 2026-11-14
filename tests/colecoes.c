@@ -71,7 +71,10 @@ int main(void) {
   assert(col_fonte_utilizavel(&f->sources[0]) &&
          col_fonte_utilizavel(&f->sources[1]) &&
          col_fonte_utilizavel(&f->sources[2]));
-  puts("ok  sources conserva TMDB, Trakt e addon mesmo com catalogSources separado");
+  { int indices[4] = {-1,-1,-1,-1};
+    assert(col_grupo("Mix", indices, 4) == 1 && indices[0] == 0);
+  }
+  puts("ok  sources conserva TMDB, Trakt e addon; pasta valida aparece no grupo da Home");
 
   // catalogSources vazio so diz que nao ha fontes de addon. Nao apaga as
   // fontes TMDB/Trakt presentes na lista completa da pasta.
