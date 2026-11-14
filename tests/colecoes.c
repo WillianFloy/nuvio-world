@@ -171,15 +171,23 @@ int main(void) {
   }
 
 
-  // Collections compostas apenas por fontes TMDB/Trakt nao existem no World.
+  // Pastas TMDB puras tambem entram na Home; os addons nao sao pre-requisito.
+  // "Novos Filmes/Series" conserva a regra de nao mostrar lancamentos futuros.
   const char *descobrir =
     "{\"collections\":[{\"id\":\"d\",\"title\":\"Descobrir\",\"folders\":["
     "{\"id\":\"nf\",\"title\":\"Novos Filmes\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"mediaType\":\"MOVIE\"}]},"
     "{\"id\":\"ns\",\"title\":\"Novas Séries\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"mediaType\":\"TV\"}]},"
     "{\"id\":\"alta\",\"title\":\"Filmes em Alta\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"mediaType\":\"MOVIE\"}]},"
-    "{\"id\":\"rede\",\"title\":\"Rede de TV\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"NETWORK\",\"mediaType\":\"MOVIE\",\"tmdbId\":123}]}]}]}";
-  assert(col_definir_json(descobrir) == 0 && col_n() == 0);
-  puts("ok  pastas sem addon ativo sao descartadas, inclusive TMDB/Trakt");
+    "{\"id\":\"rede\",\"title\":\"Rede de TV\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"NETWORK\",\"mediaType\":\"TV\",\"tmdbId\":123}]}]}]}";
+  assert(col_definir_json(descobrir) == 4 && col_n() == 4);
+  { int indices[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
+    assert(col_grupo("Descobrir", indices, 8) == 4);
+    assert(col_folder(indices[0])->sources[0].somenteLancados == 1);
+    assert(col_folder(indices[1])->sources[0].somenteLancados == 1);
+    assert(col_folder(indices[2])->sources[0].somenteLancados == 0);
+    assert(col_folder(indices[3])->sources[0].prov[0] == 't');
+  }
+  puts("ok  colecoes TMDB entram no grupo da Home sem addons; regra de lancamentos preservada");
 
   // A capacidade real usada pela collection do usuario: 249 pastas numa
   // fileira e ate 52 fontes dentro de uma pasta (o codigo antigo parava em 32).
