@@ -20,8 +20,10 @@ static int fonteAtiva(const ColSource *s) {
 }
 static int pastaTemFonteAtiva(const ColFolder *f) {
   if (!f) return 0;
+  // TMDB/Trakt tambem sustentam uma pasta na Home. A disponibilidade da chave
+  // do servico e mostrada ao abrir; nao deve apagar a colecao da lista.
   for (int i = 0; i < f->nSources; i++)
-    if (fonteAtiva(&f->sources[i])) return 1;
+    if (col_fonte_utilizavel(&f->sources[i])) return 1;
   return 0;
 }
 static int chaveFonte(const ColSource *s, char *dst) {
