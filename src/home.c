@@ -4775,8 +4775,12 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   }
 
   if (sinopse[0] && (!(heroCompactoTelefone() || vitTeto > 0.0f) || hSin > 0.0f) && aCopy > 0.004f)
+  { // Vitrine: a sinopse cortada some de cima para baixo em vez de terminar seco.
+    if (vitTeto > 0.0f) txt_corte_esvanecer(1);
     txt_bloco_corta(heroSinEstilo(), sinopse, 255, 255, 255, x, ySin, sinW,
                     heroSinEntrelinha(), aCopy, sinLinhas);
+    txt_corte_esvanecer(0);
+  }
   return copy.action;
 }
 

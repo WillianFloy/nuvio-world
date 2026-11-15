@@ -1,6 +1,7 @@
 #ifdef NV_ANDROID
 #include <unistd.h>   // access (fontes de /system/fonts)
 #endif
+#include "cortefade.h"
 #include "text.h"
 #include "sdlcompat.h"
 #include "dobra.h"
@@ -2163,6 +2164,22 @@ TxtLinha txt_linha_corta_enfase(TxtEstilo estilo, const char *s, int r, int g,
   return cortaFamilia(estilo, s, r, g, b, a, maxW, familia, enfase);
 }
 
+// Liga o esvanecer vertical da linha CORTADA (a que termina em reticencias): ela
+// some de cima para baixo em vez de terminar seco. So a linha cortada; texto que
+// cabe inteiro nao muda. Quem liga desliga logo depois.
+static int corteEsvanece;
+void txt_corte_esvanecer(int ligado) { corteEsvanece = ligado != 0; }
+static void desenhaLinhaCorte(TxtLinha l, float x, float y, float alpha) {
+  if (!corteEsvanece || l.h <= 0) { txt_desenhar_alpha(l, x, y, alpha); return; }
+  float h = (float)l.h;
+  for (float t0 = 0.0f; t0 < h; t0 += CF_FAIXA_PX) {
+    float fh = fminf(CF_FAIXA_PX, h - t0), a = alpha * cortefade_alfa((t0 + fh * 0.5f) / h);
+    if (a <= 0.004f) break;
+    gfx_recorte(x - 4.0f, y + t0, (float)l.w + 8.0f, fh);
+    txt_desenhar_alpha(l, x, y, a);
+  }
+  gfx_sem_recorte();
+}
 static void desenhaBlocoLinha(TxtEstilo estilo, const char *s, int r, int g, int b,
                               float x, float y, float larg, float alpha,
                               int reticencias) {
@@ -2184,7 +2201,7 @@ static void desenhaBlocoLinha(TxtEstilo estilo, const char *s, int r, int g, int
       char teste[512];
       snprintf(teste, sizeof teste, "%s\xe2\x80\xa6", fim);
       if (txt_largura(estilo, teste) <= larg) {
-        txt_desenhar_alpha(txt_linha(estilo, teste, r, g, b, 255), x, y, alpha);
+        desenhaLinhaCorte(txt_linha(estilo, teste, r, g, b, 255), x, y, alpha);
         return;
       }
       // Remove palavras completas primeiro; uma unica palavra longa cai para
@@ -2201,7 +2218,7 @@ static void desenhaBlocoLinha(TxtEstilo estilo, const char *s, int r, int g, int
       if (!n) break;
     }
     { TxtLinha l = txt_linha(estilo, "\xe2\x80\xa6", r, g, b, 255);
-      txt_desenhar_alpha(l, x, y, alpha); }
+      desenhaLinhaCorte(l, x, y, alpha); }
   }
 }
 

@@ -360,6 +360,8 @@ float txt_bloco(TxtEstilo estilo, const char *s, int r, int g, int b,
 // Igual a txt_bloco, mas indica com reticencias quando `maxLinhas` omite texto.
 // Uma palavra maior que a linha tambem e cortada com reticencias sem estourar
 // a largura. maxLinhas <= 0 mantem o comportamento sem limite de linhas.
+// Liga/desliga o esvanecer da linha cortada (reticencias) de txt_bloco_corta.
+void txt_corte_esvanecer(int ligado);
 float txt_bloco_corta(TxtEstilo estilo, const char *s, int r, int g, int b,
                       float x, float y, float larg, float leading,
                       float alpha, int maxLinhas);
