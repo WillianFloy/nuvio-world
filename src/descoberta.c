@@ -8983,25 +8983,39 @@ static void tmdbFiltros(char *q, size_t n, const char *filtros, int isTv,
   const char *fim = filtros ? filtros + strlen(filtros) : NULL;
   int empresaForcada = tipoFonte && !strcasecmp(tipoFonte, "COMPANY");
   int redeForcada = tipoFonte && !strcasecmp(tipoFonte, "NETWORK");
-  static const struct { const char *js, *url; int soTv; } M[] = {
+  // tipo: 0 texto, 1 texto so para TV, 2 NUMERO. O editor (normalizeTmdbFilters
+  // do web, TmdbCollectionFilters do Original) grava nota, votos e duracao como
+  // numero JSON; js_texto so le strings e os descartava calado.
+  static const struct { const char *js, *url; int tipo; } M[] = {
     {"withGenres","with_genres",0}, {"withoutGenres","without_genres",0},
-    {"voteAverageGte","vote_average.gte",0}, {"voteAverageLte","vote_average.lte",0},
-    {"voteCountGte","vote_count.gte",0},
+    {"voteAverageGte","vote_average.gte",2}, {"voteAverageLte","vote_average.lte",2},
+    {"voteCountGte","vote_count.gte",2},
     {"withOriginalLanguage","with_original_language",0},
     {"withOriginCountry","with_origin_country",0},
     {"withKeywords","with_keywords",0}, {"withoutKeywords","without_keywords",0},
     {"withCompanies","with_companies",0}, {"withoutCompanies","without_companies",0},
     {"withNetworks","with_networks",1},
-    {"withRuntimeGte","with_runtime.gte",0}, {"withRuntimeLte","with_runtime.lte",0},
+    {"withRuntimeGte","with_runtime.gte",2}, {"withRuntimeLte","with_runtime.lte",2},
   };
   char v[128];
   size_t u;
   if (filtros && *filtros == '{') {
     for (u = 0; u < sizeof M / sizeof *M; u++) {
-      if (M[u].soTv && !isTv) continue;
+      if (M[u].tipo == 1 && !isTv) continue;
       // COMPANY/NETWORK usam o ID da fonte; nao duplicar o filtro equivalente.
       if (empresaForcada && !strcmp(M[u].js, "withCompanies")) continue;
       if (redeForcada && !strcmp(M[u].js, "withNetworks")) continue;
+      if (M[u].tipo == 2) {
+        // Numero JSON; texto numerico ("6.5") tambem vale, como no web.
+        double valor = js_num(filtros, fim, M[u].js, -1.0);
+        if (valor < 0 && js_texto(filtros, fim, M[u].js, v, sizeof v) && v[0]) {
+          char *resto = NULL; double lido = strtod(v, &resto);
+          if (resto && resto != v && !*resto) valor = lido;
+        }
+        if (valor >= 0)
+          snprintf(q + strlen(q), n - strlen(q), "&%s=%g", M[u].url, valor);
+        continue;
+      }
       if (js_texto(filtros, fim, M[u].js, v, sizeof v) && v[0])
         snprintf(q + strlen(q), n - strlen(q), "&%s=%s", M[u].url, v);
     }
@@ -9091,9 +9105,10 @@ static const char *tmdbMontarUrl(const ColSource *f, int pagina,
       snprintf(q + strlen(q), sizeof q - strlen(q),
                "&with_networks=%ld&first_air_date.lte=%s&with_status=0|3|4",
                f->tmdbId, limite);
-    } else if (f->tmdbId > 0)
-      snprintf(q + strlen(q), sizeof q - strlen(q), "&%s=%ld",
-               isTv ? "with_networks" : "with_companies", f->tmdbId);
+    }
+    // DISCOVER ignora tmdbId, como resolveDiscover do Original: o editor web
+    // conserva o id ao trocar o tipo da fonte, e somar with_networks/
+    // with_companies aqui restringia a pasta a uma rede/empresa errada.
     snprintf(url, n, "%s/discover/%s?api_key=%s&language=%s&page=%d%s",
              TMDB, mt, chave, desc_tmdb_idioma(), pagina, q);
     return "results";

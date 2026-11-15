@@ -471,6 +471,37 @@ int main(void) {
     col_nome_fonte(&s, "Top 2024", n, sizeof n); assert(!strcmp(n, "Top 2024"));
     puts("ok  nome da aba: titulo da conta, senao manifesto, nunca id cru"); }
 
+  // FILTROS TMDB COMPACTADOS: o snapshot do site traz nulls e espacos.
+  { char d[384], grande[2000];
+    assert(col_filtros_compactar("{\"year\": null, \"withGenres\": \"18,10765\", \"voteAverageGte\": 6.5, \"x\": true}", d, sizeof d));
+    assert(!strcmp(d, "{\"withGenres\":\"18,10765\",\"voteAverageGte\":6.5,\"x\":true}"));
+    assert(col_filtros_compactar("{ }", d, sizeof d) && !strcmp(d, "{}"));
+    assert(col_filtros_compactar("null", d, sizeof d) && !strcmp(d, "{}"));
+    assert(col_filtros_compactar("\"\"", d, sizeof d) && !strcmp(d, "{}"));
+    // String com o JSON dentro (o web aceita) e espacos/escapes DENTRO de strings preservados.
+    assert(col_filtros_compactar("\"{\\\"withKeywords\\\": \\\"a b\\\\\\\"c\\\", \\\"year\\\": null}\"", d, sizeof d));
+    assert(!strcmp(d, "{\"withKeywords\":\"a b\\\"c\"}"));
+    // Malformado ou longo demais: falha e deixa vazio (nunca meio objeto).
+    assert(!col_filtros_compactar("{\"withGenres\": }", d, sizeof d) && !d[0]);
+    assert(!col_filtros_compactar("[1,2]", d, sizeof d) && !d[0]);
+    { size_t n = 0; n += snprintf(grande + n, sizeof grande - n, "{\"withKeywords\":\"");
+      while (n < 900) grande[n++] = '1';
+      snprintf(grande + n, sizeof grande - n, "\"}"); }
+    assert(!col_filtros_compactar(grande, d, sizeof d) && !d[0]);
+    // Na conta: a fonte com filtro que nao cabe SAI (com diagnostico); a outra fica.
+    char conta[3000];
+    snprintf(conta, sizeof conta,
+      "{\"collections\":[{\"id\":\"fx\",\"title\":\"Filtros\",\"folders\":[{\"id\":\"p\",\"title\":\"P\",\"sources\":["
+      "{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Longo\",\"filters\":%s},"
+      "{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Curto\",\"filters\":{\"withGenres\": \"16\", \"year\": null}}]}]}]}",
+      grande);
+    assert(col_definir_json(conta) == 1);
+    const ColFolder *pf = col_folder(0);
+    assert(pf && pf->nSources == 1 && !strcmp(pf->sources[0].title, "Curto"));
+    assert(!strcmp(pf->sources[0].filtros, "{\"withGenres\":\"16\"}"));
+    ColDiagnostico dg; col_snapshot_diagnostico(&dg);
+    assert(dg.fontesFiltrosInvalidos == 1 && dg.pastasValidas == 1);
+    puts("ok  filtros TMDB do site: compactados, inteiros ou a fonte sai"); }
   puts("colecoes: tudo ok");
   return 0;
 }

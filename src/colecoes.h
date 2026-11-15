@@ -1,5 +1,6 @@
 #ifndef NV_COLECOES_H
 #define NV_COLECOES_H
+#include <stddef.h>
 /* TETOS (#255). Uma conta do Xperience chega a ~300 pastas e ~600 fontes em
    7 colecoes; o teto antigo de 256 pastas cortava a sexta colecao no meio e
    jogava a setima fora, e as fontes delas viravam fileiras soltas na Home.
@@ -26,6 +27,9 @@ typedef struct {
   char ordenar[48];
   char ordem[8];
   long traktLista;
+  // Objeto "filters" do TMDB ja COMPACTADO (sem espacos e sem membros null).
+  // O snapshot do site grava as 18 chaves com null e o jsonb devolve com
+  // ", "/": " (~430 bytes): cru nao cabia e a fonte virava discover sem filtro.
   char filtros[384];
   /* 1 nas fontes TMDB das pastas Descobrir / Novos Filmes e Novas Séries:
      limita a consulta ao dia atual para nao mostrar titulos futuros. */
@@ -137,7 +141,14 @@ typedef struct {
   int pastas, pastasValidas, pastasSemFonte, pastasSemTitulo;
   int fontes, fontesValidas, fontesNaoAddon, fontesIncompletas;
   int fontesSemIdentidade, fontesSemTipo, fontesSemCatalogId;
+  // Fontes TMDB cujo "filters" nao pode ser lido inteiro: descartadas, porque
+  // um discover sem os filtros mostraria conteudo de outra categoria.
+  int fontesFiltrosInvalidos;
 } ColDiagnostico;
+// Compacta um objeto JSON raso de filtros: tira espacos fora de strings e
+// membros com valor null. Aceita o objeto como texto JSON (string). 1 se o
+// resultado coube em `tam`; 0 deixa dst vazio.
+int col_filtros_compactar(const char *bruto, char *dst, size_t tam);
 void col_snapshot_diagnostico(ColDiagnostico *saida);
 // Muda sempre que o conjunto de pastas muda. Quem decide remontar a tela deve
 // olhar ISTO e nao col_n(): trocar N pastas por outras N mantem o numero.

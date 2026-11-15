@@ -682,6 +682,85 @@ void col_cor(const ColFolder *f,float *r,float *g,float *b) {
 // A base da fonte na MESMA forma de addons_base (nv_addon_base, addonurl.h):
 // sem /manifest.json nem barra final, com a query — e o que faz a comparacao
 // com a lista de addons e o pedido de catalogo (nv_addon_url) baterem.
+// Copia [p,f) para dst sem os espacos de fora das strings.
+static int filtrosCopiarValor(const char *p, const char *f, char *dst, size_t tam, size_t *n) {
+  int emTexto = 0;
+  for (; p < f; p++) {
+    char c = *p;
+    if (emTexto) {
+      if (c == '\\' && p + 1 < f) {
+        if (*n + 2 >= tam) return 0;
+        dst[(*n)++] = c; dst[(*n)++] = *++p; continue;
+      }
+      if (c == '"') emTexto = 0;
+    } else if ((unsigned char)c <= ' ') continue;
+    else if (c == '"') emTexto = 1;
+    if (*n + 1 >= tam) return 0;
+    dst[(*n)++] = c;
+  }
+  return !emTexto;
+}
+int col_filtros_compactar(const char *bruto, char *dst, size_t tam) {
+  char texto[4096];
+  const char *p, *fim;
+  size_t n = 0;
+  int membros = 0;
+  if (!dst || tam < 3) return 0;
+  dst[0] = 0;
+  if (!bruto) return 0;
+  while (*bruto && (unsigned char)*bruto <= ' ') bruto++;
+  // O web aceita "filters" serializado como string JSON: decodifica e segue.
+  if (*bruto == '"') {
+    // js_cadeia devolve 0 tambem para "" (texto vazio = sem filtros, como no web).
+    texto[0] = 0;
+    if (!js_cadeia(bruto, texto, sizeof texto) && strncmp(bruto, "\"\"", 2)) return 0;
+    bruto = texto;
+    while (*bruto && (unsigned char)*bruto <= ' ') bruto++;
+  }
+  if (!*bruto || !strncmp(bruto, "null", 4)) { snprintf(dst, tam, "{}"); return 1; }
+  if (*bruto != '{' || !(fim = js_fim(bruto)) || fim[-1] != '}') return 0;
+  dst[n++] = '{';
+  p = bruto + 1;
+  for (;;) {
+    const char *k, *kf, *v, *vf;
+    while (p < fim && (unsigned char)*p <= ' ') p++;
+    if (p >= fim || *p == '}') break;
+    if (*p != '"') { dst[0] = 0; return 0; }
+    k = p++;
+    while (p < fim && *p != '"') { if (*p == '\\' && p + 1 < fim) p++; p++; }
+    if (p >= fim) { dst[0] = 0; return 0; }
+    kf = ++p;
+    while (p < fim && (unsigned char)*p <= ' ') p++;
+    if (p >= fim || *p++ != ':') { dst[0] = 0; return 0; }
+    while (p < fim && (unsigned char)*p <= ' ') p++;
+    v = p;
+    if (*p == '{' || *p == '[') { vf = js_fim(p); if (!vf || vf > fim) { dst[0] = 0; return 0; } }
+    else if (*p == '"') {
+      p++;
+      while (p < fim && *p != '"') { if (*p == '\\' && p + 1 < fim) p++; p++; }
+      if (p >= fim) { dst[0] = 0; return 0; }
+      vf = p + 1;
+    } else {
+      while (p < fim && *p != ',' && *p != '}') p++;
+      vf = p;
+      while (vf > v && (unsigned char)vf[-1] <= ' ') vf--;
+    }
+    p = vf;
+    while (p < fim && (unsigned char)*p <= ' ') p++;
+    if (p < fim && *p == ',') p++;
+    // null e o "nao configurado" do editor: igual a chave ausente.
+    if (vf - v == 4 && !strncmp(v, "null", 4)) continue;
+    if (vf == v) { dst[0] = 0; return 0; }
+    if (membros++ && n + 1 < tam) dst[n++] = ',';
+    if (!filtrosCopiarValor(k, kf, dst, tam, &n) || n + 1 >= tam) { dst[0] = 0; return 0; }
+    dst[n++] = ':';
+    if (!filtrosCopiarValor(v, vf, dst, tam, &n)) { dst[0] = 0; return 0; }
+  }
+  if (n + 2 > tam) { dst[0] = 0; return 0; }
+  dst[n++] = '}'; dst[n] = 0;
+  return 1;
+}
+
 static void tirarManifest(char *base) {
   char t[NV_ADDON_URL_MAX];
   nv_addon_base(base, t, sizeof t);
@@ -797,7 +876,17 @@ static int lerColecaoWeb(const char *c, const char *ce) {
         js_texto(s, se, "mediaType", a->midia, sizeof a->midia);
         if (!a->midia[0]) snprintf(a->midia, sizeof a->midia, "MOVIE");
         js_texto(s, se, "sortBy", a->ordenar, sizeof a->ordenar);
-        js_bruto(s, se, "filters", a->filtros, sizeof a->filtros);
+        // FILTROS INTEIROS OU NADA. Um DISCOVER que perde os filtros vira o
+        // "populares" do TMDB: conteudo fora da categoria e abas iguais entre si.
+        if (js_tem(s, se, "filters")) {
+          char bruto[4096];
+          if (!js_bruto(s, se, "filters", bruto, sizeof bruto) ||
+              !col_filtros_compactar(bruto, a->filtros, sizeof a->filtros)) {
+            printf("[colecoes] %s: filtros TMDB da fonte \"%s\" ilegiveis ou longos demais: fonte descartada\n",
+                   v->title[0] ? v->title : "pasta", a->title[0] ? a->title : "TMDB");
+            fPulProvedor++; ultimoDiagnostico.fontesFiltrosInvalidos++; continue;
+          }
+        }
         a->somenteLancados = pastaDescobertaSomenteLancados(group, v->title);
         if (!a->title[0])
           snprintf(a->title, sizeof a->title, "%s", a->tmdbTipo[0] ? a->tmdbTipo : "TMDB");
@@ -1239,12 +1328,12 @@ static int definirJson(const char *json) {
            fPrimeiraPulada[0] ? " | primeira: " : "", fPrimeiraPulada);
   printf("[colecoes] diagnostico do snapshot: %d colecao(oes), %d pasta(s), %d fonte(s), "
          "%d fonte(s) completas, %d incompletas (identidade %d, tipo %d, catalogId %d), "
-         "%d nao-addon, %d pasta(s) validas\n",
+         "%d nao-addon, %d com filtros TMDB invalidos, %d pasta(s) validas\n",
          ultimoDiagnostico.colecoes, ultimoDiagnostico.pastas, ultimoDiagnostico.fontes,
          ultimoDiagnostico.fontesValidas, ultimoDiagnostico.fontesIncompletas,
          ultimoDiagnostico.fontesSemIdentidade, ultimoDiagnostico.fontesSemTipo,
          ultimoDiagnostico.fontesSemCatalogId, ultimoDiagnostico.fontesNaoAddon,
-         ultimoDiagnostico.pastasValidas);
+         ultimoDiagnostico.fontesFiltrosInvalidos, ultimoDiagnostico.pastasValidas);
   if (nConta && antigas) {
     int casadas = 0;
     for (int i = 0; i < count; i++) for (int j = 0; j < antes; j++) {

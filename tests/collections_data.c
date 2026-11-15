@@ -66,8 +66,29 @@ static char fixtureUrl[NV_ADDON_PEDIDO_MAX];
 static pthread_mutex_t fakeLock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t fakeCond=PTHREAD_COND_INITIALIZER;
 static int slowStarted,releaseSlow;
+static char tmdbUltimaUrl[2048];
+// Filtros como o Supabase devolve um snapshot salvo pelo editor web/site:
+// normalizeTmdbFilters grava as 18 chaves (nulls inclusive) e o jsonb do
+// Postgres devolve com ", " e ": ". Sao mais de 384 bytes.
+static const char *tmdbFiltrosWeb =
+  "\"year\": null, \"withGenres\": \"18\", \"watchRegion\": \"BR\", \"voteCountGte\": 50, "
+  "\"withKeywords\": null, \"withNetworks\": null, \"withCompanies\": null, "
+  "\"withoutGenres\": null, \"releaseDateGte\": null, \"releaseDateLte\": null, "
+  "\"voteAverageGte\": 6.5, \"voteAverageLte\": null, \"withoutKeywords\": null, "
+  "\"withoutCompanies\": null, \"withOriginCountry\": \"KR\", \"withWatchProviders\": \"8\", "
+  "\"withOriginalLanguage\": \"ko\", \"withoutWatchProviders\": null";
 char *rede_baixar(const char *url,int timeout) {
   (void)timeout;calls++;
+  if (strstr(url, "/discover/tv?")) {
+    snprintf(tmdbUltimaUrl, sizeof tmdbUltimaUrl, "%s", url);
+    int coreano = strstr(url, "with_origin_country=KR") != NULL;
+    int turco = strstr(url, "with_origin_country=TR") != NULL;
+    // 999 = discover SEM filtros: o conteudo "aleatorio" que a pasta mostrava.
+    const char *id = coreano ? "101" : turco ? "202" : "999";
+    char corpo[256];
+    snprintf(corpo, sizeof corpo, "{\"results\":[{\"id\":%s,\"name\":\"Pais %s\",\"poster_path\":\"/p.jpg\"}],\"page\":1,\"total_pages\":1}", id, id);
+    return strdup(corpo);
+  }
   if (strstr(url, "https://collection.invalid/")) {
     snprintf(fixtureUrl, sizeof fixtureUrl, "%s", url);
     fixtureStatus = 404;
@@ -304,5 +325,46 @@ int main(void) {
   assert(desc_vertudo_n() == 1 && desc_vertudo_item(0, &i) && !strcmp(i.tipo, "movie"));
   desc_vertudo_abrir("https://collection.invalid/addon?config=fixture", "series", "mixed"); waitDone();
   assert(desc_vertudo_n() == 1 && desc_vertudo_item(0, &i) && !strcmp(i.tipo, "series"));
+  // FILTROS TMDB DO SITE (snapshot web/jsonb, >384 bytes). Antes, js_bruto nao
+  // cabia em ColSource.filtros, o campo ficava vazio e as duas abas abaixo
+  // viravam o MESMO discover sem filtro (id 999): conteudo fora da categoria e
+  // pastas "duplicadas".
+  {
+    char conta[4096];
+    assert(strlen(tmdbFiltrosWeb) > 384);
+    snprintf(conta, sizeof conta,
+      "[{\"profile_id\": 1, \"collections_json\": [{\"id\": \"paises\", \"title\": \"Netflix\", \"folders\": [{"
+      "\"id\": \"dramas\", \"title\": \"Dramas\", \"sources\": ["
+      "{\"provider\": \"tmdb\", \"tmdbSourceType\": \"DISCOVER\", \"tmdbId\": null, \"title\": \"Coreanos\", \"mediaType\": \"TV\", \"sortBy\": \"popularity.desc\", \"filters\": {%s}},"
+      "{\"provider\": \"tmdb\", \"tmdbSourceType\": \"DISCOVER\", \"tmdbId\": null, \"title\": \"Turcos\", \"mediaType\": \"TV\", \"sortBy\": \"popularity.desc\", \"filters\": {%s}}"
+      "], \"catalogSources\": []}]}], \"updated_at\": \"2026-11-14T00:00:00+00:00\"}]",
+      tmdbFiltrosWeb, tmdbFiltrosWeb);
+    char *t = strstr(strstr(conta, "Turcos"), "\"KR\""); assert(t); memcpy(t + 1, "TR", 2);
+    t = strstr(strstr(conta, "Turcos"), "\"ko\""); assert(t); memcpy(t + 1, "tr", 2);
+    snprintf(tmdbChave, sizeof tmdbChave, "chave-de-teste");
+    assert(col_definir_json(conta) == 1);
+    const ColFolder *pasta = col_folder(0);
+    assert(pasta && pasta->nSources == 2);
+    // Compactado: sem nulls e sem espacos, cabe e mantem o que importa.
+    assert(strstr(pasta->sources[0].filtros, "\"withOriginCountry\":\"KR\""));
+    assert(!strstr(pasta->sources[0].filtros, "null"));
+    for (int aba = 0; aba < 2; aba++) {
+      desc_vertudo_fonte(&pasta->sources[aba]); waitDone();
+      assert(!desc_vertudo_erro() && desc_vertudo_n() == 1);
+      assert(desc_vertudo_item(0, &i) && !strcmp(i.imdb, aba ? "tmdb:202" : "tmdb:101"));
+    }
+    // Filtros NUMERICOS (voteCountGte/voteAverageGte) chegam como numero JSON.
+    assert(strstr(tmdbUltimaUrl, "&vote_count.gte=50"));
+    assert(strstr(tmdbUltimaUrl, "&vote_average.gte=6.5"));
+    assert(strstr(tmdbUltimaUrl, "&with_watch_providers=8") && strstr(tmdbUltimaUrl, "watch_region=BR"));
+    // DISCOVER com tmdbId residual (editor web) nao vira filtro de rede.
+    { ColSource d = pasta->sources[0]; d.tmdbId = 213;
+      desc_vertudo_fonte(&d); waitDone();
+      assert(!strstr(tmdbUltimaUrl, "with_networks=213") && !strstr(tmdbUltimaUrl, "with_companies=213")); }
+    // A Vitrine (leitor inicial independente) usa os mesmos filtros.
+    CatItem ini[2]; DescColecaoResultado res;
+    assert(desc_colecao_inicial(&pasta->sources[1], "", nv_perfil_sessao_ler(), ini, 2, &res));
+    assert(res.n == 1 && !strcmp(ini[0].imdb, "tmdb:202"));
+  }
   puts("collections data: PASS (retry, empty, stale tabs, encoded folder/Home/search/Vitrine catalogs, raw skip, types, addon identity)");
 }
