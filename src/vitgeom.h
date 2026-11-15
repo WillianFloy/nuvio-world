@@ -30,13 +30,6 @@ static inline float vitgeom_limite(float x0, float w, float passo, int n) {
 }
 // Folga do recorte dos dois lados da janela: cobre o anel de foco (anel px) mas
 // fica abaixo de metade do vao, para o cartao vizinho nunca entrar.
-// Fileira (ou cartao) do topo da janela quando o foco esta em `foco`: o foco sobe
-// para o topo, mas a rolagem PARA no fim — as ultimas `linhas` ficam todas a
-// vista, sem vao em branco abaixo da ultima.
-static inline int vitgeom_alvo_linha(int foco, int linhas, int total) {
-  int max = total > linhas ? total - linhas : 0;
-  if (foco < 0) foco = 0;
-  return foco > max ? max : foco; }
 static inline float vitgeom_folga(float anel, float w, float passo) {
   float meio = (passo - w) * 0.5f, f = anel + 2.0f;
   return f < meio ? f : meio;

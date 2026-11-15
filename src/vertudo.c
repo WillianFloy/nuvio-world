@@ -2004,30 +2004,13 @@ static float vitPasso(void) {
 }
 // Topo da primeira fileira: o do layout da Home (home_vitrine_topo).
 static float vitTopo(void) { return home_vitrine_topo(vitPasso()); }
-// Janela vertical da Vitrine (TV): do topo da primeira fileira ate a margem de
-// baixo, so com fileiras INTEIRAS (mesma regra das colunas, vitgeom_cabem). Nao
-// e a limitacao de dee757c05 (uma fileira e um terco da proxima): a janela vai
-// ate o pe da tela e cabe quantas fileiras couberem; a seguinte nao aparece
-// cortada pela borda. O D-pad desloca a fileira focada para o topo e a rolagem
-// para no fim (vitgeom_alvo_linha). No telefone a rolagem continua livre.
-#define VIT_MARGEM_BAIXO 40.0f   // igual ao vao entre fileiras
-static float vitConteudoH(void) {
-  float w, h, p, rot;
-  home_vitrine_medida(&w, &h, &p, &rot);
-  return VIT_TITULO_H + h + rot;
-}
-static int vitLinhasCabem(void) {
-  if (vtTelefone()) return VG_SEM_LIMITE;
-  return vitgeom_cabem(vitTopo(), NV_TELA_H - VIT_MARGEM_BAIXO, vitConteudoH(), vitPasso());
-}
+// Janela vertical da Vitrine (TV), como na referencia da Home: a fileira em foco
+// fica SEMPRE no mesmo ponto (topo), logo abaixo da sinopse, inclusive a ultima;
+// a janela vai do topo ate o pe da tela, entao a fileira seguinte espia embaixo
+// e nenhum cartaz e cortado por uma janela menor que a tela. A anterior some
+// acima de topo - 8 (o vao entre fileiras e maior). No telefone a rolagem e livre.
 static float vitAlturaViewport(void) {
-  float topo = vitTopo(), w, h, p, rot, fim;
-  int n = vitLinhasCabem();
-  if (n >= VG_SEM_LIMITE) return fmaxf(0.0f, NV_TELA_H - topo + 8.0f);
-  home_vitrine_medida(&w, &h, &p, &rot);
-  fim = topo + (n - 1) * vitPasso() + vitConteudoH() +
-        vitgeom_folga(fmaxf(NV_ANEL_FOCO, h * FOCO_ZOOM * 0.5f), vitConteudoH(), vitPasso());
-  return fmaxf(0.0f, fminf(fim, NV_TELA_H) - (topo - 8.0f));
+  return fmaxf(0.0f, NV_TELA_H - (vitTopo() - 8.0f));
 }
 
 // COLUNAS DA FILEIRA DA VITRINE (adaptativas): a conta esta em vitgeom.h (testada
@@ -2083,7 +2066,7 @@ static void vitAtualizar(float dt, Uint32 agora) {
       if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = -1; }
     } }
   home_vitrine_medida(&w, &h, &passo, &rot);
-  alvo = (float)(vtTelefone() ? vitFR : vitgeom_alvo_linha(vitFR, vitLinhasCabem(), vitN)) * vitPasso();
+  alvo = (float)vitFR * vitPasso();
 #ifdef NV_TOUCH_UI
   if (!vtTelefone()) {
     toquerol_limpar(&vitToqueY);

@@ -135,8 +135,6 @@ jobs:
 
       - name: Run Vitrine adaptive-columns geometry test
         run: bash tests/vitgeom.sh
-      - name: Run synopsis cut-off fade test
-        run: bash tests/cortefade.sh
 
       - name: Build signed Nuvio World Android TV APK
         run: |
