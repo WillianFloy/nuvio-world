@@ -2357,6 +2357,7 @@ int main(int argc, char **argv) {
     // de 3 s, entao aquilo carimbaria "primeiro quadro" tres vezes por minuto.
     { static int jaCarimbou;
       if (!jaCarimbou) { jaCarimbou = 1; nvPrimeiroQuadroFeito = 1; arranque_etapa("quadro-1"); marco("primeiro quadro na tela");
+        gfx_desfoque_aquecer();   // 2.0.34: o 1o desfoque custava 248 ms na entrada da Collection
         NV_ETAPA("pronto");
 #ifdef __EMSCRIPTEN__
         // Chegou: zera o contador de arranques falhados (tizen-shell.html).

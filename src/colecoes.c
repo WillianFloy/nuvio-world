@@ -5,6 +5,7 @@
 #include "rede.h"
 #include "js.h"
 #include "addons.h"
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,6 +114,9 @@ static unsigned long long assinatura(void) {
 // continuar vazio — mostrar o pacote ali seria mostrar as colecoes de outro.
 static char dirPacote[600];
 static int semConta;
+// O atalho do snapshot identico (definirJson) so vale se NADA local mudou desde
+// a ultima aplicacao: pacote, extras e a escolha de arte zeram isto.
+static int atalhoValido;
 static int contaAplicada;
 static void localiza(char *value,size_t cap,const char *dir) {
   if(!value[0]||strstr(value,"://")||value[0]=='/')return;
@@ -170,6 +174,7 @@ static int fontesValidas(const ColFolder *v) {
 }
 
 int col_extra_definir(const ColFolder *v, int n) {
+  atalhoValido = 0;
   int i, total = 0;
   ColSource *bloco, *velho;
   if (n < 0) n = 0;
@@ -602,6 +607,7 @@ static int arteEditorial(char *saida,size_t n,const char *dir,const char *sub,
 }
 
 static int carregarPacote(const char *dir) {
+  atalhoValido = 0;
   revisao++;
   semConta = 0;
   if (dir && dir != dirPacote) snprintf(dirPacote, sizeof dirPacote, "%s", dir);
@@ -1228,21 +1234,47 @@ int col_resposta_valida(const char *json) {
   return ok;
 }
 
+// TRAVA DE 800-900 MS NO FIO PRINCIPAL (2.0.34, log da TCL de 932 MB): os dois
+// quadros de 825 ms e 904 ms caem exatamente nas linhas "[collections] account
+// snapshot" — aplicarEstruturaDaConta (sync.c) e a abertura do perfil chamam
+// isto no FIO PRINCIPAL, e esta conta tem 755 pastas e 3531 fontes. Metade
+// dessas aplicacoes era o MESMO JSON de novo (cache no arranque, depois a rede
+// com o mesmo conteudo: changed=0). Com o mesmo JSON, a mesma lista de addons e
+// a conta ja aplicada, o resultado e identico: nao refaz. O tempo de cada fase
+// vai para o log para a proxima medicao dizer o que sobrou.
+static unsigned addonsAplicado;
+// Fraca: varios testes ligam colecoes.c sem addons.c; no app ela sempre existe.
+extern unsigned addons_versao(void) __attribute__((weak));
+static unsigned addonsVersao(void) { return addons_versao ? addons_versao() : 0u; }
+static int nContaAplicada;
+static double colAgoraMs(void) {
+  struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+  return t.tv_sec * 1000.0 + t.tv_nsec / 1e6;
+}
 static int definirJson(const char *json) {
   char *solto = NULL;
   int fundosXp = 0, arteDaConta = 0;
   const char *arr = NULL;
   int antes, nConta;
   const char *original = json;
+  double t0 = colAgoraMs(), tPrep, tBases0, tFim;
+  if (json && atalhoValido && contaAplicada && !semConta && ultimoJson && !strcmp(json, ultimoJson) &&
+      addonsVersao() == addonsAplicado) {
+    printf("[collections] account snapshot identical: kept (%d folders, %.1f ms)\n",
+           nContaAplicada, colAgoraMs() - t0);
+    return nContaAplicada;
+  }
   if (!prepararResposta(json, &solto, &arr)) {
     printf("[collections] missing or incomplete account snapshot retained\n");
     free(solto); return 0;
   }
+  tPrep = colAgoraMs();
   memset(&ultimoDiagnostico, 0, sizeof ultimoDiagnostico);
   int antesTela = count;
   int recarregou = 0;
   // O QUE ESTA NA TELA, antes de mexer: decide no fim se a Home remonta.
   for (int i = 0; i < count; i++) resolverBases(&PASTA(i));
+  tBases0 = colAgoraMs();
   unsigned long long assinaturaAntes = assinatura();
   // Depois de uma troca de perfil folders[] esta vazio: recarrega o pacote para
   // o casamento de arte abaixo ter com quem casar. A revisao volta ao que era —
@@ -1435,8 +1467,12 @@ static int definirJson(const char *json) {
   { char *copia = strdup(original);
     if (copia) { free(ultimoJson); ultimoJson = copia; } }
   ultimoComConta = nConta > 0;
+  addonsAplicado = addonsVersao(); nContaAplicada = nConta; atalhoValido = 1;
+  tFim = colAgoraMs();
   printf("[collections] account snapshot: %d folders, revision=%u, changed=%d\n",
          nConta, revisao, mudou);
+  printf("[colecoes] snapshot aplicado em %.0f ms (preparar %.0f, bases antes %.0f, ler+aplicar %.0f)\n",
+         tFim - t0, tPrep - t0, tBases0 - tPrep, tFim - tBases0);
   // MEMORIA DO CONJUNTO (#255): blocos de pastas alocados + bloco de fontes.
   { int nb = 0;
     for (int b = 0; b < COL_MAX / COL_BLOCO; b++) nb += blocos[b] != NULL;
@@ -1479,6 +1515,7 @@ int col_podar_fontes_addon(int (*ausente)(const char *id, const char *base)) {
 }
 
 void col_arte_conta(int sim) {
+  atalhoValido = 0;
   char *j;
   sim = sim ? 1 : 0;
   if (sim == arteConta) return;

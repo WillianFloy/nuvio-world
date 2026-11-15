@@ -2978,8 +2978,13 @@ static void sincronizarFileiras(void) {
   // Local group visibility changes also change which source rows are wrapped.
   // Reconcile only after the fast guard fails, never on an unchanged frame.
   if (filRev != ultFilRev || colRev != ultColRev || ordemRev != ultOrdemRev ||
-      addonsRev != ultAddonsRev)
+      addonsRev != ultAddonsRev) {
+    // 2.0.34: medido para a investigacao das travas de 800-900 ms (3531 fontes).
+    Uint32 t0 = SDL_GetTicks();
     colfileiras_sincronizar();
+    if (SDL_GetTicks() - t0 >= 30)
+      printf("[lento] colfileiras_sincronizar: %u ms no fio principal\n", (unsigned)(SDL_GetTicks() - t0));
+  }
   filRev = fil_revisao(); colRev = col_revisao();
   ultCatRev = catRev; ultFilRev = filRev; ultColRev = colRev; ultFilLim = (unsigned)filLim;
   ultItensRev = itensRev;
@@ -7146,6 +7151,23 @@ int home_vitrine_arte(const CatItem *ci, float alfa) {
   else r.h = ANC(NV_DIN_ARTE_H);
   heroVeuLayout(lay, r.h);
   return desenhaArteHero(r, GFX_VITRINE, ci, a, alfa, 0.0f);
+}
+// TROCA DO DESTAQUE DA VITRINE NUMA PASSADA (2.0.34): a arte que sai e a que
+// entra compostas no fragmento (gfx_hero_camadas), como a Home ja faz. Eram
+// duas artes de tela cheia por quadro durante toda troca (~450 ms a cada
+// passo do foco) — os picos de 3,6 telas do log da TCL. Mesmo pixel; devolve 0
+// quando nao da (outro layout, poster como arte, textura ainda nao pronta) e
+// quem chama desenha as duas como antes.
+int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *entra, float alfaEntra) {
+  const char *a = entra ? arte_hero_do_item(entra) : NULL, *b = sai ? arte_hero_do_item(sai) : NULL;
+  float aspA = 0.0f, aspB = 0.0f;
+  GLuint tA, tB;
+  if (home_vitrine_layout() != HOME_LAYOUT_MODERNA || !a || !a[0] || !b || !b[0]) return 0;
+  if (!heroArtePlana(entra, a, &aspA) || !heroArtePlana(sai, b, &aspB)) return 0;
+  tA = tex_obter_hero(a); tB = tex_obter_hero(b);
+  if (!tA || !tB) return 0;
+  return gfx_hero_camadas((GfxRect){ 0, 0, NV_TELA_W, ANC(NV_HERO_CHEIO_H) }, GFX_HERO_CHEIO,
+                          tA, aspA, alfaEntra, tB, aspB, alfaSai);
 }
 // Logo, meta, selos e sinopse do titulo, ancorados acima das fileiras.
 // `topo` = home_vitrine_topo; o bloco usa o logo e a largura do layout e nunca

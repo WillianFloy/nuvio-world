@@ -352,7 +352,13 @@ __attribute__((unused)) static void publicarCacheDisco(void) {
 #define NV_CACHE_DISCO_MAX (48L * 1024L * 1024L)
 #else
 #ifdef NV_ANDROID
-#define NV_CACHE_DISCO_MAX (64L * 1024L * 1024L)
+// 2.0.34 (log da TCL de 932 MB, 1041 MB livres): 64 MB fixos eram podados 3
+// vezes em 2 minutos (~16 MB por vez) e arte baixada voltava a ser baixada. O
+// teto efetivo continua sendo o MENOR entre este e 15% do espaco que o cache
+// poderia ocupar (tetoDisco), com piso de 32 MB e a reserva de 128 MB livres;
+// nesta TV fica em ~165 MB. E so disco: o indice em memoria custa ~48 bytes por
+// arquivo (NvEnt), ~150 KB com 3000 artes; a RAM de texturas nao muda.
+#define NV_CACHE_DISCO_MAX (192L * 1024L * 1024L)
 #else
 #define NV_CACHE_DISCO_MAX (512L * 1024L * 1024L)
 #endif
@@ -971,15 +977,25 @@ Java_space_nuvio_nativelegacy_NuvioActivity_nativeTrimMemoria(JNIEnv *env, jobje
 // pronto para "talvez desenhar" e o que encheu a G4 no #415.
 // `falhas` = tambem limpa os slots FALHOU (tex_aliviar, antes de reabrir o
 // pipeline); na varredura do quadro o slot falho fica, guardando o recuo.
+// A ARTE NA TELA FICA (2.0.34, log da TCL de 932 MB): o aviso de memoria baixa
+// deixa a pressao severa ligada por 30 s, e esta varredura roda a CADA quadro.
+// Ela matava tambem o decode de um cartaz VISIVEL que so esperava a vez de
+// subir (o envio e fatiado, 5 ms por quadro): o desenho pedia de novo, o fio
+// decodificava de novo e a varredura seguinte matava de novo — a mesma capa
+// decodificada 24 vezes em 2 s, com o cartaz piscando. A arte quente vira
+// textura em poucos quadros e ja cabe no teto (limiteBytes nunca fica abaixo
+// do que a tela usa); jogar fora so troca memoria por CPU e por piscada. O que
+// nao esta na tela continua morrendo aqui, como antes.
 static void soltarCpu(int falhas) {
   for (int i = 0; i < nMax; i++) {
+    if (itens[i].estado == DECODIFICADO && itens[i].sup && quente(&itens[i])) continue;
     if (itens[i].estado == DECODIFICADO && itens[i].sup) {
       if (uplSup == itens[i].sup) uplSup = NULL;   // envio em curso revalida pelo idx
       liberarSup(itens[i].sup);
       itens[i].sup = NULL;
       desistir(i);
     } else if ((itens[i].estado == PENDENTE && !itens[i].naFilaDec &&
-                !itens[i].filaRedeEm) ||
+                !itens[i].filaRedeEm && !quente(&itens[i])) ||
                (falhas && itens[i].estado == FALHOU)) {
       // O idx de um PENDENTE JA NUMA FILA (rede ou decode) nao pode virar
       // VAZIO aqui: a fila e um anel de indices e devolveria o numero para o

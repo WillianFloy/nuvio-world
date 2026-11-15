@@ -401,6 +401,8 @@ void gfx_recorte(float x, float y, float w, float h);
 // escala ativa, como gfx_recorte. Usado pelas pontas das fileiras da Vitrine.
 void gfx_esvanecer_x(float esqZero, float esqCheio, float dirCheio, float dirZero);
 void gfx_sem_esvanecer_x(void);
+// Prepara o desfoque (FBO + GFX_BLUR) uma vez, na abertura (2.0.34).
+void gfx_desfoque_aquecer(void);
 
 // --- ICONES ------------------------------------------------------------------
 //

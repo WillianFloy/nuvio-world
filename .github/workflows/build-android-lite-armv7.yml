@@ -54,6 +54,8 @@ jobs:
           bash tests/animtempo.sh
           bash tests/colecao_fase1.sh
           bash tests/navritmo.sh
+          bash tests/colcache.sh
+          bash tests/desempenho_2034.sh
 
       - name: Install Java 17
         uses: actions/setup-java@v4

@@ -230,6 +230,24 @@ int main(void) {
   tex_pressao_reproducao(0);
   puts("ok  piso e banda de 50% nao matam decode pronto");
 
+  // 9d. 2.0.34 (TCL de 932 MB): sob pressao DURA, o decode de um cartaz NA TELA
+  //     (pedido neste quadro ou no anterior) espera o envio e nao morre. Antes
+  //     morria a cada quadro e o desenho pedia de novo: a mesma capa era
+  //     decodificada 24 vezes em 2 s. O decode frio continua saindo.
+  limpar();
+  orcamento = um * 10;
+  tex_pressao_memoria(80);
+  itens[0].estado = DECODIFICADO; itens[0].ultimoQuadro = quadroAtual;
+  itens[0].sup = SDL_CreateRGBSurfaceWithFormat(0, 64, 64, 32, SDL_PIXELFORMAT_ABGR8888);
+  itens[1].estado = DECODIFICADO; itens[1].ultimoQuadro = quadroAtual - 9;
+  itens[1].sup = SDL_CreateRGBSurfaceWithFormat(0, 64, 64, 32, SDL_PIXELFORMAT_ABGR8888);
+  snprintf(itens[0].caminho, sizeof itens[0].caminho, "quente");
+  snprintf(itens[1].caminho, sizeof itens[1].caminho, "fria");
+  for (i = 0; i < 3; i++) { tex_novo_quadro(); itens[0].ultimoQuadro = quadroAtual; }
+  assert(itens[0].sup && itens[0].estado == DECODIFICADO);
+  assert(itens[1].sup == NULL && itens[1].estado == VAZIO);
+  puts("ok  pressao dura nao mata o decode de arte na tela");
+
   // 9b. O relatorio com folga nao decide nada — nem a 600 MB (acima do limiar
   //     velho de 512) e nem com o player aberto: 100%% dos dois lados.
   limpar();

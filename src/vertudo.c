@@ -2,6 +2,7 @@
 #include "vertudo_pag.h"
 #include "vertudo.h"
 #include "vitgeom.h"
+#include "colcache.h"
 #include "marcastream.h"
 #include "posterprov.h"
 #include "idioma.h"
@@ -1226,6 +1227,7 @@ static float vitExpAbre;
 typedef struct {
   int refs, pronto, atual, limite;
   unsigned geracao;
+  uint64_t chave;   // colcache: o fio grava o resultado bom para a proxima vez
   NvPerfilSessao sessao;
   ColSource fonte;
   char base[NV_ADDON_URL_MAX];
@@ -1238,6 +1240,10 @@ static char vitBases[VIT_LIN_MAX][NV_ADDON_URL_MAX], vitColecaoChave[160];
 static unsigned vitGeracao, vitColecoesRev;
 static Uint32 vitRetentarEm[VIT_LIN_MAX];
 static unsigned char vitDesligada[VIT_LIN_MAX];
+// A fileira veio do colcache (memoria ou disco): continua na tela enquanto a
+// revalidacao em segundo plano nao traz algo DIFERENTE, e uma falha de rede
+// nao a apaga.
+static unsigned char vitDoCache[VIT_LIN_MAX], vitRevalidar[VIT_LIN_MAX];
 static NvPerfilSessao vitSessao;
 static pthread_mutex_t vitPedidosTrava = PTHREAD_MUTEX_INITIALIZER;
 static int vitEmVoo;
@@ -1275,6 +1281,26 @@ static void *vitPedidoLer(void *u) {
   VitPedido *p = u;
   p->atual = desc_colecao_inicial(&p->fonte, p->base, p->sessao,
                                  p->itens, p->limite, &p->resultado);
+  // Resultado bom vai para o colcache AQUI, no fio do pedido: a compressao e o
+  // arquivo nunca custam um quadro. Os itens extras moram depois de `limite`.
+  if (p->atual && !p->resultado.erro && p->chave) {
+    int n = p->resultado.n, ex = p->resultado.extraN;
+    if (n < 0) n = 0;
+    if (n > p->limite) n = p->limite;
+    if (ex < 0) ex = 0;
+    if (ex > p->limite) ex = p->limite;
+    ColCacheMeta m = { n, ex, p->resultado.pagina, p->resultado.mais };
+    if (!ex || n == p->limite) colcache_gravar(p->chave, p->itens, &m);
+    else {
+      CatItem *junto = malloc(sizeof(CatItem) * (size_t)(n + ex));
+      if (junto) {
+        memcpy(junto, p->itens, sizeof(CatItem) * (size_t)n);
+        memcpy(junto + n, p->itens + p->limite, sizeof(CatItem) * (size_t)ex);
+        colcache_gravar(p->chave, junto, &m);
+        free(junto);
+      }
+    }
+  }
   __atomic_store_n(&p->pronto, 1, __ATOMIC_RELEASE);
   pthread_mutex_lock(&vitPedidosTrava);
   vitEmVoo--;
@@ -1294,8 +1320,10 @@ static int vitPedidoLargar(int r) {
     p->refs = 2; p->limite = vitCap; p->geracao = vitGeracao;
     p->sessao = vitSessao; p->fonte = vitFontes[r];
     snprintf(p->base, sizeof p->base, "%s", vitBases[r]);
+    p->chave = colcache_chave(&vitFontes[r], vitBases[r], vitCap);
     if (pthread_create(&fio, NULL, vitPedidoLer, p) == 0) {
-      vitPedidos[r] = p; vitLin[r].estado = VIT_CARREGANDO;
+      vitPedidos[r] = p;
+      if (!(vitDoCache[r] && vitLin[r].estado == VIT_PRONTA)) vitLin[r].estado = VIT_CARREGANDO;
       pthread_detach(fio);
       printf("[vertudo] vitrine: fonte %d iniciada\n", r + 1);
       return 1;
@@ -1528,6 +1556,7 @@ static void vitIniciar(void) {
   memset(vitLin, 0, sizeof vitLin);
   memset(vitRetentarEm, 0, sizeof vitRetentarEm);
   memset(vitDesligada, 0, sizeof vitDesligada);
+  memset(vitDoCache, 0, sizeof vitDoCache); memset(vitRevalidar, 0, sizeof vitRevalidar);
   for (int r = 0; r < VIT_LIN_MAX; r++) { free(vitExtra[r]); vitExtra[r] = NULL; }
   memset(vitVis, 0, sizeof vitVis);
   memset(&vitFocoChave, 0, sizeof vitFocoChave);
@@ -1613,6 +1642,39 @@ static void vitGuardarInicial(int r, const VitPedido *p) {
   vitProjetoSujo = 1;
   printf("[vertudo] vitrine: fonte %d recebida: %d titulos, %d reservas%s\n",
          r + 1, n, vitLin[r].extraN, p->resultado.erro ? " (falha)" : "");
+}
+
+// A FILEIRA SAI DO COLCACHE, sem rede: mesma publicacao de vitGuardarInicial.
+// Devolve a idade (s) ou -1 sem cache. Os extras ficam depois dos `n`.
+static long vitDoColcache(int r) {
+  ColCacheMeta m;
+  long idade = -1;
+  int max = vitCap * 2;
+  CatItem *tmp;
+  uint64_t chave = colcache_chave(&vitFontes[r], vitBases[r], vitCap);
+  if (!(tmp = malloc(sizeof(CatItem) * (size_t)max))) return -1;
+  if (colcache_ler(chave, tmp, max, &m, &idade)) {
+    int n = m.n > vitCap ? vitCap : m.n, ex = m.extraN > vitCap ? vitCap : m.extraN;
+    CatItem *buf = n ? vitLinAloc(r) : NULL;
+    if (n && !buf) { free(tmp); return -1; }
+    if (n) memcpy(buf, tmp, sizeof(CatItem) * (size_t)n);
+    vitLin[r].brutoN = n; vitLin[r].extraN = 0;
+    if (ex && !vitExtra[r]) vitExtra[r] = calloc((size_t)vitCap, sizeof(CatItem));
+    if (ex && vitExtra[r]) { memcpy(vitExtra[r], tmp + m.n, sizeof(CatItem) * (size_t)ex); vitLin[r].extraN = ex; }
+    vitLin[r].estado = n || vitLin[r].extraN ? VIT_PRONTA : VIT_VAZIA;
+    vitLin[r].semFonte = 0; vitLin[r].pagina = m.pagina; vitLin[r].mais = m.mais;
+    vitDoCache[r] = 1; vitProjetoSujo = 1;
+  } else idade = -1;
+  free(tmp);
+  return idade;
+}
+// A revalidacao trouxe o MESMO conteudo (mesmos ids, na mesma ordem)?
+static int vitMesmoConteudo(int r, const VitPedido *p) {
+  int n = p->resultado.n > vitCap ? vitCap : p->resultado.n;
+  if (n != vitLin[r].brutoN || !vitLinBuf[r]) return 0;
+  for (int i = 0; i < n; i++)
+    if (strcmp(vitLinBuf[r][i].imdb, p->itens[i].imdb) || strcmp(vitLinBuf[r][i].tipo, p->itens[i].tipo)) return 0;
+  return p->resultado.mais == vitLin[r].mais;
 }
 
 // SEM ABAS: as fileiras saem dos titulos lidos. Tipos misturados = uma fileira
@@ -1788,6 +1850,7 @@ static void vitCarregar(Uint32 agora) {
   int cargaIni = vitFR, cargaFim = vitFR;
   for (int k = 0, r = vitFR; r >= 0 && k <= VIT_CARGA_ATRAS; r--) { cargaIni = r; if (vitLin[r].estado != VIT_VAZIA) k++; }
   for (int k = 0, r = vitFR; r < vitN && k <= VIT_CARGA_FRENTE; r++) { cargaFim = r; if (vitLin[r].estado != VIT_VAZIA) k++; }
+  int cacheLidas = 0;
   for (int r = 0; r < vitN; r++) {
     const ColSource *s = &collection->sources[r];
     char base[NV_ADDON_URL_MAX];
@@ -1828,16 +1891,28 @@ static void vitCarregar(Uint32 agora) {
     VitPedido *p = vitPedidos[r];
     if (p && __atomic_load_n(&p->pronto, __ATOMIC_ACQUIRE)) {
       vitPedidos[r] = NULL;
-      if (p->geracao == vitGeracao && p->sessao == vitSessao && p->atual &&
-          fonteDisponivel(&p->fonte, p->base))
+      int valido = p->geracao == vitGeracao && p->sessao == vitSessao && p->atual &&
+                   fonteDisponivel(&p->fonte, p->base);
+      if (valido && vitDoCache[r] && vitLin[r].estado == VIT_PRONTA && vitMesmoConteudo(r, p)) {
+        // Revalidacao sem novidade: nada muda na tela (sem piscar).
+        printf("[vertudo] vitrine: fonte %d revalidada sem mudancas\n", r + 1);
+      } else if (valido && !(vitDoCache[r] && p->resultado.erro && vitLin[r].estado == VIT_PRONTA)) {
         vitGuardarInicial(r, p);
-      else {
+        vitDoCache[r] = 0;
+      } else if (vitDoCache[r] && vitLin[r].estado == VIT_PRONTA) {
+        // A rede falhou: o cache continua valendo, sem nova tentativa agora.
+      } else {
         vitLin[r].estado = VIT_PEND;
         vitRetentarEm[r] = agora + 1500u;
       }
       vitPedidoSoltar(p);
     }
     VitLin *l = &vitLin[r];
+    // Revalidacao que nao coube na fila de pedidos: sai quando houver vaga.
+    if (vitRevalidar[r] && l->estado == VIT_PRONTA && !vitPedidos[r] && r >= cargaIni && r <= cargaFim) {
+      if (vitPedidoLargar(r) > 0) vitRevalidar[r] = 0;
+      continue;
+    }
     if (l->semFonte && !rever) continue;
     if (l->semFonte) l->estado = VIT_PEND;
     if (l->estado != VIT_PEND) continue;
@@ -1850,7 +1925,17 @@ static void vitCarregar(Uint32 agora) {
     l->semFonte = 0;
     if (vitManualPendente[r]) { vitManualLargar(r, agora); continue; }
     if (r < cargaIni || r > cargaFim) continue;   // longe do foco: espera a vez
-    if (vitPedidoLargar(r) < 0) vitRetentarEm[r] = agora + 1500u;
+    // COLCACHE PRIMEIRO (2.0.34): memoria ou disco publicam a fileira AGORA, sem
+    // esqueleto. Fresco: nenhum pedido. Velho: pede em segundo plano e so troca
+    // se vier diferente. Fileira que devolveu a memoria volta daqui.
+    if (cacheLidas >= 3) continue;   // no maximo 3 leituras de cache por quadro
+    cacheLidas++;
+    { long idade = vitDoColcache(r);
+      if (idade >= 0 && idade < COLCACHE_FRESCO_S) continue;
+      if (idade >= 0) printf("[vertudo] vitrine: fonte %d do cache (%lds), revalidando\n", r + 1, idade); }
+    { int rc = vitPedidoLargar(r);
+      if (rc <= 0 && vitLin[r].estado == VIT_PRONTA) vitRevalidar[r] = 1;   // fila cheia: tenta depois
+      else if (rc < 0) vitRetentarEm[r] = agora + 1500u; }
   }
   // As paginas pedidas pelo botao preservam o prefixo canonico da fileira;
   // os outros pedidos iniciais continuam publicando independentemente.
@@ -2141,7 +2226,10 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
         vitHeroAnt = vitHeroAtual; vitHeroAtual = des;
         vitHeroEntra = 0.0f;   // o primeiro destaque tambem entra (abrir ou trocar de Collection)
       }
-    } else if (!it) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
+    } else if (!it && !vitChave(vitHeroAtual)) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
+    // Foco no "Ver tudo" ou numa fileira ainda sem titulo: o destaque que esta
+    // na tela FICA (2.0.34). Zerar escurecia a tela inteira e o destaque
+    // seguinte entrava animado de novo — a piscada ao subir/descer.
     if (vitHeroEntra < 1.0f) {
       vitHeroEntra += dt / 0.45f;   // troca do destaque: arte e texto juntos, sem salto
       if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = -1; }
@@ -3659,13 +3747,21 @@ static void vitDesenhar(float a, float x0) {
   // troca de Collection) precisam do fundo escuro opaco por baixo.
   float sai = vitTrocaPend ? fminf(1.0f, vitTrocaSai) : 0.0f, base = a;
   sai = sai * sai * (3.0f - 2.0f * sai);
-  if (a < 0.99f || vitHeroEntra < 1.0f || sai > 0.0f || !hero) { GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+  // O fundo escuro so quando nada opaco cobre a tela: abrindo/saindo, trocando
+  // de Collection, ou o PRIMEIRO destaque entrando. Na troca entre dois
+  // destaques a arte que sai ja cobre tudo (2.0.34: era uma tela cheia a mais
+  // em toda troca).
+  if (a < 0.99f || sai > 0.0f || !hero || (vitHeroEntra < 1.0f && !ant)) {
+    GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
   if (hero) {
     float e = vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra);
-    if (ant && vitHeroEntra < 1.0f) arte |= home_vitrine_arte(ant, a);
-    arte |= home_vitrine_arte(hero, a * e);
+    if (ant && vitHeroEntra < 1.0f && home_vitrine_arte_troca(ant, a, hero, a * e)) arte = 1;
+    else {
+      if (ant && vitHeroEntra < 1.0f) arte |= home_vitrine_arte(ant, a);
+      arte |= home_vitrine_arte(hero, a * e);
+    }
   }
   if (!arte) fundoColecao(a);
   degradeMarca(a, home_vitrine_layout() == HOME_LAYOUT_DINAMICA ? NV_TELA_H : NV_SHELF_TOP);

@@ -53,5 +53,9 @@ jobs:
         run: bash tests/colecao_fase1.sh
       - name: Run arrow navigation rhythm guards
         run: bash tests/navritmo.sh
+      - name: Run Collections row cache tests
+        run: bash tests/colcache.sh
+      - name: Run 2.0.34 performance guards
+        run: bash tests/desempenho_2034.sh
       - name: Run release promotion workflow guard
         run: bash tests/release_promocao.sh

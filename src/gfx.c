@@ -5082,6 +5082,38 @@ GLuint gfx_desfocado(GLuint src, const char *chave) {
   return desf[vago].tex;
 }
 
+// AQUECE O DESFOQUE NA ABERTURA (2.0.34). No log da TCL (Mali-G31) a PRIMEIRA
+// copia desfocada da sessao custou um quadro de 248 ms (out=232 ms) — o alvo e
+// as texturas do desfoque nascem ali e o driver prepara o GFX_BLUR no primeiro
+// uso. Isso caia na entrada da primeira Collection. Aqui o mesmo trabalho roda
+// uma vez, logo depois do primeiro quadro, enquanto a abertura ainda esta na
+// tela; a vaga usada e devolvida.
+void gfx_desfoque_aquecer(void) {
+  static int feito;
+  GLuint t = 0;
+  unsigned char px[16 * 16 * 4];
+  if (feito) return;
+  feito = 1;
+  memset(px, 40, sizeof px);
+  glGenTextures(1, &t);
+  if (!t) return;
+  glBindTexture(GL_TEXTURE_2D, t);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
+  texAtual = 0;
+  { Uint32 t0 = SDL_GetTicks();
+    (void)gfx_desfocado(t, "__aquecer__");
+    for (int i = 0; i < NV_DESF_N; i++)
+      if (desf[i].src == t) { desf[i].src = 0; desf[i].chave = 0; desf[i].uso = 0; }
+    desfGeradosQuadro = 0;
+    printf("[gfx] desfoque aquecido em %u ms\n", (unsigned)(SDL_GetTicks() - t0)); fflush(stdout); }
+  glDeleteTextures(1, &t);
+  texAtual = 0;
+}
+
 // DIAGNOSTICO DE UMA VEZ (fundo.c, "Arte borrada"): um pixel da copia
 // desfocada `tex` (u da esquerda, v de cima, 0..1). A copia sai de pe, entao
 // a linha 0 do alvo e o topo da imagem. Devolve 0 se `tex` nao e uma copia.
