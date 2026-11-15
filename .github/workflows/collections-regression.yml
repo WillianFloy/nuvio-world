@@ -49,3 +49,5 @@ jobs:
         run: bash tests/vitgeom.sh
       - name: Run synopsis cut-off fade test
         run: bash tests/cortefade.sh
+      - name: Run release promotion workflow guard
+        run: bash tests/release_promocao.sh

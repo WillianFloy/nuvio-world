@@ -1,160 +1,200 @@
 name: Publish Nuvio World Android TV ARMv7 Release
 
+# PUBLICACAO MANUAL de um APK que JA foi compilado e testado: este workflow NAO
+# compila nada. Ele pega o artefato assinado de uma execucao aprovada de
+# "Build signed Nuvio World APK (artifact only, no Release)", confere o arquivo
+# e o publica byte a byte como Release, para o atualizador interno do app
+# (src/atualizacao.c: /releases/latest, tag vX.Y.Z, anexo *-android-lite-armv7.apk
+# com digest sha256).
+#
+# Sem `publicar` marcado e a confirmacao exata, ele so VERIFICA (dry-run) e nao
+# cria tag nem Release. Nao ha gatilho automatico: so workflow_dispatch.
+
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - nuvio-world-2.0.14-catalogos-addon-only
+    inputs:
+      versao:
+        description: "Versao a publicar, ex.: 2.0.26 (tem de ser a do APK e do appinfo.json)"
+        required: true
+        type: string
+      run_id:
+        description: "ID da execucao APROVADA de 'Build signed Nuvio World APK' que gerou o APK"
+        required: true
+        type: string
+      publicar:
+        description: "Desmarcado = so verifica (nao publica). Marcado = publica a Release"
+        required: true
+        type: boolean
+        default: false
+      confirmacao:
+        description: "Para publicar, digite exatamente: PUBLICAR v<versao> (ex.: PUBLICAR v2.0.26)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: nuvio-world-android-release
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build and publish signed Android TV ARMv7 APK
+  release:
+    name: Verify and publish the already-tested signed APK
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 30
     env:
-      NUVIO_APK_LITE: "1"
-      NUVIO_REQUIRE_CORE: "1"
-      NUVIO_BUILD_JOBS: "2"
-      NUVIO_ANDROID_JOBS: "2"
-      NUVIO_ANDROID_CACHE: /home/runner/.cache/nuvio-android
-      CARGO_HOME: /home/runner/.cargo
-      RUSTUP_HOME: /home/runner/.rustup
-
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      VERSAO: ${{ inputs.versao }}
+      RUN_ID: ${{ inputs.run_id }}
+      PUBLICAR: ${{ inputs.publicar }}
+      CONFIRMACAO: ${{ inputs.confirmacao }}
     steps:
-      - name: Checkout Nuvio World
+      - name: Checkout (notes and workflow only; nothing is built)
         uses: actions/checkout@v4
-
-      - name: Read app version
-        id: version
-        run: |
-          VERSION=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
-          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Nuvio World version: $VERSION"
-
-      - name: Install Java 17
-        uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
+          fetch-depth: 0
 
-      - name: Install Rust targets
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install native build tools
+      - name: Validate inputs, confirmation and tag block
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build ffmpeg curl git python3 libsdl2-dev \
-            pkg-config nasm yasm autoconf automake libtool
-
-      - name: Install Android SDK, NDK and CMake versions
-        run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager --install \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.2.12479018" \
-            "cmake;3.22.1"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          mkdir -p "$ANDROID_HOME/cmake/3.22.1/bin"
-          if [ ! -x "$ANDROID_HOME/cmake/3.22.1/bin/ninja" ]; then
-            ln -s "$(command -v ninja)" "$ANDROID_HOME/cmake/3.22.1/bin/ninja"
+          set -euo pipefail
+          [[ "$VERSAO" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::versao invalida: $VERSAO"; exit 1; }
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::run_id invalido"; exit 1; }
+          if [ "$PUBLICAR" = "true" ] && [ "$CONFIRMACAO" != "PUBLICAR v$VERSAO" ]; then
+            echo "::error::confirmacao incorreta: para publicar digite exatamente 'PUBLICAR v$VERSAO'"; exit 1
           fi
+          # Tag ja existente (remota) ou Release ja existente (inclusive rascunho): BLOQUEIA.
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$VERSAO")" ]; then
+            echo "::error::a tag v$VERSAO ja existe; este workflow nunca sobrescreve Releases"; exit 1
+          fi
+          if gh release view "v$VERSAO" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::error::ja existe Release v$VERSAO; este workflow nunca sobrescreve Releases"; exit 1
+          fi
+          test -f "deploy/release-notes/$VERSAO.md" || { echo "::error::faltam as notas deploy/release-notes/$VERSAO.md"; exit 1; }
+          echo "Entradas ok: versao=$VERSAO run_id=$RUN_ID publicar=$PUBLICAR"
 
-      - name: Cache Android native dependencies and Rust crates
-        uses: actions/cache@v4
-        with:
-          path: |
-            /home/runner/.cache/nuvio-android
-            /home/runner/.cargo/registry
-            /home/runner/.cargo/git
-          key: ${{ runner.os }}-nuvio-world-android-release-${{ hashFiles('tools/android/deps.sh', 'tools/android/ffmpeg-android.sh', 'tools/android.sh', 'tools/rust-mkvcore.sh', 'rust/mkvcore/Cargo.lock') }}
-
-      - name: Recover required public build configuration
-        run: |
-          curl --fail --location --retry 3 \
-            "https://github.com/iqui27/nuvio-native-legacy/releases/download/v2.0.8/Nuvio-2.0.8-android-lite-armv7.apk" \
-            --output "$RUNNER_TEMP/nuvio-config-source.apk"
-          python3 tools/android/extract-config-from-apk.py \
-            "$RUNNER_TEMP/nuvio-config-source.apk" --output local.properties
-
-      - name: Prepare World signing key
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Verify the source build run (approved, same repo, same commit as the version)
+        id: fonte
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-          KEYSTORE="$RUNNER_TEMP/nuvio-world-release.jks"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
-          chmod 600 "$KEYSTORE"
-          keytool -list -keystore "$KEYSTORE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          R=$(gh api "repos/$REPO/actions/runs/$RUN_ID")
+          [ "$(jq -r .path <<<"$R")" = ".github/workflows/build-android-world-signed.yml" ] || { echo "::error::a execucao nao e do build assinado"; exit 1; }
+          [ "$(jq -r .status <<<"$R")" = "completed" ] && [ "$(jq -r .conclusion <<<"$R")" = "success" ] || { echo "::error::a execucao de build nao terminou com sucesso"; exit 1; }
+          [ "$(jq -r .head_repository.full_name <<<"$R")" = "$REPO" ] || { echo "::error::a execucao nao e deste repositorio"; exit 1; }
+          SHA=$(jq -r .head_sha <<<"$R")
+          git cat-file -e "$SHA^{commit}" || { echo "::error::commit $SHA ausente"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          # A versao do codigo que gerou o APK (as duas fontes, que o build exige iguais).
+          V1=$(git show "$SHA:deploy/app/appinfo.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+          V2=$(git show "$SHA:tools/tizen-config.xml" | sed -n 's/.*version="\([0-9.]*\)".*/\1/p' | head -1)
+          [ "$V1" = "$VERSAO" ] && [ "$V2" = "$VERSAO" ] || { echo "::error::versao no commit do build: appinfo=$V1 tizen=$V2, pedida=$VERSAO"; exit 1; }
+          # O commit tagueado e o do build. Este checkout so pode diferir dele em workflow/notas.
+          BAD=$(git diff --name-only "$SHA" HEAD | grep -vE '^(\.github/|deploy/release-notes/|tests/release_promocao\.sh$)' || true)
+          [ -z "$BAD" ] || { echo "::error::o checkout difere do commit do build em arquivos de codigo:"; echo "$BAD"; exit 1; }
+          # Os testes de regressao tambem passaram nesse mesmo commit.
+          N=$(gh run list --repo "$REPO" --workflow collections-regression.yml --commit "$SHA" --status success --json databaseId --jq length)
+          [ "$N" -ge 1 ] || { echo "::error::sem execucao verde de collections-regression para $SHA"; exit 1; }
+          echo "Build $RUN_ID aprovado, commit $SHA, regressao verde."
+
+      - name: Download the signed artifact of that run (no rebuild)
+        id: baixar
+        run: |
+          set -euo pipefail
+          SHA7=$(cut -c1-7 <<<"${{ steps.fonte.outputs.sha }}")
+          A=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq "[.artifacts[]|select(.expired==false and (.name|endswith(\"-$SHA7-SIGNED-ARMv7\")))]")
+          [ "$(jq length <<<"$A")" = "1" ] || { echo "::error::esperava exatamente 1 artefato assinado valido (nao expirado) do run"; jq -r '.[].name' <<<"$A"; exit 1; }
+          NOME=$(jq -r '.[0].name' <<<"$A")
+          mkdir -p "$RUNNER_TEMP/apk"
+          gh run download "$RUN_ID" --repo "$REPO" -n "$NOME" -D "$RUNNER_TEMP/apk"
+          [ "$(find "$RUNNER_TEMP/apk" -type f | wc -l)" = "1" ] || { echo "::error::o artefato deve ter exatamente 1 arquivo"; find "$RUNNER_TEMP/apk" -type f; exit 1; }
+          APK="$RUNNER_TEMP/apk/Nuvio-$VERSAO-android-lite-armv7.apk"
+          test -f "$APK" || { echo "::error::nome do APK diferente do que o atualizador procura"; find "$RUNNER_TEMP/apk" -type f; exit 1; }
+          echo "apk=$APK" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Android build-tools (verification only)
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "build-tools;35.0.0" >/dev/null
+          echo "BT=$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_ENV"
+
+      - name: Verify signature, identity, ABI, versionCode and certificate continuity
+        run: |
+          set -euo pipefail
+          APK="${{ steps.baixar.outputs.apk }}"
+          "$BT/apksigner" verify --print-certs "$APK" | tee "$RUNNER_TEMP/certs.txt"
+          NOVO=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/certs.txt")
+          [ -n "$NOVO" ]
+          B=$("$BT/aapt" dump badging "$APK")
+          PKG=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<<"$B")
+          VN=$(sed -n "s/.*versionName='\([^']*\)'.*/\1/p" <<<"$B" | head -1)
+          VC=$(sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" <<<"$B" | head -1)
+          IFS=. read -r X Y Z <<<"$VERSAO"
+          [ "$PKG" = "space.nuvio.world" ] || { echo "::error::pacote $PKG"; exit 1; }
+          [ "$VN" = "$VERSAO" ] || { echo "::error::versionName $VN"; exit 1; }
+          [ "$VC" = "$((X*10000 + Y*100 + Z))" ] || { echo "::error::versionCode $VC"; exit 1; }
+          grep -q "native-code: 'armeabi-v7a'" <<<"$B" || { echo "::error::sem ABI armeabi-v7a"; exit 1; }
+          if grep -q "arm64-v8a" <<<"$B"; then echo "::error::APK contem arm64"; exit 1; fi
+          # Continuidade: o Android so atualiza por cima com o MESMO certificado. Compara com
+          # o APK da Release mais recente ja publicada.
+          ANT=$(gh api "repos/$REPO/releases/latest" --jq '.tag_name')
+          mkdir -p "$RUNNER_TEMP/ant"
+          gh release download "$ANT" --repo "$REPO" -p '*-android-lite-armv7.apk' -D "$RUNNER_TEMP/ant"
+          ANTAPK=$(ls "$RUNNER_TEMP/ant"/*.apk)
+          VELHO=$("$BT/apksigner" verify --print-certs "$ANTAPK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          [ "$NOVO" = "$VELHO" ] || { echo "::error::certificado DIFERENTE do da Release $ANT: a TV recusaria a atualizacao"; exit 1; }
+          echo "Certificado igual ao da Release $ANT: $NOVO"
+          echo "package=$PKG versionName=$VN versionCode=$VC abi=armeabi-v7a"
+
+      - name: Check the release notes parse the way the in-app card needs
+        run: |
+          set -euo pipefail
+          F="deploy/release-notes/$VERSAO.md"
+          ! grep -q '^---' "$F" || { echo "::error::'---' corta as notas no app"; exit 1; }
+          ! grep -qiE '^#+ *(Notes|Notas)' "$F" || { echo "::error::cabecalho Notes/Notas corta as notas no app"; exit 1; }
+          [ "$(wc -c < "$F")" -lt 3000 ] || { echo "::error::notas longas demais para o cartao"; exit 1; }
+          cat "$F"
+
+      - name: Summary (what would be published)
+        run: |
           {
-            echo "NUVIO_KEYSTORE=$KEYSTORE"
-            echo "NUVIO_KEYSTORE_PASS=$ANDROID_KEYSTORE_PASSWORD"
-            echo "NUVIO_KEY_ALIAS=$ANDROID_KEY_ALIAS"
-            echo "NUVIO_KEY_PASS=$ANDROID_KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
+            echo "## Release v$VERSAO"
+            echo "- Modo: $([ "$PUBLICAR" = "true" ] && echo PUBLICA || echo 'VERIFICACAO (nada sera publicado)')"
+            echo "- Build de origem: run $RUN_ID, commit \`${{ steps.fonte.outputs.sha }}\`"
+            echo "- Arquivo: \`$(basename "${{ steps.baixar.outputs.apk }}")\`"
+            echo "- sha256 do arquivo: \`${{ steps.baixar.outputs.sha256 }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run Collection parser and paged-data regressions
-        run: bash tests/collections.sh
-
-      - name: Run Collection addon identity and Home reconciliation regressions
-        run: bash tests/colfileiras_sync.sh
-
-      - name: Run collection parser regression tests
-        run: bash tests/colecoes.sh
-
-      - name: Run collection view-mode regression tests
-        run: bash tests/colecao_viewmode.sh
-
-      - name: Run collection source-label regression tests
-        run: bash tests/vertudo_streamtabs.sh
-
-      - name: Build signed Nuvio World Android TV APK
-        run: |
-          bash tools/android/deps.sh arm64-v8a armeabi-v7a
-          bash tools/android.sh --release-only
-
-      - name: Verify APK signatures and package identity
+      - name: Publish the GitHub Release (only if requested and confirmed)
+        if: ${{ inputs.publicar }}
         run: |
           set -euo pipefail
-          BT="$ANDROID_HOME/build-tools/35.0.0"
-          for APK in \
-            "build/android/Nuvio-${{ steps.version.outputs.value }}-android-lite-armv7.apk"; do
-            test -f "$APK"
-            "$BT/apksigner" verify "$APK"
-            PACKAGE=$("$BT/aapt" dump badging "$APK" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p")
-            test "$PACKAGE" = "space.nuvio.world"
-            echo "Verified: $APK ($PACKAGE)"
-          done
+          gh release create "v$VERSAO" "${{ steps.baixar.outputs.apk }}" \
+            --repo "$REPO" \
+            --target "${{ steps.fonte.outputs.sha }}" \
+            --title "Nuvio World v$VERSAO" \
+            --notes-file "deploy/release-notes/$VERSAO.md" \
+            --latest
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.value }}
-          name: Nuvio World v${{ steps.version.outputs.value }}
-          generate_release_notes: true
-          make_latest: true
-          fail_on_unmatched_files: true
-          files: |
-            build/android/Nuvio-${{ steps.version.outputs.value }}-android-lite-armv7.apk
+      - name: Verify what the in-app updater will see
+        if: ${{ inputs.publicar }}
+        run: |
+          set -euo pipefail
+          sleep 10
+          L=$(gh api "repos/$REPO/releases/latest")
+          python3 -c '
+          import json,sys
+          v,sha=sys.argv[1],sys.argv[2]
+          r=json.loads(sys.stdin.read())
+          assert r["tag_name"]=="v"+v, r["tag_name"]
+          assert not r["draft"] and not r["prerelease"]
+          suf="-android-lite-armv7.apk"
+          a=[x for x in r["assets"] if x["name"].endswith(suf)]
+          assert len(a)==1 and a[0]["name"]=="Nuvio-%s-android-lite-armv7.apk"%v, a
+          assert a[0].get("digest")=="sha256:"+sha, (a[0].get("digest"), sha)
+          print("OK: o atualizador vera", r["tag_name"], a[0]["name"], a[0]["digest"])
+          ' "$VERSAO" "${{ steps.baixar.outputs.sha256 }}" <<<"$L"
