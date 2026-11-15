@@ -51,6 +51,7 @@ jobs:
           bash tests/colecao_viewmode.sh
           bash tests/vertudo_streamtabs.sh
           bash tests/vitgeom.sh
+          bash tests/animtempo.sh
 
       - name: Install Java 17
         uses: actions/setup-java@v4

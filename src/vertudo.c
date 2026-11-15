@@ -2067,6 +2067,16 @@ static void vitAtualizar(float dt, Uint32 agora) {
     } }
   home_vitrine_medida(&w, &h, &passo, &rot);
   alvo = (float)vitFR * vitPasso();
+  float dtV = dt;
+  { // Relogio proprio: o dt do laco principal e limitado a 100 ms, e numa TV lenta
+    // (quadros de 200 ms ou mais) a rolagem andava em camera lenta e ficava para
+    // tras do foco. Aqui vale o tempo real entre quadros (ate 300 ms).
+    static Uint32 ultScroll;
+    float dtR = ultScroll && agora > ultScroll ? (float)(agora - ultScroll) / 1000.0f : dt;
+    ultScroll = agora;
+    if (dtR < dt) dtR = dt;
+    if (dtR > 0.3f) dtR = 0.3f;
+    dtV = dtR; }
 #ifdef NV_TOUCH_UI
   if (!vtTelefone()) {
     toquerol_limpar(&vitToqueY);
@@ -2076,7 +2086,7 @@ static void vitAtualizar(float dt, Uint32 agora) {
   if (vitToqueY.livre) vitScroll = anim_clamp(vitScroll, 0.0f, vitToqueMaxY());
   else
 #endif
-  vitScroll = anim_mola2(&vitScrollV, vitScroll, alvo, dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+  vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
   for (int r = 0; r < vitN; r++) {
     // A fileira em foco anda ate o cartaz caber com um vizinho a vista.
 #ifdef NV_TOUCH_UI
@@ -2088,8 +2098,8 @@ static void vitAtualizar(float dt, Uint32 agora) {
       // focada), entao nenhuma fica com um cartao cortado depois de repouso.
       int cab = vitCabem(vtInicio(), w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
       float alvoX = vitJanela(r, col, cab, vitColunas(r)) * passo;
-      vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], alvoX,
-                            dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+      vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
+                            dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
     } else if (r == vitFR)
       vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], vitFC > 1 ? (vitFC - 1) * passo : 0.0f,
                             dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));

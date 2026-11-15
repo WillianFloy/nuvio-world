@@ -76,6 +76,19 @@ static inline float anim_mola2(float *v, float atual, float alvo, float dt, floa
   return novo;
 }
 
+// Mola em TEMPO REAL. anim_mola2 limita dt a 50 ms para um quadro perdido nao
+// virar salto, mas numa TV lenta (quadros de 100 ms ou mais) esse teto faz a
+// animacao andar em camera lenta e a rolagem fica para tras do foco. Como a forma
+// fechada e exata a cada passo, dividir o dt em passos de ate 50 ms da o mesmo
+// resultado de quadros rapidos: o tempo de assentar nao depende do FPS.
+static inline float anim_mola2_tempo(float *v, float atual, float alvo, float dt, float w) {
+  int n = (int)ceilf(dt / 0.05f);
+  if (n < 1) n = 1;
+  if (n > 6) n = 6;   // dt de ate 300 ms
+  for (int i = 0; i < n; i++) atual = anim_mola2(v, atual, alvo, dt / (float)n, w);
+  return atual;
+}
+
 // Reduced motion e uma politica, nao um detalhe de cada tela.
 static inline float anim_reduzida(float atual, float alvo, int reduzida) {
   return reduzida ? alvo : atual;
