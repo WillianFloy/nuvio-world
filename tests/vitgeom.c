@@ -71,6 +71,40 @@ int main(void) {
   // Escala de texto/tela (px reais): mais escala => cartoes maiores => menos colunas.
   assert(vitgeom_cabem(210.0f, 1856.0f, 190.0f * 1.25f, 214.0f * 1.25f + 0.0f) <
          vitgeom_cabem(210.0f, 1856.0f, 190.0f, 214.0f));
+  // VERTICAL (fileiras): mesma regra, so linhas inteiras e a rolagem para no fim.
+  { const float H = 1080.0f, base = 40.0f, gapv = 40.0f;
+    const float topos[] = { 518.0f, 544.0f, 480.0f };
+    const float cont[] = { 46.0f + 182.9f, 46.0f + 322.0f + 74.0f, 46.0f + 260.0f, 46.0f + 700.0f };
+    for (size_t a = 0; a < sizeof topos / sizeof *topos; a++)
+      for (size_t b = 0; b < sizeof cont / sizeof *cont; b++) {
+        float topo = topos[a], c = cont[b], pas = c + gapv, limite = H - base;
+        int n = vitgeom_cabem(topo, limite, c, pas);
+        assert(n >= 1);
+        if (n > 1 || topo + c <= limite + 0.01f) assert(topo + (n - 1) * pas + c <= limite + 0.01f);
+        // a fileira seguinte nao cabe inteira (ficaria cortada)
+        assert(topo + n * pas + c > limite - 0.01f);
+        // em repouso, com o foco em qualquer fileira: so linhas inteiras e foco visivel,
+        // e a rolagem nunca passa do fim (a ultima fica toda a vista, sem vao embaixo)
+        for (int total = 1; total <= 30; total++)
+          for (int foco = 0; foco < total; foco++) {
+            int topoL = vitgeom_alvo_linha(foco, n, total);
+            assert(topoL >= 0 && topoL <= (total > n ? total - n : 0));
+            assert(foco >= topoL && foco < topoL + (n < total ? n : total));
+            float fim_ult = topo + (total - 1 - topoL) * pas + c;     // base da ultima fileira
+            if (total > n) assert(fim_ult >= topo + (n - 1) * pas + c - 0.01f || topoL == total - n);
+            // nenhuma fileira visivel passa do limite de baixo
+            for (int r = topoL; r < total; r++) {
+              float rb = topo + (r - topoL) * pas + c;
+              if (r < topoL + n) { if (n > 1 || r > topoL) assert(rb <= limite + 0.01f); }
+            }
+          }
+      }
+    // casos conhecidos (1080p, topo 518): paisagem 2 linhas, retrato 1
+    assert(vitgeom_cabem(518.0f, 1040.0f, 46.0f + 182.9f, 46.0f + 182.9f + 40.0f) == 2);
+    assert(vitgeom_cabem(518.0f, 1040.0f, 46.0f + 322.0f + 74.0f, 46.0f + 322.0f + 74.0f + 40.0f) == 1);
+    assert(vitgeom_alvo_linha(5, 2, 6) == 4 && vitgeom_alvo_linha(3, 2, 6) == 3);
+    assert(vitgeom_alvo_linha(0, 2, 1) == 0 && vitgeom_alvo_linha(9, 3, 2) == 0);
+  }
   puts("vitgeom: tudo ok");
   return 0;
 }
