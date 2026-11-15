@@ -2068,15 +2068,11 @@ static void vitAtualizar(float dt, Uint32 agora) {
   home_vitrine_medida(&w, &h, &passo, &rot);
   alvo = (float)vitFR * vitPasso();
   float dtV = dt;
-  { // Relogio proprio: o dt do laco principal e limitado a 100 ms, e numa TV lenta
-    // (quadros de 200 ms ou mais) a rolagem andava em camera lenta e ficava para
-    // tras do foco. Aqui vale o tempo real entre quadros (ate 300 ms).
-    static Uint32 ultScroll;
+  { static Uint32 ultScroll;   // relogio proprio para as molas horizontais (TV lenta)
     float dtR = ultScroll && agora > ultScroll ? (float)(agora - ultScroll) / 1000.0f : dt;
     ultScroll = agora;
     if (dtR < dt) dtR = dt;
-    if (dtR > 0.3f) dtR = 0.3f;
-    dtV = dtR; }
+    dtV = dtR > 0.3f ? 0.3f : dtR; }
 #ifdef NV_TOUCH_UI
   if (!vtTelefone()) {
     toquerol_limpar(&vitToqueY);
@@ -2086,7 +2082,16 @@ static void vitAtualizar(float dt, Uint32 agora) {
   if (vitToqueY.livre) vitScroll = anim_clamp(vitScroll, 0.0f, vitToqueMaxY());
   else
 #endif
-  vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+  { // ROLAGEM VERTICAL POR RELOGIO DE PAREDE, nao por mola: a fileira em foco chega
+    // ao ponto sob a sinopse em ~150 ms de tempo real, a qualquer FPS. Com mola
+    // por quadro, numa TV lenta o foco descia mais depressa do que a rolagem
+    // andava e a fileira ficava cada vez mais para baixo a cada tecla.
+    static float de, alvoAnt = -1.0f; static Uint32 t0;
+    float dur = 150.0f / ajustes_navegacao_velocidade();
+    if (alvo != alvoAnt) { de = vitScroll; alvoAnt = alvo; t0 = agora; }
+    float p = anim_politica_reduzida ? 1.0f : (float)(agora - t0) / dur;
+    vitScroll = p >= 1.0f ? alvo : de + (alvo - de) * anim_saida(p);
+    vitScrollV = 0.0f; }
   for (int r = 0; r < vitN; r++) {
     // A fileira em foco anda ate o cartaz caber com um vizinho a vista.
 #ifdef NV_TOUCH_UI
