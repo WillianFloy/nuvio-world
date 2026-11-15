@@ -115,7 +115,15 @@ jobs:
           echo "apk=$APK" >> "$GITHUB_OUTPUT"
           echo "sha256=$(sha256sum "$APK" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Android build-tools (verification only)
+      - name: Set up Java 17 and Android SDK (verification tools only)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install Android build-tools (verification only)
         run: |
           set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
