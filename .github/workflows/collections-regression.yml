@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - nuvio-world-collections-follow-layout-fix
+      - "nuvio-world-collections-*"
   workflow_dispatch:
 
 permissions:

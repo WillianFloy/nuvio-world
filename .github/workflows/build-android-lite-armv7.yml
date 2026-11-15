@@ -28,6 +28,29 @@ jobs:
       - name: Checkout Nuvio World
         uses: actions/checkout@v4
 
+      - name: Identify build (version, branch, commit)
+        id: ident
+        run: |
+          VERSION=$(python3 -c 'import json; print(json.load(open("deploy/app/appinfo.json"))["version"])')
+          BRANCH=$(echo "${GITHUB_REF_NAME}" | sed 's/^nuvio-world-//; s/[^A-Za-z0-9._-]/-/g')
+          SHA=$(git rev-parse --short=7 HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "name=Nuvio-World-${VERSION}-${BRANCH}-${SHA}-Android-TV-ARMv7" >> "$GITHUB_OUTPUT"
+          echo "Build: $VERSION / ${GITHUB_REF_NAME} / $SHA"
+
+      - name: Install native test dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential python3 libsdl2-dev
+
+      - name: Run Collections regression tests (build stops if any fails)
+        run: |
+          bash tests/collections.sh
+          bash tests/colecoes.sh
+          bash tests/colfileiras_sync.sh
+          bash tests/colecao_viewmode.sh
+          bash tests/vertudo_streamtabs.sh
+
       - name: Install Java 17
         uses: actions/setup-java@v4
         with:
@@ -93,7 +116,7 @@ jobs:
       - name: Upload ARMv7 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nuvio-World-2.0.11-Android-TV-ARMv7
-          path: build/android/Nuvio-2.0.11-android-lite-armv7-debug.apk
+          name: ${{ steps.ident.outputs.name }}
+          path: build/android/Nuvio-${{ steps.ident.outputs.version }}-android-lite-armv7-debug.apk
           if-no-files-found: error
           retention-days: 14
