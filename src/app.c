@@ -918,6 +918,15 @@ static void sidebarToqueAbrirTela(Tela origem) {
   menu_abrir();
 }
 #define SIDEBAR_TOQUE_TELA(nome, origem) static void nome(void) { sidebarToqueAbrirTela(origem); }
+// ONDE O RITMO DAS SETAS VALE (navritmo.h, "Navegação geral rápida" desligada):
+// so na navegacao entre cartazes — fileiras da Home e Collections —, onde a
+// fileira desliza e a arte carrega. Menus, painel, Ajustes, teclados, guia,
+// detalhe e player continuam respondendo a cada tecla como sempre.
+int app_navegacao_cartazes(void) {
+  if (menu_aberto() || spainel_aberto() || ctx_aberto() || spot_aberto() || sintro_aberto()) return 0;
+  if (vertudo_aberta()) return 1;
+  return tela == TELA_HOME && !detail_aberto();
+}
 SIDEBAR_TOQUE_TELA(sidebarToqueHome, TELA_HOME)
 SIDEBAR_TOQUE_TELA(sidebarToqueExplorar, TELA_EXPLORAR)
 SIDEBAR_TOQUE_TELA(sidebarToqueBusca, TELA_BUSCA)

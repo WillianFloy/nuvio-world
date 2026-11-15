@@ -59,4 +59,5 @@ int app_teste_tocar_guardada(void);
 void app_teste_cw_tocar(int temporada, int episodio);
 void app_teste_gravar_folha(int temporada, int episodio, int tem);
 int app_teste_consumir_folha(int *temporada, int *episodio);
+int app_navegacao_cartazes(void);   // setas com ritmo controlado (navritmo.h)
 #endif

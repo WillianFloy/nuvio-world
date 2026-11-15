@@ -99,5 +99,24 @@ int main(void) {
       assert(visivel > 322.0f * 0.30f && visivel < 322.0f * 0.40f); }
   }
   puts("vitgeom: tudo ok");
+  // Foco fixo (2.0.33): espiadas iguais, ~meio cartaz, foco nunca na espiada.
+  { const float S = 1920.0f; const float ws[] = {190.0f, 340.0f, 150.0f, 260.0f}, vaos[] = {24.0f, 24.0f, 18.0f, 30.0f};
+    for (int k = 0; k < 4; k++) {
+      float w = ws[k], passo = w + vaos[k];
+      int n = vitgeom_fixo_n(S, w, passo);
+      float A = vitgeom_fixo_ancora(S, w, passo, n);
+      float esq = A - vaos[k], dir = S - (A + n * passo);
+      assert(n >= 1);
+      assert(fabsf(esq - dir) < 0.01f);                       // mesma espiada nos dois lados
+      assert(esq >= VG_ESPIA_MIN * w - 0.5f && esq <= 0.9f * w + vaos[k]);  // ~meio cartaz
+      assert(A + (n - 1) * passo + w <= S - esq + 0.01f);     // ultimo inteiro antes da espiada
+      for (int total = 1; total < 30; total++)
+        for (int col = 0; col < total; col++) {
+          float x = A + col * passo - vitgeom_fixo_alvo(col, total, n, passo);
+          assert(x >= A - 0.01f && x + w <= A + (n - 1) * passo + w + 0.01f);
+          if (col <= total - n) assert(fabsf(x - A) < 0.01f);   // foco preso na ancora
+        }
+    }
+    puts("vitgeom foco fixo: ok"); }
   return 0;
 }

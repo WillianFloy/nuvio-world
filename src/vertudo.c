@@ -2073,35 +2073,17 @@ static float vitAlturaViewport(void) {
 // em tests/vitgeom.c). Mesma regra da grade (vtColunas): so cartoes inteiros, o
 // cartaz nao encolhe, o vizinho nunca fica cortado na lateral, retrato ou
 // paisagem. No telefone a rolagem continua livre ao toque.
-static float vitFimLinha(void) { return vtTelefone() ? vtFim() : NV_TELA_W - NV_CHROME_EDGE; }
-static int vitCabem(float x0, float w, float passo) {
-  return vtTelefone() ? VG_SEM_LIMITE : vitgeom_cabem(x0, vitFimLinha(), w, passo);
+// FOCO FIXO NA TV (vitgeom_fixo_*): o cartaz em foco fica na ancora e a fileira
+// desliza por baixo dele; as pontas mostram meio vizinho que esvanece (por pixel,
+// gfx_esvanecer_x) ate a borda da tela, com a mesma largura dos dois lados.
+static int vitFixoN(float w, float passo) { return vitgeom_fixo_n(NV_TELA_W, w, passo); }
+static float vitAncora(float w, float passo) {
+  return vitgeom_fixo_ancora(NV_TELA_W, w, passo, vitFixoN(w, passo));
 }
-// OPACIDADE DO CARTAO PELA BORDA DIREITA (so TV): os cartoes inteiros da janela
-// ficam a 100 %; o que sobra depois deles aparece parcial e esvanece. `cx` e a
-// borda esquerda do cartao, `w` a largura; o desenho ja esta na escala da Vitrine.
-static float vitFadeDireita(float cx, float w) {
-  float vis;
-  if (vtTelefone() || w <= 0.0f) return 1.0f;
-  vis = (NV_TELA_W - cx) / w;   // fracao do cartao que cabe na tela
-  if (vis >= 1.0f) return 1.0f;
-  vis = (vis - 0.04f) * 1.1f;
-  return vis < 0.0f ? 0.0f : vis;
-}
-static int vitIni[VIT_LIN_MAX];   // 1o cartao visivel de cada fileira
-static int vitJanela(int r, int col, int n, int total) {
-  return vitIni[r] = vitgeom_janela(vitIni[r], col, n, total);
-}
-// Recorte da janela: [esq, dir] cobre so os cartoes inteiros (+ folga do anel).
-static void vitRecorteJanela(float x0, float w, float passo, float y, float h) {
-  int n = vitCabem(x0, w, passo);
-  if (n >= VG_SEM_LIMITE) { gfx_recorte(0.0f, y, NV_TELA_W, h); return; }
-  // A direita vai ate a borda da tela: o proximo cartao aparece parcial e esvanece
-  // (vitFadeDireita), mostrando que a fileira continua ate o "Ver tudo".
-  float f = vitgeom_folga(fmaxf(NV_ANEL_FOCO, w * FOCO_ZOOM * 0.5f), w, passo);
-  gfx_recorte(x0 - f, y, NV_TELA_W - (x0 - f), h);
-}
-
+// Animacao do foco (anel e zoom) entrando no cartaz novo e saindo do anterior.
+static int vitFocoR = -1, vitFocoC = -1, vitFocoAntR = -1, vitFocoAntC = -1;
+static float vitFocoF, vitFocoAntF;
+static float vitLinAlfa[VIT_LIN_MAX];   // a fileira em foco acende, as outras esmaecem (animado)
 #ifdef NV_TOUCH_UI
 static float vitToqueMaxY(void) {
   return fmaxf(0.0f, (vitN - 1) * vitPasso());
@@ -2144,7 +2126,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       }
     } else if (!it) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
     if (vitHeroEntra < 1.0f) {
-      vitHeroEntra += dt / 0.25f;
+      vitHeroEntra += dt / 0.45f;   // troca do destaque: arte e texto juntos, sem salto
       if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = -1; }
     } }
   home_vitrine_medida(&w, &h, &passo, &rot);
@@ -2162,6 +2144,16 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       else if (vitExpDesde && agora - vitExpDesde >= (Uint32)(ajustes_col_expandir_atraso() * 1000.0f))
         vitExpAbre = anim_mola(vitExpAbre, 1.0f, dt, NV_MOLA_TELA);
     } }
+  { // O FOCO ENTRA E SAI ANIMADO: anel e zoom crescem no cartaz novo enquanto o
+    // anterior volta ao tamanho de repouso (nada de liga/desliga num quadro).
+    int r = tabFocus ? -1 : vitFR, c = tabFocus ? -1 : vitFC;
+    if (r != vitFocoR || c != vitFocoC) {
+      if (vitFocoR >= 0 && vitFocoF > 0.05f) { vitFocoAntR = vitFocoR; vitFocoAntC = vitFocoC; vitFocoAntF = vitFocoF; }
+      vitFocoR = r; vitFocoC = c; vitFocoF = 0.0f;
+    }
+    vitFocoF = anim_mola(vitFocoF, r >= 0 ? 1.0f : 0.0f, dt, NV_MOLA_FOCO * 0.6f);
+    vitFocoAntF = anim_mola(vitFocoAntF, 0.0f, dt, NV_MOLA_FOCO * 0.6f);
+    if (vitFocoAntF < 0.01f) vitFocoAntR = vitFocoAntC = -1; }
   float dtV = dt;
   { static Uint32 ultScroll;   // relogio proprio para as molas horizontais (TV lenta)
     float dtR = ultScroll && agora > ultScroll ? (float)(agora - ultScroll) / 1000.0f : dt;
@@ -2179,6 +2171,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
 #endif
   vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
   for (int r = 0; r < vitN; r++) {
+    vitLinAlfa[r] = anim_mola(vitLinAlfa[r], r == vitFR && !tabFocus ? 1.0f : 0.78f, dt, NV_MOLA_TELA);
     // A fileira em foco anda ate o cartaz caber com um vizinho a vista.
 #ifdef NV_TOUCH_UI
     if (vitToqueX[r].livre) vitSx[r] = anim_clamp(vitSx[r], 0.0f, vitToqueMaxX(r));
@@ -2187,13 +2180,13 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     if (!vtTelefone()) {
       // TV: janela de cartoes inteiros; toda fileira assenta no alvo (nao so a
       // focada), entao nenhuma fica com um cartao cortado depois de repouso.
-      int cab = vitCabem(vtInicio(), w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
-      float alvoX = vitJanela(r, col, cab, vitColunas(r)) * passo;
-      // Cartaz aberto perto da borda direita: a fileira anda o que falta para
-      // ele caber inteiro dentro da janela (e volta quando fecha).
-      if (r == vitExpR && vitExpAbre > 0.0f && cab < VG_SEM_LIMITE) {
-        float x0v = vtInicio(), extra = (h * VIT_EXP_ASPECTO - w) * vitExpAbre;
-        float dir = x0v + vitExpC * passo - alvoX + w + extra, lim = vitgeom_limite(x0v, w, passo, cab);
+      int cab = vitFixoN(w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
+      float alvoX = vitgeom_fixo_alvo(col, vitColunas(r), cab, passo);
+      // Cartaz aberto perto do fim da fileira: ela anda o que falta para ele
+      // caber antes da espiada da direita (e volta quando fecha).
+      if (r == vitExpR && vitExpAbre > 0.0f) {
+        float A = vitAncora(w, passo), extra = (h * VIT_EXP_ASPECTO - w) * vitExpAbre;
+        float dir = A + vitExpC * passo - alvoX + w + extra, lim = vitgeom_limite(A, w, passo, cab);
         if (dir > lim) alvoX += dir - lim;
       }
       vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
@@ -3639,26 +3632,38 @@ static void vitDesenhar(float a, float x0) {
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, a); }
   if (hero) {
     if (ant && vitHeroEntra < 1.0f) arte |= home_vitrine_arte(ant, a);
-    arte |= home_vitrine_arte(hero, a * (ant ? vitHeroEntra : 1.0f));
+    arte |= home_vitrine_arte(hero, a * (ant ? vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra) : 1.0f));
   }
   if (!arte) fundoColecao(a);
   degradeMarca(a, home_vitrine_layout() == HOME_LAYOUT_DINAMICA ? NV_TELA_H : NV_SHELF_TOP);
   // O bloco do destaque comeca abaixo do cabecalho (anel e legenda descem ate
   // ~34 px do centro da linha), com folga: logo largo, alto ou nome em texto.
   cabCy = NV_ILHA_Y + NV_ILHA_H + 14.0f + NV_CTRL_H * 0.5f;
-  if (hero) vitHeroTopo = home_vitrine_texto(hero, topo, cabCy + 34.0f + VIT_CAB_FOLGA, a);
+  // O TEXTO DO DESTAQUE TROCA JUNTO COM A ARTE, SEM SALTO: o antigo sai subindo
+  // um pouco e apagando na primeira metade; o novo entra de baixo para o lugar,
+  // acendendo. So posicao e opacidade (o barato para a TV).
+  if (hero) {
+    float t = vitHeroEntra, teto = cabCy + 34.0f + VIT_CAB_FOLGA;
+    if (ant && t < 1.0f) {
+      float sai = fminf(1.0f, t / 0.45f), ent = fmaxf(0.0f, (t - 0.30f) / 0.70f);
+      sai = sai * sai * (3.0f - 2.0f * sai); ent = ent * ent * (3.0f - 2.0f * ent);
+      if (sai < 1.0f) (void)home_vitrine_texto(ant, topo - 14.0f * sai, teto, a * (1.0f - sai));
+      vitHeroTopo = home_vitrine_texto(hero, topo + 18.0f * (1.0f - ent), teto, a * fmaxf(ent, 0.005f));
+    } else vitHeroTopo = home_vitrine_texto(hero, topo, teto, a);
+  }
 
   // As fileiras, recortadas abaixo do texto do destaque.
   gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport());
   for (int r = 0; r < vitN; r++) {
     float y = topo + r * pas - vitScroll, cy = y + VIT_TITULO_H;
-    float ac = a * (r == vitFR ? 1.0f : 0.78f);
+    float ac = a * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])));
+    float xr = vtTelefone() ? x0 : vitAncora(w, passo);   // inicio da fileira (TV: a ancora)
     VitLin *l = &vitLin[r];
     TxtLinha tt;
     if (y > viewportBottom) break;
     if (y + pas < topo - 8.0f) continue;
     tt = txt_linha_corta(TXT_ROW_TITULO, l->nome[0] ? l->nome : "—", 245, 246, 249, 255, 900);
-    txt_desenhar_alpha(tt, x0, y, ac);
+    txt_desenhar_alpha(tt, xr, y, ac);
     if (l->n > 0) {
 #ifdef NV_TOUCH_UI
       if (vtTelefone()) {
@@ -3667,23 +3672,29 @@ static void vitDesenhar(float a, float x0) {
                          vtEscala(), 0.0f, vitToqueMaxX(r), 0, &vitSx[r]);
       }
 #endif
-      // Recorte nas bordas dos cartoes inteiros da janela (+ folga do anel de foco,
-      // menor que o vao): nenhum vizinho aparece pela metade nas laterais.
-      vitRecorteJanela(x0, w, passo, topo - 8.0f, vitAlturaViewport());
+      // TV: a fileira ocupa a tela toda e as duas pontas esvanecem por pixel na
+      // largura da espiada (meio cartaz), igual dos dois lados.
+      if (!vtTelefone()) {
+        float esp = fmaxf(1.0f, xr - (passo - w));
+        gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W);
+      }
       for (int c = 0; c < vitColunas(r); c++) {
-        float cx = x0 + c * passo - vitSx[r];
+        float cx = xr + c * passo - vitSx[r];
         float abre = r == vitExpR && c == vitExpC ? vitExpAbre : 0.0f;
         float extra = r == vitExpR && vitExpAbre > 0.0f ? (h * VIT_EXP_ASPECTO - w) * vitExpAbre : 0.0f;
         if (r == vitExpR && c > vitExpC) cx += extra;   // os da direita abrem espaco
         GfxRect base = { cx, cy, w + (abre > 0.0f ? extra : 0.0f), h }, card = base;
         int sel = r == vitFR && c == vitFC && !tabFocus;
-        float acc = ac * vitFadeDireita(cx, w);
+        float acc = ac;
+        // Telefone: liga/desliga como sempre. TV: o foco entra e sai animado.
+        float ff = vtTelefone() ? (sel ? 1.0f : 0.0f)
+                 : sel ? vitFocoF : (r == vitFocoAntR && c == vitFocoAntC ? vitFocoAntF : 0.0f);
         if (cx + w < 0.0f) continue;
         if (cx > NV_TELA_W) break;
-        if (sel) {
+        if (ff > 0.01f) {
           if (ajustes_borda_foco())
-            foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), 1.0f, a);
-          else card = foco_zoom(base, 1.0f);
+            foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), ff, a);
+          else card = foco_zoom(base, ff);
         }
         if (c == l->n) {
           float raio = ajustes_raio_poster_px() / h;
@@ -3721,7 +3732,7 @@ static void vitDesenhar(float a, float x0) {
         }
 #endif
       }
-      gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport());
+      gfx_sem_esvanecer_x();
     } else if (l->estado == VIT_VAZIA || l->estado == VIT_PRONTA ||
                (vitLin[r].mais && !vitLin[r].n)) {
       const ColSource *s = vitMulti && collection && r < collection->nSources
@@ -3733,13 +3744,14 @@ static void vitDesenhar(float a, float x0) {
       if (l->mais) botaoMaisVistos(ac, x0, cy + 60.0f, r);
     } else {
       // Esqueleto enquanto a fileira espera a vez ou a rede.
-      for (int c = 0; c < 8; c++) {
-        GfxRect e = { x0 + c * passo, cy, w, h };
-        if (e.x > NV_TELA_W || (vitCabem(x0, w, passo) < VG_SEM_LIMITE &&
-            e.x + w > vitgeom_limite(x0, w, passo, vitCabem(x0, w, passo)) + 0.5f)) break;
+      if (!vtTelefone()) { float esp = fmaxf(1.0f, xr - (passo - w)); gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W); }
+      for (int c = 0; c < VIT_ITENS; c++) {
+        GfxRect e = { xr + c * passo, cy, w, h };
+        if (e.x > NV_TELA_W) break;
         gfx_cor(e, ajustes_raio_poster_px() / h, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G,
                 NV_COR_ESQUELETO_B, ac * 0.7f);
       }
+      gfx_sem_esvanecer_x();
     }
   }
   if (!vitN) {   // nada para repartir em fileiras ainda: diz por que

@@ -49,6 +49,8 @@ typedef struct {
   GLint vid[VID_NU];   // os uniforms do GFX_VIDRO (VID_NOMES), postos por gfx_vidro
   GLint giro;    // uGiro do VS: rotacao de grupo (gfx_girar)
   float giroAtual[4];
+  GLint fadeX;   // uFadeX: esvanecer horizontal (gfx_esvanecer_x), em todo modo
+  float fadeXAtual[4];
   float altAtual, margemAtual, leveAtual;  // o ultimo valor enviado: so chama o GL se mudar
   float telaAtual[2];       // o uTela enviado (muda so dentro de uma miniatura)
 } Programa;
@@ -73,6 +75,11 @@ void gfx_textura_definir(GLuint tex, const float janela[4], float aspecto,
 int gfx_textura_ativa(void) { return txTex != 0; }
 float gfx_card_forcar_cover_atual = 0.0f;
 float gfx_card_veu_tela_atual = 0.0f;
+// Esvanecer horizontal ativo (gfx_esvanecer_x), em fracao da largura do alvo:
+// alfa 0 em [0], 1 em [0]+1/[1]; 1 em [2]-1/[3], 0 em [2]. Neutro = sem efeito.
+static const float FADE_NEUTRO[4] = { -10.0f, 1.0f, 11.0f, 1.0f };
+static float fadeX[4] = { -10.0f, 1.0f, 11.0f, 1.0f };
+static int fadeOn;
 float gfx_card_heroi_veu_atual[4];
 // O pedaco do rect que o proximo gfx_rect desenha (uSub). So gfx_sombra_vazada
 // mexe, e devolve a (0,0,1,1) antes de sair.
@@ -192,6 +199,20 @@ void gfx_sem_girar(void) { giroOn = 0; }
     w *= gfxTr.s; h *= gfxTr.s; } } while (0)
 #define ESC_REAL_INI() float escGuard_ = escAtiva; int trGuard_ = gfxTr.on, giGuard_ = giroOn; escAtiva = 1.0f; gfxTr.on = 0; giroOn = 0
 #define ESC_REAL_FIM() escAtiva = escGuard_; gfxTr.on = trGuard_; giroOn = giGuard_
+// Coordenadas de layout NA ESCALA ATIVA (como gfx_recorte) -> fracao da tela.
+static float fadeFrac(float x) {
+  float y = 0.0f, w = 0.0f, h = 0.0f;
+  GFX_TR_RECT(x, y, w, h);
+  (void)y; (void)w; (void)h;
+  return x * escAtiva / NV_TELA_W;
+}
+void gfx_esvanecer_x(float esqZero, float esqCheio, float dirCheio, float dirZero) {
+  float a = fadeFrac(esqZero), b = fadeFrac(esqCheio), c = fadeFrac(dirCheio), d = fadeFrac(dirZero);
+  fadeX[0] = a; fadeX[1] = b - a > 1e-4f ? 1.0f / (b - a) : 1e4f;
+  fadeX[2] = d; fadeX[3] = d - c > 1e-4f ? 1.0f / (d - c) : 1e4f;
+  fadeOn = 1;
+}
+void gfx_sem_esvanecer_x(void) { fadeOn = 0; memcpy(fadeX, FADE_NEUTRO, sizeof fadeX); }
 
 static GLuint snapFbo = 0, snapTex = 0;
 static int snapW = 0, snapH = 0;
@@ -1756,11 +1777,21 @@ static GLuint compila(GLenum tipo, const char *src) {
 static GLuint vsProg;
 static int progMontar(int m) {
   GLuint vs = vsProg;
-  char fonte[12000];   // cabeca + sdf/cover + corpo; o maior (camadas) passa de 6000
-  snprintf(fonte, sizeof fonte, "%s%s%s%s%s",
+  char fonte[14000];   // cabeca + sdf/cover + corpo; o maior (camadas) passa de 6000
+  // ESVANECER HORIZONTAL EM TODO MODO (gfx_esvanecer_x): o corpo de cada modo vira
+  // nvCorpo() e um main() comum multiplica o alfa final por duas rampas na posicao
+  // do fragmento NA TELA (vAmb.x, ja interpolado do vertice). Desligado, as rampas
+  // valem 1 em toda a tela. Custo: um uniform e quatro operacoes por fragmento.
+  int nf = snprintf(fonte, sizeof fonte, "%s%s%s%s%s%s%s",
            FS_CABECA, m == GFX_CARD_HERO ? "#define HERO_CARD\n" : "",
+           "uniform vec4 uFadeX;\n#define main nvCorpo\n",
            PRECISA[m].sdf ? FS_SDF : "", PRECISA[m].cover ? FS_COVER : "",
-           FS_CORPO[m == GFX_CARD_HERO ? GFX_CARD : m]);
+           FS_CORPO[m == GFX_CARD_HERO ? GFX_CARD : m],
+           "\n#undef main\nvoid main(){\n  nvCorpo();\n"
+           "  float fe = clamp((vAmb.x - uFadeX.x) * uFadeX.y, 0.0, 1.0);\n"
+           "  float fd = clamp((uFadeX.z - vAmb.x) * uFadeX.w, 0.0, 1.0);\n"
+           "  gl_FragColor.a *= fe * fe * (3.0 - 2.0 * fe) * fd * fd * (3.0 - 2.0 * fd);\n}\n");
+  if (nf < 0 || nf >= (int)sizeof fonte) { printf("gfx: shader do modo %d grande demais\n", m); return 0; }
   GLuint p = glCreateProgram();
   glAttachShader(p, vs);
   glAttachShader(p, compila(GL_FRAGMENT_SHADER, fonte));
@@ -1783,6 +1814,8 @@ static int progMontar(int m) {
   progs[m].texAsp = glGetUniformLocation(p, "uTexAsp");
   progs[m].forcarCover = glGetUniformLocation(p, "uForceCover");
   progs[m].veuTela = glGetUniformLocation(p, "uVeuTela");
+  progs[m].fadeX = glGetUniformLocation(p, "uFadeX");
+  progs[m].fadeXAtual[0] = 12345.0f;   // forca o primeiro envio
   progs[m].heroiVeu = glGetUniformLocation(p, "uHeroiVeu");
   progs[m].borda  = glGetUniformLocation(p, "uBorda");
   progs[m].varre  = glGetUniformLocation(p, "uVarre");
@@ -2211,10 +2244,11 @@ static void vidroEsquecerFonte(GLuint tex) {
 static void vidroDesenho(GfxRect r, GLuint tex, GfxModo modo, float foco, float parx, float pary,
                          float raio, float cr, float cg, float cb, float ca) {
   const Programa *P = &progs[modo];
-  float v[24] = { r.x, r.y, r.w, r.h, foco, parx, pary, raio, cr, cg, cb, ca, gfx_opacidade_grupo,
+  float v[28] = { r.x, r.y, r.w, r.h, foco, parx, pary, raio, cr, cg, cb, ca, gfx_opacidade_grupo,
                   subAtual[0], subAtual[1], subAtual[2], subAtual[3], gfx_tex_aspect_atual,
                   gfx_desliza_atual, gfx_varre_atual, gfx_borda_foco_atual, nv_ambiente_forca,
-                  gfx_card_forcar_cover_atual, gfx_card_veu_tela_atual };
+                  gfx_card_forcar_cover_atual, gfx_card_veu_tela_atual,
+                  fadeOn ? fadeX[0] : 0.0f, fadeOn ? fadeX[1] : 0.0f, fadeOn ? fadeX[2] : 0.0f, fadeOn ? fadeX[3] : 0.0f };
   int e[9] = { (int)modo, (int)tex, recorteAtivo, blendLigado, giroOn, miniAtiva, snapAtivo,
                efeitosLeves, telaW };
   int conta = 1;
@@ -2608,7 +2642,7 @@ void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco,
   // telas pintam por cima do clear): e um glClear com essa cor — o mesmo
   // pixel (a mistura de alfa 1 devolve a cor e alfa 1), sem passar dois
   // milhoes de fragmentos pelo pipeline. Respeita a tesoura, como o quad.
-  clearCor = modo == GFX_COR && cheia && raio <= 0.0f && ca * gfx_opacidade_grupo >= 0.999f;
+  clearCor = !fadeOn && modo == GFX_COR && cheia && raio <= 0.0f && ca * gfx_opacidade_grupo >= 0.999f;
   if (ambPendente) {
     // Tela cheia e opaco: a luz por baixo nao apareceria. Senao, ela primeiro.
     // A ARTE OPACA DE TELA CHEIA (o fundo dos Ajustes e da pagina do titulo,
@@ -2776,6 +2810,13 @@ void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco,
     glUniform1f(P->leve, P->leveAtual);
   }
   if (P->cor >= 0)    glUniform4f(P->cor, cr, cg, cb, ca * gfx_opacidade_grupo);
+  if (P->fadeX >= 0) {
+    const float *fx = fadeOn && !miniAtiva && !snapAtivo ? fadeX : FADE_NEUTRO;
+    if (memcmp(P->fadeXAtual, fx, sizeof P->fadeXAtual)) {
+      glUniform4f(P->fadeX, fx[0], fx[1], fx[2], fx[3]);
+      memcpy(P->fadeXAtual, fx, sizeof P->fadeXAtual);
+    }
+  }
   if (modo == GFX_VIDRO) vidroAplicar(P, r);
   if (tex && tex != texAtual) {
     glActiveTexture(GL_TEXTURE0);
@@ -2783,7 +2824,7 @@ void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco,
     texAtual = tex;
     gfx_n_bind++;
   }
-  { int semMistura = (comAmb || opaco) && blendLigado;
+  { int semMistura = (comAmb || opaco) && blendLigado && !fadeOn;   // o esvanecer precisa da mistura
     if (semMistura) glDisable(GL_BLEND);
     if (perftv_enabled) {
       perftv_blur += modo == GFX_BLUR;

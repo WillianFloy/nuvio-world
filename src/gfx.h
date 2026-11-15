@@ -395,6 +395,12 @@ extern float gfx_janela_atual[4];
 // atras so e vista pela moldura, entao pintar a tela inteira por baixo dele e
 // trabalho jogado fora.
 void gfx_recorte(float x, float y, float w, float h);
+// ESVANECER HORIZONTAL (opacidade, nao desfoque) aplicado a todo desenho ate
+// gfx_sem_esvanecer_x: alfa 0 em esqZero subindo ate 1 em esqCheio, e 1 em
+// dirCheio descendo ate 0 em dirZero (curva suave). Coordenadas de layout na
+// escala ativa, como gfx_recorte. Usado pelas pontas das fileiras da Vitrine.
+void gfx_esvanecer_x(float esqZero, float esqCheio, float dirCheio, float dirZero);
+void gfx_sem_esvanecer_x(void);
 
 // --- ICONES ------------------------------------------------------------------
 //

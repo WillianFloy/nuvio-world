@@ -14,5 +14,8 @@ ok('ESC("Navegação geral rápida", V_LIGA, 2)' in a, "rotulo novo")
 ok('"fastHorizontalNavigationEnabled"' in a, "chave sincronizada preservada")
 ok("navritmo_baixou(" in m and "ajustes_navegacao_horizontal_rapida()" in m, "main.c aplica o ritmo")
 ok("navritmo_soltou(" in m, "KEYUP reinicia o toque")
+ap=open("src/app.c").read()
+ok("app_navegacao_cartazes() &&" in m and "int app_navegacao_cartazes(void)" in ap, "ritmo so entre cartazes e Collections")
+ok("menu_aberto() || spainel_aberto() || ctx_aberto()" in ap, "menus e paineis fora do ritmo")
 print("navritmo.sh: tudo ok")
 P

@@ -35,4 +35,32 @@ static inline float vitgeom_folga(float anel, float w, float passo) {
   return f < meio ? f : meio;
 }
 
+// --- FOCO FIXO (TV, 2.0.33), o modelo da Netflix ---------------------------------
+// O cartaz em foco fica sempre na mesma coluna da tela (a ancora) e a fileira
+// desliza por baixo dele. A tela [0, S] tem n cartoes inteiros e, nas duas
+// pontas, a mesma "espiada" do vizinho (aprox. meio cartaz), que esvanece ate a
+// borda. Nada de margem diferente entre esquerda e direita.
+#define VG_ESPIA_MIN 0.28f   // espiada minima, em fracao da largura do cartaz
+
+// Cartoes inteiros entre as duas espiadas.
+static inline int vitgeom_fixo_n(float S, float w, float passo) {
+  int n;
+  if (passo <= 0.0f || w <= 0.0f) return 1;
+  n = (int)((S - 2.0f * VG_ESPIA_MIN * w - (passo - w)) / passo + 0.001f);
+  return n < 1 ? 1 : n;
+}
+// Ancora: x do cartaz em foco. Sobra dividida para a espiada visivel (sem o vao)
+// ser IGUAL nos dois lados: esquerda = A - vao, direita = S - (A + n*passo).
+static inline float vitgeom_fixo_ancora(float S, float w, float passo, int n) {
+  float vao = passo - w, sobra = S - n * passo;
+  return (sobra + vao) * 0.5f;
+}
+// Deslocamento da fileira: o foco na ancora; no fim a fileira para e o foco anda
+// ate o ultimo cartaz inteiro (nunca entra na espiada).
+static inline float vitgeom_fixo_alvo(int col, int total, int n, float passo) {
+  int max = total > n ? total - n : 0;
+  if (col < 0) col = 0;
+  return (float)(col > max ? max : col) * passo;
+}
+
 #endif
