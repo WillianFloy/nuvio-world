@@ -2004,16 +2004,11 @@ static float vitPasso(void) {
 }
 // Topo da primeira fileira: o do layout da Home (home_vitrine_topo).
 static float vitTopo(void) { return home_vitrine_topo(vitPasso()); }
-// A Collection em Vitrine tem uma janela vertical fixa: uma fileira inteira e
-// aproximadamente um terco da proxima. O restante da tela nao vira uma grade
-// longa; o D-pad desloca essa janela para manter a fileira focada no topo.
+// Janela vertical da Vitrine: do topo da primeira fileira ate o pe da tela, como
+// era antes de dee757c05 (que a limitava a uma fileira e um terco da proxima e
+// deixava o resto da tela vazio). O D-pad desloca a fileira focada para o topo.
 static float vitAlturaViewport(void) {
-  float w, h, passo, rot;
-  home_vitrine_medida(&w, &h, &passo, &rot);
-  float conteudo = VIT_TITULO_H + h + rot;
-  float desejada = vitPasso() + conteudo / 3.0f;
-  float disponivel = NV_TELA_H - vitTopo() + 8.0f;
-  return fmaxf(0.0f, fminf(desejada, disponivel));
+  return fmaxf(0.0f, NV_TELA_H - vitTopo() + 8.0f);
 }
 
 // COLUNAS DA FILEIRA DA VITRINE (adaptativas): a conta esta em vitgeom.h (testada
