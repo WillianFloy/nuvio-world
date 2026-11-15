@@ -203,6 +203,17 @@ static const unsigned char LAY_CICLO[] = {
   VT_LAY_AUTO   // "Padrão": a pasta volta a seguir o ajuste do perfil (#535)
 };
 static int layEscolha;            // gravada (VT_LAY_AUTO = nunca escolheu)
+// Animacao do foco (anel e zoom) entrando no cartaz novo e saindo do anterior.
+static int vitFocoR = -1, vitFocoC = -1, vitFocoAntR = -1, vitFocoAntC = -1;
+static float vitFocoF, vitFocoAntF;
+static float vitLinAlfa[COL_SOURCE_MAX];   // a fileira em foco acende, as outras esmaecem (animado)
+static float vitLinEntra[COL_SOURCE_MAX];  // 0..1: a fileira sobe e acende quando os cartazes chegam
+// TROCA DE COLLECTION COM A TELA ABERTA (Netflix -> Disney): o conteudo da atual
+// sai (apaga e desce um pouco) sobre o fundo escuro, so entao a nova e montada e
+// o destaque e as fileiras dela entram. `vitTrocaPend` e a pasta que espera.
+static const ColFolder *vitTrocaPend;
+static float vitTrocaSai;   // 0..1 da saida
+static int vitTrocando;
 static int semVitrineAuto;        // aberta por vertudo_abrir (ver layAuto)
 // A pagina de uma fileira e temporaria: nunca altera a exibicao da colecao.
 static int vitTudo, vitTudoFiltro, vitTudoGrupo, vitTudoEscolha, vitTudoSemAuto;
@@ -651,6 +662,13 @@ void vertudo_colecao(const ColFolder *folder) {
   int i;
   pedRelogio = 0;
   if(!folder||!folder->nSources)return;
+  // Ja aberta na Vitrine e na TV: primeiro a saida da atual (vertudo_atualizar).
+  if (!vitTrocando && aberta && anim > 0.9f && lay == VT_LAY_VITRINE && !vtTelefone()) {
+    if (!vitTrocaPend) vitTrocaSai = 0.0f;
+    vitTrocaPend = folder;
+    return;
+  }
+  vitTrocaPend = NULL; vitTrocaSai = 0.0f;
   vitTudo = 0; vitTudoTecla = 0;
   vitCancelar();
   memset(tabAnim, 0, sizeof tabAnim);
@@ -673,6 +691,7 @@ void vertudo_colecao(const ColFolder *folder) {
 
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,
                    const char *tit) {
+  vitTrocaPend = NULL;
   vitTudo = 0; vitTudoTecla = 0;
   vitCancelar();
   pedRelogio = 0;
@@ -704,7 +723,7 @@ void vertudo_abrir(const char *base, const char *tipo, const char *catId,
 
 int vertudo_aberta(void) { return aberta; }
 int vertudo_foco(void) { return foco; }
-void vertudo_fechar_seco(void) { vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
+void vertudo_fechar_seco(void) { vitTrocaPend = NULL; vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
 int vertudo_pediu_abrir(void) { int v = pedAbrir; pedAbrir = -1; return v; }
 // ESQUERDA na coluna 0 da grade (ou na primeira aba da colecao): a barra
 // lateral abre POR CIMA da lista (dono, 03/10). Antes a coluna 0 voltava para
@@ -1518,6 +1537,8 @@ static void vitIniciar(void) {
   vitCarga = 0; vitFR = vitFC = 0; vitMexeu = 0; vitUnicoN = -1;
   vitScroll = vitScrollV = 0.0f;
   vitHeroAtual = vitHeroAnt = vitHeroDes = -1; vitHeroEntra = 1.0f;
+  memset(vitLinAlfa, 0, sizeof vitLinAlfa); memset(vitLinEntra, 0, sizeof vitLinEntra);
+  vitFocoR = vitFocoC = vitFocoAntR = vitFocoAntC = -1; vitFocoF = vitFocoAntF = 0.0f;
   vitNomeEm = vitReleEm = 0;
   if (!vitPronto || !collection) { lay = VT_LAY_GRADE; celLay = -1; carregarFonte(); return; }
   if (vitMulti) {
@@ -2080,10 +2101,6 @@ static int vitFixoN(float w, float passo) { return vitgeom_fixo_n(NV_TELA_W, w, 
 static float vitAncora(float w, float passo) {
   return vitgeom_fixo_ancora(NV_TELA_W, w, passo, vitFixoN(w, passo));
 }
-// Animacao do foco (anel e zoom) entrando no cartaz novo e saindo do anterior.
-static int vitFocoR = -1, vitFocoC = -1, vitFocoAntR = -1, vitFocoAntC = -1;
-static float vitFocoF, vitFocoAntF;
-static float vitLinAlfa[VIT_LIN_MAX];   // a fileira em foco acende, as outras esmaecem (animado)
 #ifdef NV_TOUCH_UI
 static float vitToqueMaxY(void) {
   return fmaxf(0.0f, (vitN - 1) * vitPasso());
@@ -2122,7 +2139,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       Uint32 parado = agora - vitHeroDesde;
       if (vitHeroAtual < 0 || (parado >= 140 && (home_vitrine_arte_pronta(it) || parado >= 700))) {
         vitHeroAnt = vitHeroAtual; vitHeroAtual = des;
-        vitHeroEntra = vitHeroAnt < 0 ? 1.0f : 0.0f;
+        vitHeroEntra = 0.0f;   // o primeiro destaque tambem entra (abrir ou trocar de Collection)
       }
     } else if (!it) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
     if (vitHeroEntra < 1.0f) {
@@ -2169,9 +2186,10 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
   if (vitToqueY.livre) vitScroll = anim_clamp(vitScroll, 0.0f, vitToqueMaxY());
   else
 #endif
-  vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+  vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
   for (int r = 0; r < vitN; r++) {
     vitLinAlfa[r] = anim_mola(vitLinAlfa[r], r == vitFR && !tabFocus ? 1.0f : 0.78f, dt, NV_MOLA_TELA);
+    if (vitLin[r].n > 0) vitLinEntra[r] = anim_mola(vitLinEntra[r], 1.0f, dt, NV_MOLA_TELA * 0.8f);
     // A fileira em foco anda ate o cartaz caber com um vizinho a vista.
 #ifdef NV_TOUCH_UI
     if (vitToqueX[r].livre) vitSx[r] = anim_clamp(vitSx[r], 0.0f, vitToqueMaxX(r));
@@ -2190,10 +2208,10 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
         if (dir > lim) alvoX += dir - lim;
       }
       vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
-                            dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+                            dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
     } else if (r == vitFR)
       vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], vitFC > 1 ? (vitFC - 1) * passo : 0.0f,
-                            dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+                            dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
   }
 }
 
@@ -2323,6 +2341,7 @@ void vertudo_evento(const SDL_Event *e) {
   int n, k;
   pedRelogio = 0;
   if (!aberta) return;
+  if (vitTrocaPend && e->type == SDL_KEYDOWN && e->key.keysym.sym != SDLK_AC_BACK) return;   // trocando de Collection
   if (vitTudo && !nv_perfil_sessao_atual(vitSessao)) { vitTudo = 0; vitCancelar(); aberta = 0; return; }
   n = nItens();
   // O OK que abriu a grade termina aqui, sem ativar seu primeiro cartaz.
@@ -2435,7 +2454,16 @@ void vertudo_atualizar(float dt, Uint32 agora) {
   float alvo, maxY;
   int n = nItens();
   anim = anim_mola(anim, aberta ? 1.0f : 0.0f, dt, NV_MOLA_TELA);
-  if (!aberta) { ctxhold_cancelar(&hold); return; }
+  if (!aberta) { vitTrocaPend = NULL; ctxhold_cancelar(&hold); return; }
+  if (vitTrocaPend) {   // saida da Collection atual (~250 ms), depois a troca
+    vitTrocaSai += dt / 0.25f;
+    if (vitTrocaSai >= 1.0f) {
+      const ColFolder *f = vitTrocaPend;
+      vitTrocando = 1; vertudo_colecao(f); vitTrocando = 0;
+      vitTrocaSai = 0.0f;
+    }
+    return;
+  }
   if (vitTudo && !nv_perfil_sessao_atual(vitSessao)) { vitTudo = 0; vitCancelar(); aberta = 0; return; }
   if (lay != VT_LAY_VITRINE) n = atualizarGrade();
   // SEGUROU OK NUM CARTAO ATE O LIMIAR: o menu do cartaz, com o dedo ainda no
@@ -2509,7 +2537,7 @@ void vertudo_atualizar(float dt, Uint32 agora) {
   if (toqueLivre) scrollY = anim_clamp(scrollY, 0.0f, maxY);
   else
 #endif
-    scrollY = anim_mola2(&velY, scrollY, alvo, dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+    scrollY = anim_mola2(&velY, scrollY, alvo, dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
 }
 
 // PAINEL DA DIREITA: o que a grade sozinha nao diz — sinopse, generos, nota.
@@ -3627,12 +3655,17 @@ static void vitDesenhar(float a, float x0) {
   }
 #endif
   // A tela inteira ja e pintada pela arte do destaque (e o clear do quadro): so
-  // a abertura/saida, com a Home por baixo, precisa do fundo escuro.
-  if (a < 0.99f) { GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
-    gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, a); }
+  // a abertura/saida, com a Home por baixo, e as transicoes (destaque entrando,
+  // troca de Collection) precisam do fundo escuro opaco por baixo.
+  float sai = vitTrocaPend ? fminf(1.0f, vitTrocaSai) : 0.0f, base = a;
+  sai = sai * sai * (3.0f - 2.0f * sai);
+  if (a < 0.99f || vitHeroEntra < 1.0f || sai > 0.0f || !hero) { GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+    gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
+  a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
   if (hero) {
+    float e = vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra);
     if (ant && vitHeroEntra < 1.0f) arte |= home_vitrine_arte(ant, a);
-    arte |= home_vitrine_arte(hero, a * (ant ? vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra) : 1.0f));
+    arte |= home_vitrine_arte(hero, a * e);
   }
   if (!arte) fundoColecao(a);
   degradeMarca(a, home_vitrine_layout() == HOME_LAYOUT_DINAMICA ? NV_TELA_H : NV_SHELF_TOP);
@@ -3649,14 +3682,20 @@ static void vitDesenhar(float a, float x0) {
       sai = sai * sai * (3.0f - 2.0f * sai); ent = ent * ent * (3.0f - 2.0f * ent);
       if (sai < 1.0f) (void)home_vitrine_texto(ant, topo - 14.0f * sai, teto, a * (1.0f - sai));
       vitHeroTopo = home_vitrine_texto(hero, topo + 18.0f * (1.0f - ent), teto, a * fmaxf(ent, 0.005f));
+    } else if (t < 1.0f) {   // primeiro destaque (abrir ou trocar de Collection): so entra
+      float ent = t * t * (3.0f - 2.0f * t);
+      vitHeroTopo = home_vitrine_texto(hero, topo + 18.0f * (1.0f - ent), teto, a * fmaxf(ent, 0.005f));
     } else vitHeroTopo = home_vitrine_texto(hero, topo, teto, a);
   }
 
   // As fileiras, recortadas abaixo do texto do destaque.
   gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport());
   for (int r = 0; r < vitN; r++) {
-    float y = topo + r * pas - vitScroll, cy = y + VIT_TITULO_H;
-    float ac = a * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])));
+    // TV: a fileira entra subindo 28 px e acendendo quando os cartazes chegam;
+    // a saida da troca de Collection desce 20 px.
+    float ent = vtTelefone() || !vitLin[r].n ? 1.0f : fmaxf(0.0f, fminf(1.0f, vitLinEntra[r]));
+    float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai, cy = y + VIT_TITULO_H;
+    float ac = a * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);
     float xr = vtTelefone() ? x0 : vitAncora(w, passo);   // inicio da fileira (TV: a ancora)
     VitLin *l = &vitLin[r];
     TxtLinha tt;

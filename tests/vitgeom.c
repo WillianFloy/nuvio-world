@@ -108,7 +108,8 @@ int main(void) {
       float esq = A - vaos[k], dir = S - (A + n * passo);
       assert(n >= 1);
       assert(fabsf(esq - dir) < 0.01f);                       // mesma espiada nos dois lados
-      assert(esq >= VG_ESPIA_MIN * w - 0.5f && esq <= 0.9f * w + vaos[k]);  // ~meio cartaz
+      assert(esq >= VG_ESPIA_MIN * w - 0.5f && esq <= 0.75f * w);  // ~meio cartaz, nunca exagerado
+      printf("w=%.0f n=%d espiada=%.0f (%.2f w) vazio esq. no 1o=%.0f\n", w, n, esq, esq / w, A);
       assert(A + (n - 1) * passo + w <= S - esq + 0.01f);     // ultimo inteiro antes da espiada
       for (int total = 1; total < 30; total++)
         for (int col = 0; col < total; col++) {

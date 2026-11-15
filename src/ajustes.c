@@ -3843,9 +3843,13 @@ int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
   static const float fator[] = { 0.72f, 1.0f, 1.22f };
   int v = valor[AJ_NAV_VELOCIDADE];
-  // "Navegação geral rápida" desligada (padrao): deslizes um pouco mais lentos e suaves.
-  float suave = lig(AJ_NAV_RAPIDA) ? 1.0f : 0.85f;
-  return (v >= 0 && v < 3 ? fator[v] : 1.0f) * suave;
+  return v >= 0 && v < 3 ? fator[v] : 1.0f;
+}
+// So nas fileiras de cartazes (Home e Collections): com "Navegação geral rápida"
+// desligada (padrao) o deslize e um pouco mais lento e suave. Busca, detalhe e
+// o resto do app seguem so a Velocidade da navegação.
+float ajustes_navegacao_velocidade_cartazes(void) {
+  return ajustes_navegacao_velocidade() * (lig(AJ_NAV_RAPIDA) ? 1.0f : 0.85f);
 }
 int   ajustes_borda_foco(void) { return lig(AJ_BORDA_FOCO); }
 

@@ -686,6 +686,7 @@ int   ajustes_col_itens_fileira(void);
 int   ajustes_col_expandir(void);
 float ajustes_col_expandir_atraso(void);
 float ajustes_navegacao_velocidade(void); // multiplicador da mola de rolagem
+float ajustes_navegacao_velocidade_cartazes(void); // idem, so fileiras de cartazes (Home/Collections)
 // 1 = desenhar o anel colorido no cartaz em foco da Home. Desligado, o foco
 // continua dito pelo TAMANHO do cartaz e pela animacao; o que sai e so a borda.
 // Opcao LOCAL: o app oficial nao tem equivalente, entao ela nao vem nem vai no

@@ -1,5 +1,6 @@
 #ifndef NV_VITGEOM_H
 #define NV_VITGEOM_H
+#include <math.h>
 // Geometria horizontal das fileiras da Vitrine das colecoes (TV), sem dependencia
 // de GL nem de estado do app: assim o teste exercita EXATAMENTE a conta usada.
 //
@@ -40,14 +41,25 @@ static inline float vitgeom_folga(float anel, float w, float passo) {
 // desliza por baixo dele. A tela [0, S] tem n cartoes inteiros e, nas duas
 // pontas, a mesma "espiada" do vizinho (aprox. meio cartaz), que esvanece ate a
 // borda. Nada de margem diferente entre esquerda e direita.
-#define VG_ESPIA_MIN 0.28f   // espiada minima, em fracao da largura do cartaz
+#define VG_ESPIA_MIN 0.15f   // espiada minima, em fracao da largura do cartaz
+#define VG_ESPIA_ALVO 0.45f  // a espiada preferida (~meio cartaz)
 
-// Cartoes inteiros entre as duas espiadas.
+static inline float vitgeom_fixo_espia(float S, float w, float passo, int n) {
+  return (S - n * passo - (passo - w)) * 0.5f;
+}
+// Cartoes inteiros entre as duas espiadas: dos dois numeros possiveis, o que deixa
+// a espiada mais perto de meio cartaz (sem passar do minimo). Assim o vazio da
+// esquerda com o foco no 1o cartaz fica pequeno.
 static inline int vitgeom_fixo_n(float S, float w, float passo) {
   int n;
+  float e1, e0;
   if (passo <= 0.0f || w <= 0.0f) return 1;
   n = (int)((S - 2.0f * VG_ESPIA_MIN * w - (passo - w)) / passo + 0.001f);
-  return n < 1 ? 1 : n;
+  if (n < 1) return 1;
+  e1 = vitgeom_fixo_espia(S, w, passo, n);
+  e0 = vitgeom_fixo_espia(S, w, passo, n - 1);
+  if (n > 1 && fabsf(e0 - VG_ESPIA_ALVO * w) < fabsf(e1 - VG_ESPIA_ALVO * w)) n--;
+  return n;
 }
 // Ancora: x do cartaz em foco. Sobra dividida para a espiada visivel (sem o vao)
 // ser IGUAL nos dois lados: esquerda = A - vao, direita = S - (A + n*passo).
