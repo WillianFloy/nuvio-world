@@ -6,8 +6,8 @@ out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 cc -O1 -g -fsanitize=address,undefined -Wall -Wextra -Isrc tests/animtempo.c -lm -o "$out/t"
 "$out/t"
-# Guarda: a rolagem vertical da Vitrine e por relogio de parede (assenta no ponto
-# sob a sinopse em tempo fixo), nao por mola por quadro.
-grep -q "alvoAnt" src/vertudo.c
+# Guarda: a rolagem vertical da Vitrine e sem animacao: a fileira focada fica sempre no ponto
+# sob a sinopse (vitScroll = alvo).
+grep -q "else { vitScroll = alvo; vitScrollV = 0.0f; }" src/vertudo.c
 ! grep -q "anim_mola2(&vitScrollV" src/vertudo.c
 echo "animtempo: guarda da rolagem vertical ok"
