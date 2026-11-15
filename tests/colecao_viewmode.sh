@@ -50,7 +50,12 @@ assert "#define VIT_LIN_MAX COL_SOURCE_MAX" in source
 assert "collection->viewMode == COL_VIEW_FOLLOW_LAYOUT" in source
 assert "collection->viewMode == COL_VIEW_ROWS" in source
 assert "static float vitAlturaViewport(void)" in source
-assert "conteudo / 3.0f" in source
+# A janela vertical vai ate o pe da tela (sem o corte em "uma fileira e um terco")
+# e as colunas sao adaptativas: so cartoes inteiros (vitgeom.h, tests/vitgeom.sh).
+assert "conteudo / 3.0f" not in source
+assert '#include "vitgeom.h"' in source
+assert "vitgeom_cabem(" in source and "vitgeom_janela(" in source
+assert "vitRecorteJanela(x0, w, passo, topo - 8.0f, vitAlturaViewport())" in source
 assert "gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport())" in source
 assert "Fontes nao-addon ficam visiveis, mas vazias" not in source
 

@@ -133,6 +133,9 @@ jobs:
       - name: Run collection source-label regression tests
         run: bash tests/vertudo_streamtabs.sh
 
+      - name: Run Vitrine adaptive-columns geometry test
+        run: bash tests/vitgeom.sh
+
       - name: Build signed Nuvio World Android TV APK
         run: |
           bash tools/android/deps.sh arm64-v8a armeabi-v7a

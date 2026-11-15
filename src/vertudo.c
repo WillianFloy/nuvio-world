@@ -2027,7 +2027,7 @@ static int vitJanela(int r, int col, int n, int total) {
 static void vitRecorteJanela(float x0, float w, float passo, float y, float h) {
   int n = vitCabem(x0, w, passo);
   if (n >= VG_SEM_LIMITE) { gfx_recorte(0.0f, y, NV_TELA_W, h); return; }
-  float f = vitgeom_folga(NV_ANEL_FOCO, w, passo), dir = vitgeom_limite(x0, w, passo, n) + f;
+  float f = vitgeom_folga(fmaxf(NV_ANEL_FOCO, w * FOCO_ZOOM * 0.5f), w, passo), dir = vitgeom_limite(x0, w, passo, n) + f;
   gfx_recorte(x0 - f, y, dir - (x0 - f), h);
 }
 

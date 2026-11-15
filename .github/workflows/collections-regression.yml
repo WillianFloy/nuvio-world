@@ -44,3 +44,6 @@ jobs:
 
       - name: Run Collection data-model regressions
         run: bash tests/colecoes.sh
+
+      - name: Run Vitrine adaptive-columns geometry test
+        run: bash tests/vitgeom.sh
