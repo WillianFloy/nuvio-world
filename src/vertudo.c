@@ -2043,7 +2043,20 @@ static float vitToqueMaxX(int r) {
   return fmaxf(0.0f, (vitColunas(r) - 1) * passo + w - (NV_TELA_W - vtInicio() - 48.0f));
 }
 #endif
+static void vitAtualizarCorpo(float dt, Uint32 agora);
+// AS MEDIDAS DA ATUALIZACAO NA MESMA ESCALA DO DESENHO. vertudo_desenhar desenha a
+// Vitrine com gfx_escala_sair(vtEscala()), e o tamanho do cartaz (gfx_poster_k) e o
+// topo (ANC) dependem da escala ativa. A atualizacao rodava na escala do app: o
+// passo da fileira usado no alvo da rolagem era MAIOR que o do desenho, e a fileira
+// em foco descia um pouco mais a cada tecla (vitFR * diferenca). Aqui as duas
+// contas usam a mesma escala.
 static void vitAtualizar(float dt, Uint32 agora) {
+  float esc = gfx_escala();
+  gfx_escala_sair(vtEscala());
+  vitAtualizarCorpo(dt, agora);
+  gfx_escala_sair(esc);
+}
+static void vitAtualizarCorpo(float dt, Uint32 agora) {
   float w, h, passo, rot, alvo;
   vitCarregar(agora);
   vitProjetar();
@@ -2082,13 +2095,7 @@ static void vitAtualizar(float dt, Uint32 agora) {
   if (vitToqueY.livre) vitScroll = anim_clamp(vitScroll, 0.0f, vitToqueMaxY());
   else
 #endif
-  // ROLAGEM VERTICAL SEM ANIMACAO: a fileira em foco vai direto ao ponto sob a
-  // sinopse, no mesmo quadro da tecla, a qualquer FPS. Com mola (por quadro ou por
-  // relogio) a TV mostrava a fileira ainda a caminho — cada vez mais para baixo a
-  // cada tecla — e o foco nunca ficava na mesma posicao.
-  if (vtTelefone())   // telefone: continua a mola
-    vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
-  else { vitScroll = alvo; vitScrollV = 0.0f; }
+  vitScroll = anim_mola2_tempo(&vitScrollV, vitScroll, alvo, dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
   for (int r = 0; r < vitN; r++) {
     // A fileira em foco anda ate o cartaz caber com um vizinho a vista.
 #ifdef NV_TOUCH_UI
