@@ -16,6 +16,7 @@
 // atalho mais rapido do controle abriria vazio por ~20 s toda vez que a TV
 // liga, que e justamente quando alguem aperta.
 #include "salvospainel.h"
+#include "vertudo.h"
 #include "home.h"
 #include "cwretido.h"
 #include "salvos.h"
@@ -263,7 +264,10 @@ static int nCont;            // quantas das primeiras linhas sao "Continuar"
 // (agenda.h) da tela Agenda. O id e o numero que vai para o arquivo de abas do
 // perfil: nunca renumerar, so acrescentar.
 enum { SP_ABA_SALVOS = 0, SP_ABA_ATIVIDADE = 1, SP_ABA_SOCIAL = 2, SP_ABA_AVISOS = 3,
-       SP_ABA_AGENDA = 4, SP_ABA_N = 5 };
+       SP_ABA_AGENDA = 4,
+       // OPCOES DA COLLECTION (dono, 15/11): existe so com uma Collection aberta na
+       // TV, sempre a primeira e a que o CH+ abre (vertudo_opcao_*).
+       SP_ABA_COLECAO = 5, SP_ABA_N = 6 };
 #define SP_FOCO_ABAS (-1)
 static int aba;
 static RecItem recs[REC_MAX];
@@ -1007,6 +1011,7 @@ static int temAtividade(void) {
 }
 // A aba PODE existir neste pacote/estado (nao e o que a pessoa escolheu ver).
 static int abaExiste(int a) {
+  if (a == SP_ABA_COLECAO) return vertudo_opcoes_n() > 0;
   if (a == SP_ABA_SOCIAL) return temSocial();
   if (a == SP_ABA_ATIVIDADE) return temAtividade();
   return a >= SP_ABA_SALVOS && a < SP_ABA_N;
@@ -1017,8 +1022,8 @@ static int abaExiste(int a) {
 // por aba, na ordem da faixa. Id de aba que o arquivo nao conhece (uma versao
 // futura acrescentou uma) entra no fim, ligada; id repetido ou invalido e
 // ignorado. O arquivo e por TV de proposito: perfil e quem decide, nao a conta.
-static int abaOrdem[SP_ABA_N] = { 0, 1, 2, 3, 4 };
-static unsigned char abaLiga[SP_ABA_N] = { 1, 1, 1, 1, 1 };
+static int abaOrdem[SP_ABA_N] = { SP_ABA_COLECAO, 0, 1, 2, 3, 4 };
+static unsigned char abaLiga[SP_ABA_N] = { 1, 1, 1, 1, 1, 1 };
 static int abaPerfil = -1;
 static const char *abasArquivo(void) {
   static char nome[40];
@@ -1026,9 +1031,18 @@ static const char *abasArquivo(void) {
   snprintf(nome, sizeof nome, "salvos-abas-p%d.txt", p > 0 ? p : 1);
   return nome;
 }
+// A aba Collection e sempre a primeira e sempre ligada: arquivo antigo (sem ela)
+// ou editado a deixa no fim; aqui ela volta para a frente.
+static void colecaoPrimeira(void) {
+  int i, p = 0;
+  for (i = 0; i < SP_ABA_N; i++) if (abaOrdem[i] == SP_ABA_COLECAO) p = i;
+  for (i = p; i > 0; i--) abaOrdem[i] = abaOrdem[i - 1];
+  abaOrdem[0] = SP_ABA_COLECAO; abaLiga[SP_ABA_COLECAO] = 1;
+}
 static void abasPadrao(void) {
   int i;
-  for (i = 0; i < SP_ABA_N; i++) { abaOrdem[i] = i; abaLiga[i] = 1; }
+  abaOrdem[0] = SP_ABA_COLECAO; abaLiga[SP_ABA_COLECAO] = 1;
+  for (i = 0; i < SP_ABA_COLECAO; i++) { abaOrdem[i + 1] = i; abaLiga[i] = 1; }
 }
 static void abasCarregar(void) {
   int p = perfis_ativo(), n = 0, i;
@@ -1053,6 +1067,7 @@ static void abasCarregar(void) {
   for (i = 0; i < SP_ABA_N; i++)
     if (!visto[i]) { abaOrdem[n++] = i; abaLiga[i] = 1; }
   free(b);
+  colecaoPrimeira();
 }
 static void abasGravar(void) {
   char b[256];
@@ -1102,6 +1117,7 @@ static int nVisiveis(void) {
   // ficou preso (1 pessoa registrada, 0 contatos no servidor). Cheia, a tela
   // de amigos so seria alcancavel pelo menu de um cartaz — ou seja, para
   // adicionar alguem era preciso escolher um filme primeiro.
+  if (aba == SP_ABA_COLECAO) return vertudo_opcoes_n();
   if (aba == SP_ABA_SOCIAL) return nSocial;
   if (aba == SP_ABA_AVISOS) return avisos_lista_linhas();   // + "Dispensar todos"
   if (aba == SP_ABA_ATIVIDADE) return nAtv;
@@ -1816,7 +1832,11 @@ void spainel_abrir(void) {
   memset(animBarra, 0, sizeof animBarra);
   abasCarregar();
   editando = 0; editLapis = 0;
-  aba = SP_ABA_SALVOS;
+  aba = abaExiste(SP_ABA_COLECAO) ? SP_ABA_COLECAO : SP_ABA_SALVOS;
+  if (aba == SP_ABA_COLECAO) {   // o foco nasce na exibicao em uso
+    int i, m;
+    for (i = 0; i < vertudo_opcoes_n(); i++) { m = 0; vertudo_opcao_rotulo(i, &m, NULL); if (m) { foco = i; break; } }
+  }
   scrollY = 0.0f; velY = 0.0f;
   memset(animFoco, 0, sizeof animFoco);
   // O INTERRUPTOR ABRE NO ESTADO, e nao deslizando ate ele. A resposta pode ter
@@ -1850,6 +1870,7 @@ void spainel_fechar(void) {
 // suficiente para o card focado ficar meio escondido atras do cabecalho.
 static float topoDe(int i) {
   float y;
+  if (aba == SP_ABA_COLECAO) return (float)i * SPS_H_ACAO;
   // A ABA SOCIAL SOMA LINHA A LINHA, e nao multiplica por um passo fixo: as
   // linhas dela tem quatro alturas diferentes. Era `i * SP_PASSO` enquanto
   // todas eram recomendacoes; com uma sugestao de 112px no meio, a multiplicacao
@@ -2046,6 +2067,7 @@ static void extraSocial(int k) {
 static void abrirMenu(void) {
   CatItem c;
   const SPLinha *l;
+  if (aba == SP_ABA_COLECAO) return;
   if (aba == SP_ABA_ATIVIDADE || aba == SP_ABA_SOCIAL) { abrirMenuSocial(); return; }
   if (aba == SP_ABA_AVISOS) { abrirMenuAvisos(); return; }
   if (!linhaSeguravel()) return;
@@ -2074,6 +2096,7 @@ static void abrirMenu(void) {
 // O toque curto de sempre: entrega o IMDb e fecha, app.c abre o titulo.
 static void okSocial(void);
 static void abrirLinha(void) {
+  if (aba == SP_ABA_COLECAO) { if (foco >= 0 && vertudo_opcao_ok(foco)) spainel_fechar(); return; }
   if (aba == SP_ABA_ATIVIDADE || aba == SP_ABA_SOCIAL) { okSocial(); return; }
   if (aba == SP_ABA_AVISOS) { if (avisos_lista_ok(foco) == 1) spainel_fechar(); return; }
   if (foco >= 0 && foco < nLinhas) {
@@ -2502,6 +2525,11 @@ void spainel_evento(const SDL_Event *e) {
       focoAvisosValido();
       return;
     }
+    if (aba == SP_ABA_COLECAO) {
+      if (e->key.repeat) return;
+      if (foco >= 0 && foco < vertudo_opcoes_n() && vertudo_opcao_ok(foco)) spainel_fechar();
+      return;
+    }
     if (aba == SP_ABA_AGENDA) {
       if (e->key.repeat) return;
       if (foco >= 0 && foco < nAg) {
@@ -2690,6 +2718,7 @@ void spainel_atualizar(float dt, Uint32 agora) {
     base = topo + (aba == SP_ABA_SOCIAL ? (spsConta(social[foco].tipo) ? SPS_H_CONTAS : socialAlt(foco))
                  : aba == SP_ABA_ATIVIDADE ? SPA_H
                  : aba == SP_ABA_AGENDA ? (foco < nAg ? SPAG_H : SPS_H_ACAO)
+                 : aba == SP_ABA_COLECAO ? SPS_H_ACAO
                  : aba == SP_ABA_AVISOS ? avisos_lista_altura_linha(foco, foco)
                  : linhas[foco].lh);
     // A linha aberta (acordeao) cresce para baixo: ela inteira tem de caber.
@@ -3341,11 +3370,13 @@ static void desenhaRecLinha(int linha, int idx, float dx, float y, float a, Uint
 #define SP_SEG_NUM   8.0f
 static const char *rotuloAba(int i) {
   return i == SP_ABA_SALVOS ? "Salvos" : i == SP_ABA_ATIVIDADE ? "Atividade"
-       : i == SP_ABA_SOCIAL ? "Amigos" : i == SP_ABA_AGENDA ? "Agenda" : "Avisos";
+       : i == SP_ABA_SOCIAL ? "Amigos" : i == SP_ABA_AGENDA ? "Agenda"
+       : i == SP_ABA_COLECAO ? "Collection" : "Avisos";
 }
 static const char *iconeAba(int i) {
   return i == SP_ABA_SALVOS ? "aj_bookmark" : i == SP_ABA_ATIVIDADE ? "aj_activity"
-       : i == SP_ABA_SOCIAL ? "aj_users" : i == SP_ABA_AGENDA ? "aj_calendar" : "aj_bell";
+       : i == SP_ABA_SOCIAL ? "aj_users" : i == SP_ABA_AGENDA ? "aj_calendar"
+       : i == SP_ABA_COLECAO ? "aj_layout-dashboard" : "aj_bell";
 }
 // A CONTAGEM AO LADO DO ICONE (".sg .n" do mockup), 16 px a 35 %. O que ha de
 // NOVO (recomendacao recebida, aviso nao lido) e estado: o numero passa a ser o
@@ -3478,7 +3509,7 @@ static float toquePainelMax(void) {
     fim = topoDe(i);
     if (aba == SP_ABA_SOCIAL) fim += socialAlt(i);
     else if (aba == SP_ABA_ATIVIDADE) fim += SPA_H;
-    else if (aba == SP_ABA_AGENDA) fim += SPS_H_ACAO;
+    else if (aba == SP_ABA_AGENDA || aba == SP_ABA_COLECAO) fim += SPS_H_ACAO;
     else if (aba == SP_ABA_AVISOS) fim += avisos_lista_altura_linha(i, foco);
   }
   return fmaxf(0, fim + 2 * SP_FOCO_AR - (SP_LISTA_BASE - listaTopo()));
@@ -5021,6 +5052,7 @@ static void desenharPainel(Uint32 agora) {
     if (nv > 0) snprintf(buf, sizeof buf, i18n("%d avisos · %d novos"), n, nv);
     else snprintf(buf, sizeof buf, "%d %s", n, i18n(n == 1 ? "aviso" : "avisos"));
   }
+  else if (aba == SP_ABA_COLECAO) snprintf(buf, sizeof buf, "%s", i18n("Exibição"));
   else if (aba == SP_ABA_AGENDA) {
     if (nAg == 0) snprintf(buf, sizeof buf, "%s", i18n("Agenda"));
     else if (nAg == 1) snprintf(buf, sizeof buf, "%s", i18n("1 próximo episódio"));
@@ -5071,6 +5103,21 @@ static void desenharPainel(Uint32 agora) {
 #endif
   if (temBarra()) desenhaBarra(x, a);
 
+  if (aba == SP_ABA_COLECAO) {
+    int n = vertudo_opcoes_n();
+    gfx_recorte(SP_X + xp, listaTopo(), SP_W, SP_LISTA_BASE - listaTopo());
+    y = listaTopo() + SP_FOCO_AR - scrollY;
+    for (i = 0; i < n; i++, y += SPS_H_ACAO) {
+      int marcada = 0; const char *ic = NULL;
+      const char *r = vertudo_opcao_rotulo(i, &marcada, &ic);
+      if (y + SPS_H_ACAO < listaTopo() || y > SP_LISTA_BASE) continue;
+      if (spPont) ponteiro_alvo_faixa(SP_X + x + SP_LINHA_X, y, SP_LINHA_W, SPS_H_ACAO, listaTopo(), SP_LISTA_BASE,
+                                      ponteiroLinhaAba, NULL, i, 0);
+      desenhaBotaoLinha(i, x, y, SPS_H_ACAO, a, r, NULL, marcada ? "aj_check" : ic, marcada);
+    }
+    gfx_sem_recorte();
+    return;
+  }
   if (aba == SP_ABA_ATIVIDADE) {
     gfx_recorte(SP_X + xp, listaTopo(), SP_W, SP_LISTA_BASE - listaTopo());
     y = listaTopo() + SP_FOCO_AR - scrollY;

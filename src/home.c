@@ -7607,6 +7607,22 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
   gfx_veu_card_limpar();
 }
 
+// O CARTAZ ABERTO DA VITRINE DAS COLLECTIONS (dono, 15/11): o mesmo pintor do
+// cartao da Home (pintarCartao) com `abre` — moldura 16:9, arte deitada a partir
+// da metade, veu, logo e faixa de decisao. O anel de foco continua com a Vitrine
+// (f = 0 aqui); r = -1 porque a fileira nao e da Home (sem tendencia).
+void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, float alfa) {
+  int deitado = ajustes_posteres_deitados();
+  const char *cam = ci ? arte_por_formato(ci, abre > 0.5f || deitado) : NULL;
+  float raio = raioDe(card.w, card.h), og = gfx_opacidade_grupo;
+  GLuint t = cam ? tex_obter_foco_larg(cam, card.w) : 0;
+  CartaoFoco k = { -1, -1, FILEIRA_NORMAL, ci, cam, t, 1.0f, deitado, temRotulo(FILEIRA_NORMAL),
+                   abre, 1.0f, 0.0f, card.x, card.y, card.w, card.h, 0.0f, 0.0f };
+  gfx_opacidade_grupo = alfa;
+  pintarCartao(&k, raio);
+  gfx_opacidade_grupo = og;
+}
+
 // Chamado pelo menu do cartaz, DEPOIS do veu: repinta o cartao focado inteiro
 // (anel, arte, veus, rotulo, logo) onde a home o pintou neste quadro. 0 se o
 // cartao focado nao foi pintado (destaque, pasta, pilha).

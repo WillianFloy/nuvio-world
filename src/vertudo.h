@@ -42,6 +42,12 @@ int  vertudo_pediu_abrir(void);
 // 1 uma vez: ESQUERDA na coluna 0 pediu a barra lateral (abre por cima).
 int  vertudo_pediu_menu(void);
 int  vertudo_pediu_relogio(void);
+// Collection aberta na TV: o relogio e o botao "Exibição" saem da tela e as
+// opcoes vao para a primeira aba do painel do CH+ (salvospainel.c).
+int  vertudo_em_colecao(void);
+int  vertudo_opcoes_n(void);
+const char *vertudo_opcao_rotulo(int i, int *marcada, const char **icone);
+int  vertudo_opcao_ok(int i);   // 1 = fechar o painel
 // Posicao do cartao em foco na grade (testes: o foco volta ao mesmo cartao
 // depois do menu do cartaz).
 int  vertudo_foco(void);

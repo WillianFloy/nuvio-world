@@ -355,3 +355,6 @@
   0, /* copy settings from another profile */
   1, /* normal navigation speed */
   0, /* read-only Collections status row */
+  12, /* Collections: items per Vitrine row (12..42), profile-local */
+  0, /* Collections: expand focused vertical poster: On, profile-local */
+  3, /* Collections: expansion delay 3 s (same as Posters and trailers) */

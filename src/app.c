@@ -3968,6 +3968,7 @@ static void alternarSalvos(int comModal) {
   if (agoraTecla - ultimoToque < 400) return;   // repeticao do firmware
   ultimoToque = agoraTecla;
   if (spainel_aberto()) spainel_fechar();
+  else if (vertudo_em_colecao()) spainel_abrir();   // sem relogio: entra pela borda, na aba Collection
   else if (comModal && (ilha_cartao_na_tela() || ilha_atividade_expansivel()) && ilha_modal_abrir()) {}
   else if (ajustes_relogio_ligado() && ilha_rect(&ix, &iy, &iw, &ih)) spainel_abrir_de(ix, iy, iw, ih);
   else spainel_abrir();
@@ -4565,7 +4566,7 @@ void app_evento(const SDL_Event *e) {
   if (ctx_aberto())     { ctx_evento(e);     return; }
   if (vertudo_aberta()) {
     vertudo_evento(e);
-    relogioFocoPedir(vertudo_pediu_relogio());
+    { int pr = vertudo_pediu_relogio(); relogioFocoPedir(pr && !vertudo_em_colecao()); }
     // ESQUERDA na coluna 0 de "Ver tudo"/colecao: a barra por cima dela.
     // Por cima: DIREITA/Voltar voltam para a lista, um destino a fecha.
     if (vertudo_aberta() && vertudo_pediu_menu() && sidebar_permitida()) {
@@ -7395,7 +7396,8 @@ void app_desenhar(Uint32 agora) {
   if (guia_atualizando_lista()) ilha_atividade(i18n("Atualizando a lista de canais…"), -1.0f);
   if (!registro_aberto() && !player_aberto() && sessao_logada() &&
       tela != TELA_LOGIN && tela != TELA_ESCOLHA_PERFIL) {
-    ilha_relogio_visivel(relogioCabe() && ajustes_relogio_ligado());
+    // Collection na TV: sem relogio (dono, 15/11); as opcoes estao no CH+.
+    ilha_relogio_visivel(relogioCabe() && ajustes_relogio_ligado() && !vertudo_em_colecao());
     ilha_posicionar(1);
     // O painel de Salvos que nasceu da pilula recolhe para ela (o retangulo
     // do quadro anterior) e, enquanto esta na tela, a cobre.

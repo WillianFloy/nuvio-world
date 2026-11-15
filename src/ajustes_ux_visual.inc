@@ -3,6 +3,8 @@ static const char *ajVisualIcone(int op) {
   if (ajLegendaPrincipal(op) || op == AJ_LEG1_RESTAURAR || ajLegendaSecundaria(op)) return "aj_captions";
   switch (op) {
     case AJ_COLECAO_EXIBICAO: return "aj_layout-dashboard";
+    case AJ_COL_ITENS: return "aj_rows-3";
+    case AJ_COL_EXPANDIR: case AJ_COL_EXPANDIR_ATRASO: return "aj_images";
     case AJ_HOME_LAYOUT: return "aj_layout-dashboard";
     case AJ_LANDSCAPE: return "aj_layout-dashboard";
     case AJ_HERO: return "aj_layout-dashboard";

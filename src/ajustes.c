@@ -719,6 +719,10 @@ typedef enum {
   AJ_CONFIG_COPIAR,
   AJ_NAV_VELOCIDADE,
   AJ_COLECOES_STATUS, // read-only status: received folders and active addon sources
+  // COLLECTIONS (dono, 15/11), por perfil neste aparelho, append-only:
+  AJ_COL_ITENS,            // itens por fileira da Vitrine (12..42)
+  AJ_COL_EXPANDIR,         // expandir poster vertical ao focar (0 = ligado)
+  AJ_COL_EXPANDIR_ATRASO,  // segundos parado antes de expandir
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -1859,6 +1863,9 @@ static const Opcao OPCOES[AJ_N] = {
   ACAO("Copiar configurações de outro perfil"),
   ESC("Velocidade da navegação", V_NAV_VELOCIDADE, 3),
   LER("Estado das coleções"),
+  NUM("Quantidade de itens por fileira", 12, 42, 1, " itens"),
+  ESC("Expandir posters verticais das Collections ao focar", V_LIGA, 2),
+  NUM("Atraso da expansão", 0, 10, 1, " s"),
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2194,6 +2201,9 @@ static const char *CHAVE[] = {
   "-configCopiar",
   "navVelocidadeLocal",
   "-colecoesStatus",
+  "colItensFileiraLocal",
+  "colExpandirLocal",
+  "colExpandirAtrasoLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3822,6 +3832,12 @@ int ajustes_meta_so_cinemeta(void)    { return lig(AJ_DET_SO_CINEMETA); }
 
 int   ajustes_expandir_poster(void)   { return lig(AJ_EXPANDIR); }
 float ajustes_expandir_poster_atraso(void) { return (float)valor[AJ_EXPANDIR_ATRASO]; }
+int   ajustes_col_itens_fileira(void) {
+  int v = valor[AJ_COL_ITENS];
+  return v < 12 ? 12 : v > 42 ? 42 : v;
+}
+int   ajustes_col_expandir(void) { return lig(AJ_COL_EXPANDIR); }
+float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
   static const float fator[] = { 0.72f, 1.0f, 1.22f };
@@ -6130,7 +6146,8 @@ static int somenteDesteAparelho(int op) {
 // onde o historico vai e se o social existe. Entram na copia por perfil
 // (ajustes-p<N>.txt) e continuam FORA do blob (somenteDesteAparelho).
 static int perfilLocal(int i) {
-  return i == AJ_GUIA_ORDEM || i == AJ_GUIA_FONTE || i == AJ_COLECAO_EXIBICAO || i == AJ_CW_FONTE || i == AJ_CW_PROXIMO || i == AJ_SALVOS_DEST || i == AJ_HIST_CONTA || i == AJ_SOCIAL ||
+  return i == AJ_COL_ITENS || i == AJ_COL_EXPANDIR || i == AJ_COL_EXPANDIR_ATRASO ||
+         i == AJ_GUIA_ORDEM || i == AJ_GUIA_FONTE || i == AJ_COLECAO_EXIBICAO || i == AJ_CW_FONTE || i == AJ_CW_PROXIMO || i == AJ_SALVOS_DEST || i == AJ_HIST_CONTA || i == AJ_SOCIAL ||
          i == AJ_MENU_TOPO || i == AJ_MENU_TOPO_MODO || i == AJ_MENU_TOPO_TAMANHO || i == AJ_MENU_TOPO_ORDEM || i == AJ_MENU_TOPO_FIXO || i == AJ_MENU_TOPO_FOCO_EXPANDIDO || i == AJ_ABAS_ESTILO || i == AJ_OCULTAR_FILMES_VISTOS;
   return i == AJ_COLECAO_EXIBICAO || i == AJ_CW_FONTE || i == AJ_CW_PROXIMO || i == AJ_SALVOS_DEST || i == AJ_HIST_CONTA || i == AJ_SOCIAL ||
          i == AJ_MENU_TOPO || i == AJ_ABAS_ESTILO || i == AJ_OCULTAR_FILMES_VISTOS || i == AJ_BIB_HOME;
@@ -7245,6 +7262,7 @@ static int inativa(int op) {
       return !ajustes_cw_ligado();
     case AJ_CW_BLUR_PROX: return !ajustes_cw_ligado() || !ajustes_cw_thumb_episodio();
     case AJ_EXPANDIR_ATRASO: return !ajustes_expandir_poster();
+    case AJ_COL_EXPANDIR_ATRASO: return !lig(AJ_COL_EXPANDIR);
     case AJ_SEEKR_FITA: case AJ_SEEKR_AJUSTE: return !lig(AJ_SEEKR_LIGADO);
     case AJ_FONTE_GRUPO_SESSOES: return !lig(AJ_FONTE_GRUPO);
     case AJ_LINK_PRAZO: return !lig(AJ_LINK_REUSAR);
@@ -7473,6 +7491,7 @@ static const char *ajudaOpcaoBase(int op) {
         ? "Ative Miniatura do episódio para desfocar a imagem do próximo episódio."
         : "Ative Continuar assistindo para ajustar os cards de retomada.";
     if (op == AJ_EXPANDIR_ATRASO) return "Ative Expandir pôster ao focar para ajustar o tempo de espera.";
+    if (op == AJ_COL_EXPANDIR_ATRASO) return "Ative Expandir posters verticais das Collections ao focar para ajustar o tempo de espera.";
     if (op == AJ_HERO_TRAILER_SOM && !trailerfonte_com_som(trailerfonte_tizen()) &&
         (lig(AJ_HERO_TRAILER) || valor[AJ_FOCO_TRAILER] != AJ_TRAILER_CARTAZ_DESLIGADO ||
          lig(AJ_DET_TRAILER_AUTO)))
@@ -7816,6 +7835,9 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_POSTER_MODELO: return "Endereço com {imdb}, {tmdb}, {type} (movie ou series) e {tipo_tmdb} (movie ou tv), por exemplo https://meu.servidor/{type}/{imdb}.jpg. Quem não tiver o dado que o modelo pede fica com o cartaz normal.";
     case AJ_POSTER_TESTAR: return "Baixa o cartaz de um filme conhecido com a configuração atual e mostra se deu certo. O primeiro cartaz de cada título é montado no servidor e pode levar alguns segundos.";
     case AJ_COLECAO_EXIBICAO: return "Vale para coleções sem escolha própria neste perfil. Automático mantém a exibição original. Em Exibição, escolha Padrão para seguir este ajuste novamente.";
+    case AJ_COL_ITENS: return "Quantos títulos cada fileira da Vitrine mostra antes de Ver tudo. Fileiras perto do foco carregam primeiro; as distantes liberam memória e voltam ao se aproximar. Vale para este perfil nesta TV.";
+    case AJ_COL_EXPANDIR: return "Nas Collections, o pôster vertical em foco cresce e abre a arte deitada depois de um instante parado. Vale para este perfil nesta TV.";
+    case AJ_COL_EXPANDIR_ATRASO: return "Quanto tempo o foco precisa ficar parado num pôster das Collections antes de ele expandir.";
     case AJ_COLECOES_STATUS: return "Mostra as pastas recebidas e quantas fontes de catálogo pertencem a addons ativos nesta TV. Se uma pasta foi recebida, mas nenhuma fonte está ativa, confira se o addon foi reconfigurado: nesse caso, selecione novamente o catálogo no editor de coleções do site.";
     case AJ_MURAL_TITULOS: return "Ligado (padrão): cada ladrilho do Mural mostra o nome do título. Desligado: o nome fica só no painel da direita. Vale só nesta TV.";
     case AJ_HOME_LAYOUT: return "Moderna: destaque atrás das fileiras. Padrão: destaque num banner no topo. Dinâmica: estilo Apple TV, com destaques grandes e Top 10.";

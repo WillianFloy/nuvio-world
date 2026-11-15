@@ -1076,6 +1076,10 @@ static void alternarEstiloAbas(void) {
   abasReiniciar(); tabRol = 0;
   tabFocus = 1; tabCursor = cabN() + 1;
 }
+// COLLECTION NA TV SEM O BOTAO "EXIBICAO" (dono, 15/11): a exibicao mudou para a
+// primeira aba do painel do CH+ (salvospainel.c, vertudo_opcao_*). O botao some
+// do cabecalho e da navegacao; no telefone ele continua.
+static int chipOculto(void) { return collection && !vtTelefone(); }
 #define VT_DD_RH 48.0f   // linha do menu suspenso
 // JANELA DO MENU SUSPENSO (#205): com 16 catalogos a lista parava alem do pe
 // da tela e o foco sumia ao descer. A altura fica no espaco util e a janela
@@ -1143,19 +1147,38 @@ static void ddEvento(SDL_Keycode k) {
 // (duas camadas, so ali, como a Home faz).
 #define VIT_LIN_MAX COL_SOURCE_MAX
 #define VIT_LIN_SINTETICA_MAX 12
-#define VIT_ITENS   20   // teto por fileira (o espaco que o buffer reserva)
-#define VIT_ITENS_FRACA 12   // TV com pouca RAM ou GPU fraca: buffer ~40% menor
+#define VIT_ITENS   42   // teto por fileira: Ajustes > Coleções > Quantidade de itens (12..42)
+// JANELA DE MEMORIA (dono, 15/11: ate 42 itens por fileira). Um CatItem tem
+// ~17,8 KB; 42 itens x 64 fileiras passariam de 48 MB. Cada fileira ganha seu
+// buffer SO quando os dados chegam, so as fileiras perto do foco sao pedidas, e
+// as distantes devolvem a memoria (voltam a pendente e recarregam ao chegar
+// perto). Teto pratico: ~(ATRAS+FRENTE+1) fileiras residentes.
+#define VIT_CARGA_FRENTE 5    // fileiras com conteudo pedidas abaixo do foco
+#define VIT_CARGA_ATRAS  2    // e acima
+#define VIT_SOLTA_FRENTE 9    // alem disto (abaixo) a fileira devolve a memoria
+#define VIT_SOLTA_ATRAS  5    // (acima)
+#define VIT_SOLTA_FRENTE_FRACA 6
+#define VIT_SOLTA_ATRAS_FRACA  3
 // Itens por fileira EM VIGOR, fixado quando o buffer nasce (vitIniciar).
 static int vitCap = VIT_ITENS;
 enum { VIT_PEND = 0, VIT_CARREGANDO, VIT_PRONTA, VIT_VAZIA };
 typedef struct { char nome[96]; int n, brutoN, extraN, estado, semFonte, mais, pagina, grupo, porTipo; } VitLin;
 static VitLin vitLin[VIT_LIN_MAX];
-static CatItem *vitBuf;
-static int vitBufRows;
+static CatItem *vitLinBuf[VIT_LIN_MAX];   // por fileira, alocado quando os dados chegam
+static int vitPronto, vitFraca;
 // Preserva a primeira fileira original. Se ela tem filmes vistos, guarda ate
 // outra fileira de candidatos ja recebidos para preencher as vagas visiveis.
 // A reserva extra so e alocada onde ha vagas; jamais dispara um pedido novo.
 static CatItem *vitExtra[VIT_LIN_MAX];
+static CatItem *vitLinAloc(int r) {
+  if (r < 0 || r >= VIT_LIN_MAX) return NULL;
+  if (!vitLinBuf[r]) vitLinBuf[r] = calloc((size_t)vitCap, sizeof(CatItem));
+  return vitLinBuf[r];
+}
+static void vitLinSoltar(int r) {
+  free(vitLinBuf[r]); vitLinBuf[r] = NULL;
+  free(vitExtra[r]); vitExtra[r] = NULL;
+}
 static short vitVis[VIT_LIN_MAX][VIT_ITENS];
 static unsigned vitRevisao;
 static int vitOcultar = -1, vitProjetoSujo;
@@ -1168,6 +1191,12 @@ static float vitScroll, vitScrollV, vitSx[VIT_LIN_MAX], vitSv[VIT_LIN_MAX];
 static int vitHeroAtual = -1, vitHeroAnt = -1, vitHeroDes = -1;
 static Uint32 vitHeroDesde;
 static float vitHeroEntra = 1.0f;
+// EXPANSAO DO CARTAZ VERTICAL EM FOCO (Ajustes > Coleções, dono 15/11): o mesmo
+// gesto da Home. Relogio zera a cada movimento; abre depois do atraso parado.
+static int vitExpR = -1, vitExpC = -1;
+static Uint32 vitExpDesde;
+static float vitExpAbre;
+#define VIT_EXP_ASPECTO (16.0f / 9.0f)
 
 // Cada fileira tem seu pedido; o catalogo unico de Ver tudo continua separado.
 // A tela e o fio possuem uma referencia cada. Fechar/trocar nao espera rede,
@@ -1294,9 +1323,10 @@ static void vitPonteiroInvalidar(int reiniciarRolagem) {
 
 
 static CatItem *vitItem(int r, int c) {
-  if (!vitBuf || r < 0 || r >= vitN || c < 0 || c >= vitLin[r].n) return NULL;
+  if (!vitPronto || r < 0 || r >= vitN || c < 0 || c >= vitLin[r].n) return NULL;
   int i = vitVis[r][c];
-  return i < vitCap ? &vitBuf[r * vitCap + i] : &vitExtra[r][i - vitCap];
+  if (i < vitCap) return vitLinBuf[r] ? &vitLinBuf[r][i] : NULL;
+  return vitExtra[r] ? &vitExtra[r][i - vitCap] : NULL;
 }
 static CatItem *vitChave(int k) { return k < 0 ? NULL : vitItem(k / vitCap, k % vitCap); }
 static int vitTemVerTudo(int r) { return r >= 0 && r < vitN && vitLin[r].n > 0 && !vitLin[r].semFonte; }
@@ -1359,7 +1389,9 @@ static void vitProjetar(void) {
     l->n = 0;
     for (int i = 0; i < l->brutoN + (ocultar ? l->extraN : 0) && l->n < vitCap; i++) {
       int bruto = i < l->brutoN ? i : vitCap + i - l->brutoN;
-      CatItem *it = bruto < vitCap ? &vitBuf[r * vitCap + bruto] : &vitExtra[r][bruto - vitCap];
+      CatItem *it = bruto < vitCap ? (vitLinBuf[r] ? &vitLinBuf[r][bruto] : NULL)
+                                   : (vitExtra[r] ? &vitExtra[r][bruto - vitCap] : NULL);
+      if (!it) continue;
       if (ocultar && desc_filme_visto(it)) continue;
       vitVis[r][l->n] = (short)bruto;
       if (bruto == lembrado) vitColLemb[r] = l->n;
@@ -1457,26 +1489,20 @@ static void vitIniciar(void) {
   vitN = vitMulti && collection->nSources > 0
       ? (collection->nSources < VIT_LIN_MAX ? collection->nSources : VIT_LIN_MAX) : 0;
 
-  // Ate 64 fontes, sem reservar 20 CatItems por linha. O teto total fica
-  // proximo do buffer anterior; pastas grandes mostram menos cartazes por
-  // fonte e mantem "Ver tudo" para acessar a lista completa.
+  // ITENS POR FILEIRA: o ajuste do perfil (12..42). A memoria nao e reservada
+  // aqui: cada fileira aloca o proprio buffer quando os dados chegam e as
+  // distantes do foco o devolvem (ver VIT_CARGA_*/VIT_SOLTA_* e vitCarregar).
   long memMb = 0; int mb = 0, fixo = 0, slots = 0;
   tex_orcamento_info(&mb, &memMb, &fixo, &slots);
-  int fraca = (memMb > 0 && memMb <= 1536) || ptv_gpu_fraca_atual();
-  int linhasBuffer = vitMulti ? (vitN > 0 ? vitN : 1) : VIT_LIN_SINTETICA_MAX;
-  int orcamentoItens = fraca ? 256 : 320;
-  int capMax = fraca ? VIT_ITENS_FRACA : VIT_ITENS;
-  int novoCap = orcamentoItens / linhasBuffer;
-  if (novoCap > capMax) novoCap = capMax;
-  if (novoCap < 2) novoCap = 2;
-  if (!vitBuf || vitCap != novoCap || vitBufRows != linhasBuffer) {
-    free(vitBuf);
-    vitBuf = calloc((size_t)linhasBuffer * (size_t)novoCap, sizeof(CatItem));
-    vitCap = novoCap;
-    vitBufRows = vitBuf ? linhasBuffer : 0;
-  } else {
-    memset(vitBuf, 0, sizeof(CatItem) * (size_t)vitBufRows * (size_t)vitCap);
-  }
+  vitFraca = (memMb > 0 && memMb <= 1536) || ptv_gpu_fraca_atual();
+  for (int r = 0; r < VIT_LIN_MAX; r++) { free(vitLinBuf[r]); vitLinBuf[r] = NULL; }
+  vitCap = ajustes_col_itens_fileira();
+  if (vitCap > VIT_ITENS) vitCap = VIT_ITENS;
+  if (vitCap < 2) vitCap = 2;
+  vitPronto = 1;
+  if (!vitMulti)   // fileiras sinteticas (uma fonte agrupada): poucas, todas de uma vez
+    for (int r = 0; r < VIT_LIN_SINTETICA_MAX; r++)
+      if (!vitLinAloc(r)) { vitPronto = 0; break; }
 
   memset(vitLin, 0, sizeof vitLin);
   memset(vitRetentarEm, 0, sizeof vitRetentarEm);
@@ -1491,7 +1517,7 @@ static void vitIniciar(void) {
   vitScroll = vitScrollV = 0.0f;
   vitHeroAtual = vitHeroAnt = vitHeroDes = -1; vitHeroEntra = 1.0f;
   vitNomeEm = vitReleEm = 0;
-  if (!vitBuf || !collection) { lay = VT_LAY_GRADE; celLay = -1; carregarFonte(); return; }
+  if (!vitPronto || !collection) { lay = VT_LAY_GRADE; celLay = -1; carregarFonte(); return; }
   if (vitMulti) {
     for (int r = 0; r < vitN; r++) {
       vitFontes[r] = collection->sources[r];
@@ -1509,14 +1535,16 @@ static void vitIniciar(void) {
 // Guarda a primeira pagina do catalogo aberto na fileira `r`.
 static void vitGuardarPagina(int r) {
   int n = semFonte ? 0 : desc_vertudo_n_bruto(), k = 0, vistos = 0, skip = 0;
+  CatItem *buf = vitLinAloc(r);
   vitLin[r].extraN = 0;
+  if (!buf) { vitLin[r].estado = VIT_VAZIA; vitProjetoSujo = 1; return; }
   k = vitLin[r].brutoN;
   if (!k) {
     for (; skip < n && k < vitCap; skip++)
-      if (desc_vertudo_item_bruto(skip, &vitBuf[r * vitCap + k])) k++;
+      if (desc_vertudo_item_bruto(skip, &buf[k])) k++;
     vitLin[r].brutoN = k;
   }
-  for (int i = 0; i < k; i++) vistos += desc_filme_visto(&vitBuf[r * vitCap + i]);
+  for (int i = 0; i < k; i++) vistos += desc_filme_visto(&buf[i]);
   if (vistos && n > skip && !vitExtra[r]) vitExtra[r] = calloc((size_t)vitCap, sizeof(CatItem));
   if (vistos && vitExtra[r]) {
     CatItem it;
@@ -1524,8 +1552,8 @@ static void vitGuardarPagina(int r) {
       if (desc_vertudo_item_bruto(i, &it) && !desc_filme_visto(&it)) {
         int j;
         for (j = 0; j < k; j++)
-          if (it.imdb[0] && !strcmp(it.imdb, vitBuf[r * vitCap + j].imdb) &&
-              !strcmp(it.tipo, vitBuf[r * vitCap + j].tipo)) break;
+          if (it.imdb[0] && !strcmp(it.imdb, buf[j].imdb) &&
+              !strcmp(it.tipo, buf[j].tipo)) break;
         if (j == k) vitExtra[r][vitLin[r].extraN++] = it;
       }
   }
@@ -1546,7 +1574,9 @@ static void vitGuardarInicial(int r, const VitPedido *p) {
   if (n > vitCap) n = vitCap;
   if (extra < 0) extra = 0;
   if (extra > vitCap) extra = vitCap;
-  memcpy(vitBuf + r * vitCap, p->itens, sizeof(CatItem) * (size_t)n);
+  CatItem *buf = n ? vitLinAloc(r) : NULL;
+  if (n && !buf) n = 0;   // sem memoria: a fileira fica vazia, sem derrubar o app
+  if (n) memcpy(buf, p->itens, sizeof(CatItem) * (size_t)n);
   vitLin[r].brutoN = n; vitLin[r].extraN = 0;
   if (extra && !vitExtra[r]) vitExtra[r] = calloc((size_t)vitCap, sizeof(CatItem));
   if (extra && vitExtra[r]) {
@@ -1574,7 +1604,7 @@ static void vitAgrupar(int n) {
 #ifdef NV_TOUCH_UI
   // Later pages can insert a new decade before existing rows. Touch positions
   // belong to those groups, not to the array slots they happened to occupy.
-  struct { char nome[96]; float x, v; int coluna, livre, n; VtChave itens[VIT_ITENS]; } antes[VIT_LIN_MAX];
+  static struct { char nome[96]; float x, v; int coluna, livre, n; VtChave itens[VIT_ITENS]; } antes[VIT_LIN_MAX];
   int antesN = vtTelefone() ? vitN : 0, ancora = -1, gesto = vitToqueLinha;
   VtChave focoAntes; guardarChave(&focoAntes, vitItem(vitFR, vitFC));
   for (int r = 0; r < antesN; r++) {
@@ -1627,7 +1657,7 @@ static void vitAgrupar(int n) {
       if (chave[i] != chaves[r] || !desc_vertudo_item_bruto(i, &tmp)) continue;
       if (l->brutoN < vitCap) {
         vistos += desc_filme_visto(&tmp);
-        vitBuf[r * vitCap + l->brutoN++] = tmp;
+        vitLinBuf[r][l->brutoN++] = tmp;
       } else if (vistos && l->extraN < vitCap && !desc_filme_visto(&tmp)) {
         if (!vitExtra[r]) vitExtra[r] = calloc((size_t)vitCap, sizeof(CatItem));
         if (vitExtra[r]) vitExtra[r][l->extraN++] = tmp;
@@ -1679,7 +1709,7 @@ static void vitAgrupar(int n) {
 // Um passo da carga, por quadro: as fontes paralelas, as paginas do catalogo
 // unico e a releitura das fontes cujo addon ainda nao tinha endereco.
 static void vitCarregar(Uint32 agora) {
-  if (!vitBuf) return;
+  if (!vitPronto) return;
   if (!vitMulti) {
     int n = desc_vertudo_n_bruto();
     if (n != vitUnicoN) { vitUnicoN = n; if (n > 0) vitAgrupar(n); }
@@ -1720,7 +1750,7 @@ static void vitCarregar(Uint32 agora) {
     if (vitManualFonte == r) vitManualFonte = -1;
     vitManualPendente[r] = 0;
     vitPedidoSoltar(vitPedidos[r]); vitPedidos[r] = NULL;
-    free(vitExtra[r]); vitExtra[r] = NULL;
+    vitLinSoltar(r);
     memset(&vitLin[r], 0, sizeof vitLin[r]);
   }
   int antigas = vitN;
@@ -1729,6 +1759,12 @@ static void vitCarregar(Uint32 agora) {
   int rever = (Sint32)(agora - vitReleEm) > 1500;
   if (rever) vitReleEm = agora;
   if (rever || nomesNovos || antigas != vitN) vitNomes();
+  // JANELA DE CARGA: so as fileiras perto do foco sao pedidas. Conta fileiras
+  // que podem ter conteudo (nao as vazias/desligadas), para uma sequencia de
+  // fontes vazias nao deixar o resto da pasta sem carregar.
+  int cargaIni = vitFR, cargaFim = vitFR;
+  for (int k = 0, r = vitFR; r >= 0 && k <= VIT_CARGA_ATRAS; r--) { cargaIni = r; if (vitLin[r].estado != VIT_VAZIA) k++; }
+  for (int k = 0, r = vitFR; r < vitN && k <= VIT_CARGA_FRENTE; r++) { cargaFim = r; if (vitLin[r].estado != VIT_VAZIA) k++; }
   for (int r = 0; r < vitN; r++) {
     const ColSource *s = &collection->sources[r];
     char base[NV_ADDON_URL_MAX];
@@ -1737,7 +1773,7 @@ static void vitCarregar(Uint32 agora) {
       if (vitManualFonte == r) vitManualFonte = -1;
       vitManualPendente[r] = 0;
       vitPedidoSoltar(vitPedidos[r]); vitPedidos[r] = NULL;
-      free(vitExtra[r]); vitExtra[r] = NULL;
+      vitLinSoltar(r);
       vitLin[r].n = vitLin[r].brutoN = vitLin[r].extraN = 0;
       vitLin[r].mais = 0; vitLin[r].pagina = 0;
       vitLin[r].estado = VIT_PEND; vitLin[r].semFonte = 0;
@@ -1756,7 +1792,7 @@ static void vitCarregar(Uint32 agora) {
       vitManualPendente[r] = 0;
       vitDesligada[r] = (unsigned char)desligada;
       vitPedidoSoltar(vitPedidos[r]); vitPedidos[r] = NULL;
-      free(vitExtra[r]); vitExtra[r] = NULL;
+      vitLinSoltar(r);
       vitLin[r].n = vitLin[r].brutoN = vitLin[r].extraN = 0;
       vitLin[r].mais = 0; vitLin[r].pagina = 0;
       vitLin[r].estado = desligada ? VIT_VAZIA : VIT_PEND;
@@ -1790,6 +1826,7 @@ static void vitCarregar(Uint32 agora) {
     }
     l->semFonte = 0;
     if (vitManualPendente[r]) { vitManualLargar(r, agora); continue; }
+    if (r < cargaIni || r > cargaFim) continue;   // longe do foco: espera a vez
     if (vitPedidoLargar(r) < 0) vitRetentarEm[r] = agora + 1500u;
   }
   // As paginas pedidas pelo botao preservam o prefixo canonico da fileira;
@@ -1806,6 +1843,21 @@ static void vitCarregar(Uint32 agora) {
     vitManualFonte = -1;
   }
   vitManualLiberarSlot();
+  // DEVOLVE A MEMORIA das fileiras longe do foco: voltam a pendente e
+  // recarregam quando a janela de carga chegar nelas.
+  { int atras = vitFraca ? VIT_SOLTA_ATRAS_FRACA : VIT_SOLTA_ATRAS;
+    int frente = vitFraca ? VIT_SOLTA_FRENTE_FRACA : VIT_SOLTA_FRENTE;
+    for (int r = 0; r < vitN; r++) {
+      if (r >= vitFR - atras && r <= vitFR + frente) continue;
+      if (vitLin[r].estado != VIT_PRONTA || vitPedidos[r] || vitManualFonte == r ||
+          vitManualPendente[r] || !vitLinBuf[r]) continue;
+      vitLinSoltar(r);
+      vitLin[r].n = vitLin[r].brutoN = vitLin[r].extraN = 0;
+      vitLin[r].mais = 0; vitLin[r].pagina = 0;
+      vitLin[r].estado = VIT_PEND;
+      vitSx[r] = vitSv[r] = 0.0f;
+      vitProjetoSujo = 1;
+    } }
   // Mantem o indicador da primeira fileira pendente, sem serializar a fila.
   for (vitCarga = 0; vitCarga < vitN; vitCarga++)
     if (vitLin[vitCarga].estado == VIT_PEND || vitLin[vitCarga].estado == VIT_CARREGANDO) break;
@@ -1959,6 +2011,7 @@ static void vitEvento(int k) {
   VitLin *l;
   vitProjetar();
   vitMexeu = 1;
+  if (tabFocus && chipOculto()) tabFocus = 0;
   if (tabFocus) {   // o botao "Exibição", acima do destaque
     if (k == SDLK_LEFT) { if (tabCursor > cabN()) tabCursor--; else pedMenu = 1; }
     else if (k == SDLK_UP) { if (ajustes_menu_topo()) pedMenu = 1; else pedRelogio = 1; }
@@ -1969,7 +2022,7 @@ static void vitEvento(int k) {
     else if (enter) abrirSeletor();   // sem abas, sem botao de estilo
     return;
   }
-  if (vitFR >= vitN) { if (k == SDLK_UP) tabFocus = 1, tabCursor = nAbas(); return; }
+  if (vitFR >= vitN) { if (k == SDLK_UP && !chipOculto()) tabFocus = 1, tabCursor = nAbas(); return; }
   l = &vitLin[vitFR];
   if (k == SDLK_LEFT) { if (vitFC > 0) vitFC--; else pedMenu = 1; }
   else if (k == SDLK_RIGHT) { if (vitFC + 1 < vitColunas(vitFR)) vitFC++; }
@@ -1979,6 +2032,7 @@ static void vitEvento(int k) {
   } else if (k == SDLK_UP) {
     int r = vitLinhaVizinha(vitFR, -1);
     if (r >= 0) { vitColLemb[vitFR] = vitFC; vitFR = r; vitFC = vitColLemb[r]; }
+    else if (chipOculto()) { if (ajustes_menu_topo()) pedMenu = 1; }
     else tabFocus = 1, tabCursor = cabN();
   } else if (enter) {
     const CatItem *it = vitItem(vitFR, vitFC);
@@ -2080,6 +2134,19 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     } }
   home_vitrine_medida(&w, &h, &passo, &rot);
   alvo = (float)vitFR * vitPasso();
+  { // So cartaz VERTICAL (o deitado ja mostra a arte larga) de um titulo de
+    // verdade (nao "Ver tudo"), fora do telefone e sem menu do cartaz aberto.
+    int pode = ajustes_col_expandir() && !vtTelefone() && !tabFocus && w < h &&
+               vitFR < vitN && vitFC < vitLin[vitFR].n && vitItem(vitFR, vitFC);
+    if (!pode) { vitExpAbre = 0.0f; vitExpR = vitExpC = -1; }
+    else {
+      if (vitFR != vitExpR || vitFC != vitExpC) {
+        vitExpR = vitFR; vitExpC = vitFC; vitExpDesde = agora; vitExpAbre = 0.0f;
+      }
+      if (ctx_aberto()) { if (vitExpAbre < 0.999f) vitExpDesde = agora; }
+      else if (vitExpDesde && agora - vitExpDesde >= (Uint32)(ajustes_col_expandir_atraso() * 1000.0f))
+        vitExpAbre = anim_mola(vitExpAbre, 1.0f, dt, NV_MOLA_TELA);
+    } }
   float dtV = dt;
   { static Uint32 ultScroll;   // relogio proprio para as molas horizontais (TV lenta)
     float dtR = ultScroll && agora > ultScroll ? (float)(agora - ultScroll) / 1000.0f : dt;
@@ -2107,6 +2174,13 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       // focada), entao nenhuma fica com um cartao cortado depois de repouso.
       int cab = vitCabem(vtInicio(), w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
       float alvoX = vitJanela(r, col, cab, vitColunas(r)) * passo;
+      // Cartaz aberto perto da borda direita: a fileira anda o que falta para
+      // ele caber inteiro dentro da janela (e volta quando fecha).
+      if (r == vitExpR && vitExpAbre > 0.0f && cab < VG_SEM_LIMITE) {
+        float x0v = vtInicio(), extra = (h * VIT_EXP_ASPECTO - w) * vitExpAbre;
+        float dir = x0v + vitExpC * passo - alvoX + w + extra, lim = vitgeom_limite(x0v, w, passo, cab);
+        if (dir > lim) alvoX += dir - lim;
+      }
       vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
                             dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
     } else if (r == vitFR)
@@ -2292,8 +2366,9 @@ void vertudo_evento(const SDL_Event *e) {
     int na = cabN(), est = estiloAbas();
     if(ddAberto) { ddEvento(k); return; }
     if(k==SDLK_LEFT||(k==SDLK_UP&&ajustes_menu_topo())){ if(k==SDLK_LEFT&&tabCursor>0)tabCursor--; else pedMenu=1; }
-    if(k==SDLK_UP&&!ajustes_menu_topo())pedRelogio=1;
-    if(k==SDLK_RIGHT&&tabCursor<na+(nAbas()>0))tabCursor++;   // o estilo so com abas
+    if(k==SDLK_UP&&!ajustes_menu_topo()&&!chipOculto())pedRelogio=1;
+    if(k==SDLK_RIGHT&&tabCursor<(chipOculto()?na-1:na+(nAbas()>0)))tabCursor++;   // o estilo so com abas
+    if(chipOculto()&&tabCursor>=na)tabCursor=na>0?na-1:0;
     // Paginas: a seta ja troca de pagina (o deslize e o feedback).
     if((k==SDLK_LEFT||k==SDLK_RIGHT)&&est==VT_AB_PAGINAS&&tabCursor<na&&tabCursor!=source)irPagina(tabCursor);
     if(k==SDLK_RETURN||k==SDLK_KP_ENTER) {
@@ -2310,7 +2385,9 @@ void vertudo_evento(const SDL_Event *e) {
     return;
   }
   if (precisaMontar(n)) montar(n);
-  if(k==SDLK_UP&&collection&&(n<1||celLin[foco]==0)){tabFocus=1;tabCursor=cursorInicial();return;}
+  if(k==SDLK_UP&&collection&&(n<1||celLin[foco]==0)){
+    if(chipOculto()&&cabN()==0){if(ajustes_menu_topo())pedMenu=1;return;}   // sem abas e sem botao: nada acima
+    tabFocus=1;tabCursor=cursorInicial();return;}
   if((k==SDLK_RETURN||k==SDLK_KP_ENTER)&&desc_vertudo_erro()){desc_vertudo_mais();return;}
   if ((k == SDLK_RETURN || k == SDLK_KP_ENTER) && !e->key.repeat && temMaisVistos()) {
     carregarMaisVistos(0, 0); return;
@@ -3454,6 +3531,7 @@ static void toqueExibicao(int a, int b) {
 }
 #endif
 static void botaoExibicao(float a, float cy) {
+  if (chipOculto()) return;
   const float H = NV_CTRL_H, S = 52.0f, P = 4.0f;
   float f = pillAnim, xd = NV_TELA_W - (vtTelefone() ? 48.0f : NV_ILHA_MARGEM_D);
   int est = nAbas() > 0, fe = tabFocus && tabCursor == cabN() + 1, nl = (int)sizeof LAY_CICLO;
@@ -3579,7 +3657,10 @@ static void vitDesenhar(float a, float x0) {
       vitRecorteJanela(x0, w, passo, topo - 8.0f, vitAlturaViewport());
       for (int c = 0; c < vitColunas(r); c++) {
         float cx = x0 + c * passo - vitSx[r];
-        GfxRect base = { cx, cy, w, h }, card = base;
+        float abre = r == vitExpR && c == vitExpC ? vitExpAbre : 0.0f;
+        float extra = r == vitExpR && vitExpAbre > 0.0f ? (h * VIT_EXP_ASPECTO - w) * vitExpAbre : 0.0f;
+        if (r == vitExpR && c > vitExpC) cx += extra;   // os da direita abrem espaco
+        GfxRect base = { cx, cy, w + (abre > 0.0f ? extra : 0.0f), h }, card = base;
         int sel = r == vitFR && c == vitFC && !tabFocus;
         if (cx + w < 0.0f) continue;
         if (cx > NV_TELA_W) break;
@@ -3597,7 +3678,8 @@ static void vitDesenhar(float a, float x0) {
           float by = card.y + (card.h - seta.h - 14.0f - rotulo.h) * .5f;
           txt_desenhar_alpha(seta, card.x + (card.w - seta.w) * .5f, by, ac);
           txt_desenhar_alpha(rotulo, card.x + (card.w - rotulo.w) * .5f, by + seta.h + 14.0f, ac);
-        } else home_vitrine_cartao(vitItem(r, c), base, card, ac);
+        } else if (abre > 0.001f) home_vitrine_cartao_aberto(vitItem(r, c), card, abre, ac);
+        else home_vitrine_cartao(vitItem(r, c), base, card, ac);
 #ifdef NV_TOUCH_UI
         if (vtTelefone()) {
           float left = fmaxf(base.x, x0), right = fminf(base.x + base.w, NV_TELA_W);
@@ -3784,4 +3866,42 @@ void vertudo_desenhar(Uint32 agora) {
 
   if (n > 0 && !vtTelefone()) { if (lay == VT_LAY_FLUXO) fluxoInfo(a, x0); else painel(a); }
   gfx_escala_sair(escalaAnterior);
+}
+
+// ---- OPCOES DA COLLECTION NO PAINEL DO CH+ (salvospainel.c, aba Collection) ----
+int vertudo_em_colecao(void) { return aberta && collection != NULL && !vtTelefone(); }
+// Linhas: as exibicoes (na ordem do antigo botao) e, com abas fora da Vitrine,
+// o estilo das abas.
+static int opcEstilo(void) { return lay != VT_LAY_VITRINE && nAbas() > 0; }
+int vertudo_opcoes_n(void) {
+  if (!vertudo_em_colecao()) return 0;
+  return (int)sizeof LAY_CICLO + opcEstilo();
+}
+const char *vertudo_opcao_rotulo(int i, int *marcada, const char **icone) {
+  static char buf[96];
+  int nl = (int)sizeof LAY_CICLO;
+  if (marcada) *marcada = 0;
+  if (icone) *icone = NULL;
+  if (i < 0 || i >= vertudo_opcoes_n()) return "";
+  if (i < nl) {
+    int l = LAY_CICLO[i];
+    int escolhida = layEscolha >= VT_LAY_AUTO && layEscolha < VT_LAY_N ? layEscolha : VT_LAY_AUTO;
+    if (marcada) *marcada = vitTudo ? l == VT_LAY_VITRINE : l == escolhida;
+    if (icone) *icone = LAY_ICONE[l];
+    return i18n(LAY_NOME[l]);
+  }
+  { static const char *EST[] = { "Chips", "Menu suspenso", "Barra central", "Páginas", "Menu no topo" };
+    int e = estiloAbas();
+    snprintf(buf, sizeof buf, "%s: %s", i18n("Estilo das abas"), i18n(EST[e >= 0 && e <= VT_AB_TOPO ? e : 0]));
+    if (icone) *icone = "aj_layout-list";
+    return buf; }
+}
+// 1 = a escolha fecha o painel (a exibicao mudou); 0 = fica aberto.
+int vertudo_opcao_ok(int i) {
+  int nl = (int)sizeof LAY_CICLO;
+  if (i < 0 || i >= vertudo_opcoes_n()) return 0;
+  if (i < nl) { escolherExibicao(LAY_CICLO[i]); tabFocus = 0; exibAberta = 0; return 1; }
+  ajustes_definir_abas_estilo((ajustes_abas_estilo() + 1) % (VT_AB_TOPO + 1));
+  abasReiniciar(); tabRol = 0; tabFocus = 0;
+  return 0;
 }

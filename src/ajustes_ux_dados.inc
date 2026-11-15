@@ -183,6 +183,9 @@ static const char *uxSinonimos(int op) {
 #endif
     case AJ_CONFIG_COPIAR:
       return "configurações exportar importar JSON backup restaurar copiar perfil preferências";
+    case AJ_COL_ITENS: return "colecao colecoes collection collections fileira fileiras itens quantidade vitrine ver tudo limite";
+    case AJ_COL_EXPANDIR: case AJ_COL_EXPANDIR_ATRASO:
+      return "colecao colecoes collection collections poster cartaz vertical expandir expansao foco atraso tempo";
     case AJ_NAV_VELOCIDADE:
       return "velocidade navegação rolagem movimento cartazes fileiras deslize lento rápido";
     case AJ_IDIOMA: return "idioma interface menus language portugues ingles espanhol";

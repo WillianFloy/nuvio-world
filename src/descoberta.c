@@ -9313,7 +9313,7 @@ int desc_colecao_inicial(const ColSource *fonte, const char *base,
   int prov, nIds = 0, total = 0, prefixoVistos = 0, visiveis = 0;
   int ocultar, pagina, skip = 0, teto, paginavel = 0;
   if (resultado) *resultado = r;
-  if (!fonte || !itens || !resultado || limite < 1 || limite > 20 ||
+  if (!fonte || !itens || !resultado || limite < 1 || limite > 42 ||   // Vitrine: 12..42 por fileira
       !descSessaoVincular(sessao)) return 0;
   f = *fonte;
   // O mesmo modelo do Nuvio original: 0=addon, 1=TMDB, 2=Trakt.
@@ -9473,7 +9473,11 @@ int desc_colecao_inicial(const ColSource *fonte, const char *base,
     int podeMais = prov == 1 || prov == 2 ? !fim : paginavel;
     r.mais = podeMais && raw > 0 && novos > 0 && total < teto && !fim;
     r.pagina = prov ? pagina + (r.mais ? 1 : 0) : skip + raw;
-    if (!raw || !novos || total >= teto || fim || !ocultar || visiveis) break;
+    if (!raw || !novos || total >= teto || fim) break;
+    // A fileira quer `limite` titulos (Ajustes > Coleções, ate 42): com a pagina
+    // curta, segue para a proxima enquanto o catalogo pagina. Sem ocultar
+    // vistos (ou com algum visivel) a regra antiga parava aqui.
+    if ((!ocultar || visiveis) && (r.n >= limite || !r.mais)) break;
     skip += raw;
   }
   free(ids);

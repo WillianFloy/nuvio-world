@@ -49,5 +49,7 @@ jobs:
         run: bash tests/vitgeom.sh
       - name: Run Vitrine scroll timing test
         run: bash tests/animtempo.sh
+      - name: Run Collections phase 1 guards
+        run: bash tests/colecao_fase1.sh
       - name: Run release promotion workflow guard
         run: bash tests/release_promocao.sh
