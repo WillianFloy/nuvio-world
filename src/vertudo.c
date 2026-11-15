@@ -1,6 +1,7 @@
 #include "imdbnota.h"
 #include "vertudo_pag.h"
 #include "vertudo.h"
+#include "vitgeom.h"
 #include "marcastream.h"
 #include "posterprov.h"
 #include "idioma.h"
@@ -2015,6 +2016,26 @@ static float vitAlturaViewport(void) {
   return fmaxf(0.0f, fminf(desejada, disponivel));
 }
 
+// COLUNAS DA FILEIRA DA VITRINE (adaptativas): a conta esta em vitgeom.h (testada
+// em tests/vitgeom.c). Mesma regra da grade (vtColunas): so cartoes inteiros, o
+// cartaz nao encolhe, o vizinho nunca fica cortado na lateral, retrato ou
+// paisagem. No telefone a rolagem continua livre ao toque.
+static float vitFimLinha(void) { return vtTelefone() ? vtFim() : NV_TELA_W - NV_CHROME_EDGE; }
+static int vitCabem(float x0, float w, float passo) {
+  return vtTelefone() ? VG_SEM_LIMITE : vitgeom_cabem(x0, vitFimLinha(), w, passo);
+}
+static int vitIni[VIT_LIN_MAX];   // 1o cartao visivel de cada fileira
+static int vitJanela(int r, int col, int n, int total) {
+  return vitIni[r] = vitgeom_janela(vitIni[r], col, n, total);
+}
+// Recorte da janela: [esq, dir] cobre so os cartoes inteiros (+ folga do anel).
+static void vitRecorteJanela(float x0, float w, float passo, float y, float h) {
+  int n = vitCabem(x0, w, passo);
+  if (n >= VG_SEM_LIMITE) { gfx_recorte(0.0f, y, NV_TELA_W, h); return; }
+  float f = vitgeom_folga(NV_ANEL_FOCO, w, passo), dir = vitgeom_limite(x0, w, passo, n) + f;
+  gfx_recorte(x0 - f, y, dir - (x0 - f), h);
+}
+
 #ifdef NV_TOUCH_UI
 static float vitToqueMaxY(void) {
   return fmaxf(0.0f, (vitN - 1) * vitPasso());
@@ -2065,7 +2086,14 @@ static void vitAtualizar(float dt, Uint32 agora) {
     if (vitToqueX[r].livre) vitSx[r] = anim_clamp(vitSx[r], 0.0f, vitToqueMaxX(r));
     else
 #endif
-    if (r == vitFR)
+    if (!vtTelefone()) {
+      // TV: janela de cartoes inteiros; toda fileira assenta no alvo (nao so a
+      // focada), entao nenhuma fica com um cartao cortado depois de repouso.
+      int cab = vitCabem(vtInicio(), w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
+      float alvoX = vitJanela(r, col, cab, vitColunas(r)) * passo;
+      vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], alvoX,
+                            dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
+    } else if (r == vitFR)
       vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], vitFC > 1 ? (vitFC - 1) * passo : 0.0f,
                             dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade()));
   }
@@ -3530,6 +3558,9 @@ static void vitDesenhar(float a, float x0) {
                          vtEscala(), 0.0f, vitToqueMaxX(r), 0, &vitSx[r]);
       }
 #endif
+      // Recorte nas bordas dos cartoes inteiros da janela (+ folga do anel de foco,
+      // menor que o vao): nenhum vizinho aparece pela metade nas laterais.
+      vitRecorteJanela(x0, w, passo, topo - 8.0f, vitAlturaViewport());
       for (int c = 0; c < vitColunas(r); c++) {
         float cx = x0 + c * passo - vitSx[r];
         GfxRect base = { cx, cy, w, h }, card = base;
@@ -3571,6 +3602,7 @@ static void vitDesenhar(float a, float x0) {
         }
 #endif
       }
+      gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport());
     } else if (l->estado == VIT_VAZIA || l->estado == VIT_PRONTA ||
                (vitLin[r].mais && !vitLin[r].n)) {
       const ColSource *s = vitMulti && collection && r < collection->nSources
@@ -3584,7 +3616,8 @@ static void vitDesenhar(float a, float x0) {
       // Esqueleto enquanto a fileira espera a vez ou a rede.
       for (int c = 0; c < 8; c++) {
         GfxRect e = { x0 + c * passo, cy, w, h };
-        if (e.x > NV_TELA_W) break;
+        if (e.x > NV_TELA_W || (vitCabem(x0, w, passo) < VG_SEM_LIMITE &&
+            e.x + w > vitgeom_limite(x0, w, passo, vitCabem(x0, w, passo)) + 0.5f)) break;
         gfx_cor(e, ajustes_raio_poster_px() / h, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G,
                 NV_COR_ESQUELETO_B, ac * 0.7f);
       }
