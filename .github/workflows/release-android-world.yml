@@ -89,7 +89,7 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           # A versao do codigo que gerou o APK (as duas fontes, que o build exige iguais).
           V1=$(git show "$SHA:deploy/app/appinfo.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
-          V2=$(git show "$SHA:tools/tizen-config.xml" | sed -n 's/.*version="\([0-9.]*\)".*/\1/p' | head -1)
+          V2=$(git show "$SHA:tools/tizen-config.xml" | grep -v '<?xml' | sed -n 's/.*[[:space:]]version="\([0-9.]*\)".*/\1/p' | head -1)
           [ "$V1" = "$VERSAO" ] && [ "$V2" = "$VERSAO" ] || { echo "::error::versao no commit do build: appinfo=$V1 tizen=$V2, pedida=$VERSAO"; exit 1; }
           # O commit tagueado e o do build. Este checkout so pode diferir dele em workflow/notas.
           BAD=$(git diff --name-only "$SHA" HEAD | grep -vE '^(\.github/|deploy/release-notes/|tests/release_promocao\.sh$)' || true)
