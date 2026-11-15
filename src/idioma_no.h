@@ -3112,7 +3112,7 @@
   T("Navegar", "Naviger"),
   T("Navegar rápido", "Rask navigasjon"),
   T("Navegação", "Navigasjon"),
-  T("Navegação horizontal rápida", "Rask horisontal navigasjon"),
+  T("Navegação geral rápida", "Rask horisontal navigasjon"),
   T("Negrito", "Fet"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT-undertekster beholder fet og kursiv skrift, og automatisk valg beholder språket (#604, #607)."),
   T("Nenhum", "Ingen"),

@@ -3112,7 +3112,7 @@
   T("Navegar", "Kretanje"),
   T("Navegar rápido", "Brza navigacija"),
   T("Navegação", "Navigacija"),
-  T("Navegação horizontal rápida", "Brza horizontalna navigacija"),
+  T("Navegação geral rápida", "Brza horizontalna navigacija"),
   T("Negrito", "Podebljano"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT titlovi čuvaju podebljan i kurzivni tekst, a automatski odabir čuva jezik (#604, #607)."),
   T("Nenhum", "Nema"),

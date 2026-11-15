@@ -195,8 +195,10 @@ static const char *LAY_ICONE[VT_LAY_N] = {
   "aj_monitor-play", "aj_film"
 };
 // A ordem do botao "Exibição": a horizontal logo depois da vertical.
+// "Fluxo de capas" (VT_LAY_FLUXO) foi aposentado: o id 8 continua reservado, mas
+// nao e oferecido e uma escolha gravada com ele volta a "Padrão".
 static const unsigned char LAY_CICLO[] = {
-  VT_LAY_GRADE, VT_LAY_LINHA, VT_LAY_FLUXO, VT_LAY_RANKING, VT_LAY_SAGA,
+  VT_LAY_GRADE, VT_LAY_LINHA, VT_LAY_RANKING, VT_LAY_SAGA,
   VT_LAY_DECADAS, VT_LAY_MURAL, VT_LAY_VITRINE,
   VT_LAY_AUTO   // "Padrão": a pasta volta a seguir o ajuste do perfil (#535)
 };
@@ -479,7 +481,7 @@ static int lerEscolhas(char (*chaves)[160], int *vals) {
     *tab = 0;
     snprintf(chaves[n], 160, "%s", buf);
     vals[n] = atoi(tab + 1);
-    if (vals[n] > VT_LAY_AUTO && vals[n] < VT_LAY_N) n++;
+    if (vals[n] > VT_LAY_AUTO && vals[n] < VT_LAY_N && vals[n] != VT_LAY_FLUXO) n++;
   }
   fclose(f);
   return n;
@@ -2075,6 +2077,17 @@ static float vitFimLinha(void) { return vtTelefone() ? vtFim() : NV_TELA_W - NV_
 static int vitCabem(float x0, float w, float passo) {
   return vtTelefone() ? VG_SEM_LIMITE : vitgeom_cabem(x0, vitFimLinha(), w, passo);
 }
+// OPACIDADE DO CARTAO PELA BORDA DIREITA (so TV): os cartoes inteiros da janela
+// ficam a 100 %; o que sobra depois deles aparece parcial e esvanece. `cx` e a
+// borda esquerda do cartao, `w` a largura; o desenho ja esta na escala da Vitrine.
+static float vitFadeDireita(float cx, float w) {
+  float vis;
+  if (vtTelefone() || w <= 0.0f) return 1.0f;
+  vis = (NV_TELA_W - cx) / w;   // fracao do cartao que cabe na tela
+  if (vis >= 1.0f) return 1.0f;
+  vis = (vis - 0.04f) * 1.1f;
+  return vis < 0.0f ? 0.0f : vis;
+}
 static int vitIni[VIT_LIN_MAX];   // 1o cartao visivel de cada fileira
 static int vitJanela(int r, int col, int n, int total) {
   return vitIni[r] = vitgeom_janela(vitIni[r], col, n, total);
@@ -2083,8 +2096,10 @@ static int vitJanela(int r, int col, int n, int total) {
 static void vitRecorteJanela(float x0, float w, float passo, float y, float h) {
   int n = vitCabem(x0, w, passo);
   if (n >= VG_SEM_LIMITE) { gfx_recorte(0.0f, y, NV_TELA_W, h); return; }
-  float f = vitgeom_folga(fmaxf(NV_ANEL_FOCO, w * FOCO_ZOOM * 0.5f), w, passo), dir = vitgeom_limite(x0, w, passo, n) + f;
-  gfx_recorte(x0 - f, y, dir - (x0 - f), h);
+  // A direita vai ate a borda da tela: o proximo cartao aparece parcial e esvanece
+  // (vitFadeDireita), mostrando que a fileira continua ate o "Ver tudo".
+  float f = vitgeom_folga(fmaxf(NV_ANEL_FOCO, w * FOCO_ZOOM * 0.5f), w, passo);
+  gfx_recorte(x0 - f, y, NV_TELA_W - (x0 - f), h);
 }
 
 #ifdef NV_TOUCH_UI
@@ -3662,6 +3677,7 @@ static void vitDesenhar(float a, float x0) {
         if (r == vitExpR && c > vitExpC) cx += extra;   // os da direita abrem espaco
         GfxRect base = { cx, cy, w + (abre > 0.0f ? extra : 0.0f), h }, card = base;
         int sel = r == vitFR && c == vitFC && !tabFocus;
+        float acc = ac * vitFadeDireita(cx, w);
         if (cx + w < 0.0f) continue;
         if (cx > NV_TELA_W) break;
         if (sel) {
@@ -3671,15 +3687,20 @@ static void vitDesenhar(float a, float x0) {
         }
         if (c == l->n) {
           float raio = ajustes_raio_poster_px() / h;
-          gfx_cor(card, raio, 1, 1, 1, ac * (sel ? .16f : .06f));
-          gfx_rect(card, 0, GFX_ANEL, 0, 2.0f / h, 0, raio, 1, 1, 1, ac * (sel ? .82f : .12f));
+          // O anel de foco sem vidro e um bloco SOLIDO atras do cartao; o "Ver tudo" e so
+          // um veu translucido, entao o bloco aparecia inteiro (branco). Fundo escuro
+          // opaco por baixo, como o do cartao de vidro.
+          if (sel && ajustes_borda_foco() && !ajustes_vidro())
+            gfx_cor(card, raio, 0.115f, 0.12f, 0.14f, acc);
+          gfx_cor(card, raio, 1, 1, 1, acc * (sel ? .16f : .06f));
+          gfx_rect(card, 0, GFX_ANEL, 0, 2.0f / h, 0, raio, 1, 1, 1, acc * (sel ? .82f : .12f));
           TxtLinha seta = txt_linha(TXT_TITULO2, "→", 236, 237, 242, 255);
           TxtLinha rotulo = txt_linha_corta(TXT_ROW_TITULO, i18n("Ver tudo"), 238, 240, 245, 255, w - 24.0f);
           float by = card.y + (card.h - seta.h - 14.0f - rotulo.h) * .5f;
-          txt_desenhar_alpha(seta, card.x + (card.w - seta.w) * .5f, by, ac);
-          txt_desenhar_alpha(rotulo, card.x + (card.w - rotulo.w) * .5f, by + seta.h + 14.0f, ac);
-        } else if (abre > 0.001f) home_vitrine_cartao_aberto(vitItem(r, c), card, abre, ac);
-        else home_vitrine_cartao(vitItem(r, c), base, card, ac);
+          txt_desenhar_alpha(seta, card.x + (card.w - seta.w) * .5f, by, acc);
+          txt_desenhar_alpha(rotulo, card.x + (card.w - rotulo.w) * .5f, by + seta.h + 14.0f, acc);
+        } else if (abre > 0.001f) home_vitrine_cartao_aberto(vitItem(r, c), card, abre, acc);
+        else home_vitrine_cartao(vitItem(r, c), base, card, acc);
 #ifdef NV_TOUCH_UI
         if (vtTelefone()) {
           float left = fmaxf(base.x, x0), right = fminf(base.x + base.w, NV_TELA_W);

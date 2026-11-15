@@ -3112,7 +3112,7 @@
   T("Navegar", "Prechádzať"),
   T("Navegar rápido", "Rýchla navigácia"),
   T("Navegação", "Navigácia"),
-  T("Navegação horizontal rápida", "Rýchla vodorovná navigácia"),
+  T("Navegação geral rápida", "Rýchla vodorovná navigácia"),
   T("Negrito", "Tučné"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Titulky SRT zachovávajú tučné písmo a kurzívu a automatický výber zachováva jazyk (#604, #607)."),
   T("Nenhum", "Žiadne"),

@@ -3112,7 +3112,7 @@
   T("Navegar", "Krmarjenje"),
   T("Navegar rápido", "Hitra navigacija"),
   T("Navegação", "Navigacija"),
-  T("Navegação horizontal rápida", "Hitra vodoravna navigacija"),
+  T("Navegação geral rápida", "Hitra vodoravna navigacija"),
   T("Negrito", "Krepko"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Podnapisi SRT ohranijo krepko in ležečo pisavo, samodejna izbira pa ohrani jezik (#604, #607)."),
   T("Nenhum", "Brez"),

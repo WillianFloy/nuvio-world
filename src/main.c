@@ -94,6 +94,7 @@
 #include "addons.h"
 #include "watchstate_envio.h"
 #include "ajustes.h"
+#include "navritmo.h"
 #include "perfiltv.h"
 #include "corviva.h"
 #include "catalogo.h"
@@ -2017,6 +2018,18 @@ int main(int argc, char **argv) {
       if ((e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) &&
           e.key.keysym.scancode == NV_SCANCODE_BACK) {
         e.key.keysym.sym = SDLK_AC_BACK;
+      }
+      // RITMO DAS SETAS (navritmo.h), app todo menos o player: com "Navegação geral
+      // rapida" desligada um toque anda um item e a seta segurada anda um de cada
+      // vez, sem fila. Ligada, tudo passa como antes.
+      if ((e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) &&
+          (e.key.keysym.sym == SDLK_LEFT || e.key.keysym.sym == SDLK_RIGHT ||
+           e.key.keysym.sym == SDLK_UP || e.key.keysym.sym == SDLK_DOWN)) {
+        static NavRitmo navRitmo;
+        if (e.type == SDL_KEYUP) navritmo_soltou(&navRitmo, (int)e.key.keysym.sym);
+        else if (!ajustes_navegacao_horizontal_rapida() && !player_aberto() && !app_zap_ativo() &&
+                 !navritmo_baixou(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym))
+          continue;
       }
       app_evento(&e);
     }

@@ -139,6 +139,8 @@ jobs:
         run: bash tests/animtempo.sh
       - name: Run Collections phase 1 guards
         run: bash tests/colecao_fase1.sh
+      - name: Run arrow navigation rhythm guards
+        run: bash tests/navritmo.sh
 
       - name: Build signed Nuvio World Android TV APK
         run: |

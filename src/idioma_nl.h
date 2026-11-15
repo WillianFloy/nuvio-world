@@ -3112,7 +3112,7 @@
   T("Navegar", "Navigeren"),
   T("Navegar rápido", "Snel navigeren"),
   T("Navegação", "Navigatie"),
-  T("Navegação horizontal rápida", "Snel horizontaal navigeren"),
+  T("Navegação geral rápida", "Snel horizontaal navigeren"),
   T("Negrito", "Vet"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT-ondertitels behouden vet en cursief, en automatische selectie behoudt de taal (#604, #607)."),
   T("Nenhum", "Geen"),

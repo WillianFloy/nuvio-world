@@ -3112,7 +3112,7 @@
   T("Navegar", "Navigálás"),
   T("Navegar rápido", "Gyors navigáció"),
   T("Navegação", "Navigáció"),
-  T("Navegação horizontal rápida", "Gyors vízszintes navigáció"),
+  T("Navegação geral rápida", "Gyors vízszintes navigáció"),
   T("Negrito", "Félkövér"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Az SRT-feliratok megőrzik a félkövér és dőlt formázást, az automatikus kiválasztás pedig a nyelvet (#604, #607)."),
   T("Nenhum", "Nincs"),

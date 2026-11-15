@@ -3112,7 +3112,7 @@
   T("Navegar", "浏览"),
   T("Navegar rápido", "快速导航"),
   T("Navegação", "导航"),
-  T("Navegação horizontal rápida", "快速横向导航"),
+  T("Navegação geral rápida", "快速横向导航"),
   T("Negrito", "粗体"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT字幕保留粗体和斜体，自动选择保留语言 (#604, #607)."),
   T("Nenhum", "无"),

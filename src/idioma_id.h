@@ -3112,7 +3112,7 @@
   T("Navegar", "Navigasi"),
   T("Navegar rápido", "Navigasi cepat"),
   T("Navegação", "Navigasi"),
-  T("Navegação horizontal rápida", "Navigasi horizontal cepat"),
+  T("Navegação geral rápida", "Navigasi horizontal cepat"),
   T("Negrito", "Tebal"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Subtitle SRT mempertahankan tebal dan miring, dan pilihan otomatis mempertahankan bahasa (#604, #607)."),
   T("Nenhum", "Tidak ada"),

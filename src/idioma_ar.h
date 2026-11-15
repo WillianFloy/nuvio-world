@@ -3112,7 +3112,7 @@
   T("Navegar", "تنقّل"),
   T("Navegar rápido", "تنقل سريع"),
   T("Navegação", "التنقل"),
-  T("Navegação horizontal rápida", "تنقل أفقي سريع"),
+  T("Navegação geral rápida", "تنقل أفقي سريع"),
   T("Negrito", "عريض"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "تحتفظ ترجمات SRT بالخط العريض والمائل، ويحتفظ الاختيار التلقائي باللغة (#604، #607)."),
   T("Nenhum", "لا شيء"),

@@ -3111,7 +3111,7 @@
   T("Navegar", "Navighează"),
   T("Navegar rápido", "Navigare rapidă"),
   T("Navegação", "Navigare"),
-  T("Navegação horizontal rápida", "Navigare orizontală rapidă"),
+  T("Navegação geral rápida", "Navigare orizontală rapidă"),
   T("Negrito", "Aldin"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Subtitrările SRT păstrează textul aldin și cursiv, iar selecția automată păstrează limba (#604, #607)."),
   T("Nenhum", "Niciunul"),

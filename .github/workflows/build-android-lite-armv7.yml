@@ -53,6 +53,7 @@ jobs:
           bash tests/vitgeom.sh
           bash tests/animtempo.sh
           bash tests/colecao_fase1.sh
+          bash tests/navritmo.sh
 
       - name: Install Java 17
         uses: actions/setup-java@v4

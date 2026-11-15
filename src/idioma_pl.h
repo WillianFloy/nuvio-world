@@ -3112,7 +3112,7 @@
   T("Navegar", "Nawiguj"),
   T("Navegar rápido", "Szybka nawigacja"),
   T("Navegação", "Nawigacja"),
-  T("Navegação horizontal rápida", "Szybka nawigacja pozioma"),
+  T("Navegação geral rápida", "Szybka nawigacja pozioma"),
   T("Negrito", "Pogrubienie"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Napisy SRT zachowują pogrubienie i kursywę, a automatyczny wybór zachowuje język (#604, #607)."),
   T("Nenhum", "Brak"),

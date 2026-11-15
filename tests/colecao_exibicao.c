@@ -454,8 +454,8 @@ int main(int argc, char **argv) {
   layEscolha = VT_LAY_AUTO; lay = VT_LAY_GRADE;
   trocar();
   assert(lay == VT_LAY_LINHA && layEscolha == VT_LAY_LINHA);
-  trocar(); assert(lay == VT_LAY_FLUXO);   // a horizontal logo depois
-  trocar(); trocar();
+  trocar(); assert(lay == VT_LAY_RANKING);   // o Fluxo de capas foi aposentado
+  trocar();
   assert(lay == VT_LAY_SAGA);
   assert(escolhaGravada(&pasta) == VT_LAY_SAGA);
   { ColFolder outra = pasta; snprintf(outra.id, sizeof outra.id, "outra");
@@ -475,10 +475,10 @@ int main(int argc, char **argv) {
 
   // Default is a distinct selector step, regardless of the inherited layout.
   { static const int ciclo[] = {
-      VT_LAY_GRADE, VT_LAY_LINHA, VT_LAY_FLUXO, VT_LAY_RANKING, VT_LAY_SAGA,
+      VT_LAY_GRADE, VT_LAY_LINHA, VT_LAY_RANKING, VT_LAY_SAGA,
       VT_LAY_DECADAS, VT_LAY_MURAL, VT_LAY_VITRINE, VT_LAY_AUTO
     };
-    for (int padrao = VT_LAY_N - 1; padrao >= VT_LAY_AUTO; padrao--) {
+    for (int padrao = VT_LAY_FLUXO - 1; padrao >= VT_LAY_AUTO; padrao--) {
       char ajuste[64];
       snprintf(ajuste, sizeof ajuste, "colecaoExibicaoPadraoLocal %d\n", padrao);
       dados_gravar("ajustes.txt", ajuste);

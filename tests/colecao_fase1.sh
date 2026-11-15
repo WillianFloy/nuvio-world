@@ -35,7 +35,13 @@ ok("vitLinSoltar(r);" in v and "VIT_SOLTA_FRENTE" in v, "fileiras distantes devo
 ok("vitBuf[" not in v, "sem o buffer unico antigo")
 # 1c
 ok('ESC("Expandir posters verticais das Collections ao focar", V_LIGA, 2)' in aj, "ajuste de expansao")
-ok("home_vitrine_cartao_aberto(vitItem(r, c), card, abre, ac)" in v, "Vitrine pinta o cartaz aberto")
+ok("home_vitrine_cartao_aberto(vitItem(r, c), card, abre, acc)" in v, "Vitrine pinta o cartaz aberto")
 ok("ajustes_col_expandir_atraso() * 1000.0f" in v, "atraso respeitado")
+# 2.0.32: Fluxo de capas aposentado, fade da borda direita, "Ver tudo" sem bloco branco
+ok("VT_LAY_FLUXO, VT_LAY_RANKING" not in v, "Fluxo de capas fora do seletor")
+ok("vals[n] != VT_LAY_FLUXO" in v, "escolha gravada do Fluxo volta a Padrao")
+ok('"Vitrine", "Fluxo de capas"' not in aj and "V_COLECAO_EXIBICAO, VT_LAY_FLUXO)" in aj, "Fluxo fora dos Ajustes")
+ok("vitFadeDireita(cx, w)" in v and "NV_TELA_W - (x0 - f), h" in v, "fileira continua com fade ate a borda")
+ok("sel && ajustes_borda_foco() && !ajustes_vidro()" in v and "0.115f, 0.12f, 0.14f, acc" in v, "Ver tudo com fundo opaco sem vidro")
 print("colecao_fase1: tudo ok")
 P

@@ -3111,7 +3111,7 @@
   T("Navegar", "Navegar"),
   T("Navegar rápido", "Navegar rápido"),
   T("Navegação", "Navegación"),
-  T("Navegação horizontal rápida", "Navegación horizontal rápida"),
+  T("Navegação geral rápida", "Navegación general rápida"),
   T("Negrito", "Negrita"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Los subtítulos SRT conservan negrita y cursiva, y la selección automática mantiene el idioma (#604, #607)."),
   T("Nenhum", "Ninguno"),

@@ -842,9 +842,10 @@ static const char *V_FONTE_MODELO[] = { "Personalizado", "Espanhol", "Português
 static const char *V_FONTE_ORDEM_USO[] = { "Não", "Para desempatar", "Ordem estrita" };
 // Mesmos IDs de VtLayout, usados tambem pelo arquivo de cada colecao.
 static const char *V_COLECAO_EXIBICAO[] = {
-  "Automático", "Grade", "Linha do tempo", "Ranking", "Saga", "Décadas", "Mural", "Vitrine", "Fluxo de capas"
+  "Automático", "Grade", "Linha do tempo", "Ranking", "Saga", "Décadas", "Mural", "Vitrine"
 };
-_Static_assert(sizeof V_COLECAO_EXIBICAO / sizeof *V_COLECAO_EXIBICAO == VT_LAY_N,
+// VT_LAY_FLUXO (ultimo id) foi aposentado: nao aparece na lista.
+_Static_assert(sizeof V_COLECAO_EXIBICAO / sizeof *V_COLECAO_EXIBICAO == VT_LAY_FLUXO,
                "collection settings and persisted view IDs must match");
 // Indice gravado em tamanhoUiLocal; o fator sai de ajustes_tamanho_ui.
 static const char *V_TAMANHO_UI[] = { "100%", "120%", "130%", "150%", "80%", "85%", "90%", "115%", "Automático" };
@@ -1450,7 +1451,7 @@ static const Opcao OPCOES[AJ_N] = {
 
   ESC("Expandir pôster ao focar",   V_LIGA, 2),   // focusedPosterBackdropExpandEnabled
   NUM("Atraso da expansão",         0, 10, 1, " s"), // ...ExpandDelaySeconds
-  ESC("Navegação horizontal rápida", V_LIGA, 2),  // fastHorizontalNavigationEnabled
+  ESC("Navegação geral rápida", V_LIGA, 2),  // fastHorizontalNavigationEnabled (a chave sincronizada nao muda)
   ESC("Borda no cartaz em foco",    V_LIGA, 2),   // local: ver bordaFocoCartaz
 
   ESC("Efeito de profundidade",     V_LIGA, 2),   // cardDepthEnabled
@@ -1790,7 +1791,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Negrito", V_LEG2_NEGRITO, 3),
   ESC("Cor da borda", V_LEG2_COR_BORDA, VIDEO_LEG_NCORES + 1),
   ACAO("Restaurar padrão"),
-  ESC("Exibição padrão das coleções", V_COLECAO_EXIBICAO, VT_LAY_N),
+  ESC("Exibição padrão das coleções", V_COLECAO_EXIBICAO, VT_LAY_FLUXO),
   ESC("Player", V_PLAYER_EXTERNO, 3),                    // local: playerExternoLocal
   ESC("Áudio do trailer", V_TRAUD, 2),   // n real em nValores
   ESC("Player para anime", V_PLAYER_EXTERNO, 3),        // n real em nValores; local: playerExternoAnimeLocal
@@ -3061,7 +3062,7 @@ static float tamanhoUiAutomatico(void) {
 int ajustes_sinopse_tamanho(void) { return valor[AJ_HERO_SINOPSE_TAM] == 1; }
 int ajustes_colecao_exibicao(void) {
   int v = valor[AJ_COLECAO_EXIBICAO];
-  return v >= VT_LAY_AUTO && v < VT_LAY_N ? v : VT_LAY_AUTO;
+  return v >= VT_LAY_AUTO && v < VT_LAY_FLUXO ? v : VT_LAY_AUTO;
 }
 static int notaFontes[EX_NFONTES] = { -1 };
 int ajustes_nota_fonte(int pos) {
@@ -3842,7 +3843,9 @@ int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
   static const float fator[] = { 0.72f, 1.0f, 1.22f };
   int v = valor[AJ_NAV_VELOCIDADE];
-  return v >= 0 && v < 3 ? fator[v] : 1.0f;
+  // "Navegação geral rápida" desligada (padrao): deslizes um pouco mais lentos e suaves.
+  float suave = lig(AJ_NAV_RAPIDA) ? 1.0f : 0.85f;
+  return (v >= 0 && v < 3 ? fator[v] : 1.0f) * suave;
 }
 int   ajustes_borda_foco(void) { return lig(AJ_BORDA_FOCO); }
 
@@ -6237,7 +6240,7 @@ int ajustes_perfil_restaurar(int perfil) {
         if (i == AJ_COLECAO_EXIBICAO && !colecaoPropria) continue;
         // This new profile-local choice must not inherit the previous profile
         // through limita()'s legacy fallback when an old file is malformed.
-        if (i == AJ_COLECAO_EXIBICAO && (v < VT_LAY_AUTO || v >= VT_LAY_N)) v = VT_LAY_AUTO;
+        if (i == AJ_COLECAO_EXIBICAO && (v < VT_LAY_AUTO || v >= VT_LAY_FLUXO)) v = VT_LAY_AUTO;
         v = limita(i, v);
         if (i == AJ_FOCO_TRAILER) viuFoco = 1;
         if (i == AJ_MENU_TOPO) viuTopo = 1;
@@ -7763,7 +7766,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_EXPANDIR: return "O cartaz em foco cresce e abre a arte deitada atrás dele depois de um instante parado.";
     case AJ_EXPANDIR_ATRASO: return "Quanto tempo o foco precisa ficar parado antes de o cartaz expandir.";
     case AJ_FOCO_TRAILER: return "Com o foco parado num cartaz, o trailer toca no destaque depois da espera da expansão. Tela cheia: no lugar da arte do destaque, com a Home no lugar. No card: dentro do cartaz; pôster em pé só com Expandir pôster ao focar.";
-    case AJ_NAV_RAPIDA: return "Andar de lado numa fileira não espera a animação terminar. Serve para controle que repete rápido.";
+    case AJ_NAV_RAPIDA: return "Ligada: as setas respondem o mais rápido possível, sem esperar a animação (comportamento anterior). Desligada: navegação estilo Netflix em todo o app — um toque anda um item; segurando, anda um por vez, sem pular nem acumular comandos, e as animações ficam um pouco mais suaves.";
     case AJ_BORDA_FOCO: return "O anel colorido que marca o cartaz em foco na Home. Desligado, o foco fica só pelo tamanho do cartaz.";
     case AJ_PROF: return "Dá relevo aos cartazes: borda iluminada e um reflexo que acompanha o foco.";
     case AJ_PROF_BORDA: return "Quanto a borda do cartaz em foco acende.";

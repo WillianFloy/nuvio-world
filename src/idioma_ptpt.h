@@ -3112,7 +3112,7 @@
   T("Navegar", "Navegar"),
   T("Navegar rápido", "Navegar depressa"),
   T("Navegação", "Navegação"),
-  T("Navegação horizontal rápida", "Navegação horizontal rápida"),
+  T("Navegação geral rápida", "Navegação geral rápida"),
   T("Negrito", "Negrito"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "O negrito e o itálico mantêm-se nas legendas SRT, e a seleção automática mantém o idioma (#604, #607)."),
   T("Nenhum", "Nenhum"),

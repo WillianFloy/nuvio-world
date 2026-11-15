@@ -3112,7 +3112,7 @@
   T("Navegar", "Naršyti"),
   T("Navegar rápido", "Greita navigacija"),
   T("Navegação", "Naršymas"),
-  T("Navegação horizontal rápida", "Greita horizontali navigacija"),
+  T("Navegação geral rápida", "Greita horizontali navigacija"),
   T("Negrito", "Paryškintas"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT subtitrai išlaiko pusjuodį ir kursyvą, o automatinis pasirinkimas išlaiko kalbą (#604, #607)."),
   T("Nenhum", "Nėra"),

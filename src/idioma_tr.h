@@ -3112,7 +3112,7 @@
   T("Navegar", "Gezin"),
   T("Navegar rápido", "Hızlı gezinme"),
   T("Navegação", "Gezinme"),
-  T("Navegação horizontal rápida", "Hızlı yatay gezinme"),
+  T("Navegação geral rápida", "Hızlı yatay gezinme"),
   T("Negrito", "Kalın"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT altyazıları kalın ve italik biçimi korur, otomatik seçim dili korur (#604, #607)."),
   T("Nenhum", "Yok"),

@@ -3112,7 +3112,7 @@
   T("Navegar", "Навигация"),
   T("Navegar rápido", "Бърза навигация"),
   T("Navegação", "Навигация"),
-  T("Navegação horizontal rápida", "Бърза хоризонтална навигация"),
+  T("Navegação geral rápida", "Бърза хоризонтална навигация"),
   T("Negrito", "Удебелен"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT субтитрите запазват удебеляването и курсива, а автоматичният избор запазва езика (#604, #607)."),
   T("Nenhum", "Няма"),

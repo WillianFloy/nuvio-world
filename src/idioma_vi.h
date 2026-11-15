@@ -3112,7 +3112,7 @@
   T("Navegar", "Di chuyển"),
   T("Navegar rápido", "Điều hướng nhanh"),
   T("Navegação", "Điều hướng"),
-  T("Navegação horizontal rápida", "Điều hướng ngang nhanh"),
+  T("Navegação geral rápida", "Điều hướng ngang nhanh"),
   T("Negrito", "In đậm"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Phụ đề SRT giữ chữ đậm và nghiêng, và lựa chọn tự động giữ ngôn ngữ (#604, #607)."),
   T("Nenhum", "Không có"),

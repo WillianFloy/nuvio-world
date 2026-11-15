@@ -3111,7 +3111,7 @@
   { "Navegar", "Navigate" },
   { "Navegar rápido", "Fast navigation" },
   { "Navegação", "Navigation" },
-  { "Navegação horizontal rápida", "Fast horizontal navigation" },
+  { "Navegação geral rápida", "Fast general navigation" },
   { "Negrito", "Bold" },
   { "Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT subtitles keep bold and italic emphasis, and automatic selection keeps the language (#604, #607)." },
   { "Nenhum", "None" },

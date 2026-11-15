@@ -3112,7 +3112,7 @@
   T("Navegar", "Πλοήγηση"),
   T("Navegar rápido", "Πλοήγηση ταχύτητας"),
   T("Navegação", "Πλοήγηση"),
-  T("Navegação horizontal rápida", "Γρήγορη οριζόντια πλοήγηση"),
+  T("Navegação geral rápida", "Γρήγορη οριζόντια πλοήγηση"),
   T("Negrito", "Έντονα"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Οι υπότιτλοι SRT διατηρούν έντονα και πλάγια γράμματα, και η αυτόματη επιλογή διατηρεί τη γλώσσα (#604, #607)."),
   T("Nenhum", "Κανένα"),

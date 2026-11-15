@@ -3112,7 +3112,7 @@
   T("Navegar", "移動"),
   T("Navegar rápido", "高速ナビゲーション"),
   T("Navegação", "ナビゲーション"),
-  T("Navegação horizontal rápida", "高速な横方向ナビゲーション"),
+  T("Navegação geral rápida", "高速な横方向ナビゲーション"),
   T("Negrito", "太字"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "SRT字幕の太字と斜体を保持し、自動選択でも言語を維持します (#604, #607)."),
   T("Nenhum", "なし"),

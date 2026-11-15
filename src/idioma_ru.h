@@ -3111,7 +3111,7 @@
   T("Navegar", "Навигация"),
   T("Navegar rápido", "Быстрая навигация"),
   T("Navegação", "Навигация"),
-  T("Navegação horizontal rápida", "Быстрая горизонтальная навигация"),
+  T("Navegação geral rápida", "Быстрая горизонтальная навигация"),
   T("Negrito", "Жирный"),
   T("Negrito e itálico ficam nas legendas SRT, e a seleção automática mantém o idioma (#604, #607).", "Субтитры SRT сохраняют жирный шрифт и курсив, а автоматический выбор сохраняет язык (#604, #607)."),
   T("Nenhum", "Нет"),

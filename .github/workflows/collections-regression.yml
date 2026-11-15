@@ -51,5 +51,7 @@ jobs:
         run: bash tests/animtempo.sh
       - name: Run Collections phase 1 guards
         run: bash tests/colecao_fase1.sh
+      - name: Run arrow navigation rhythm guards
+        run: bash tests/navritmo.sh
       - name: Run release promotion workflow guard
         run: bash tests/release_promocao.sh
