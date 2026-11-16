@@ -92,5 +92,11 @@ int main(int argc, char **argv) {
   snprintf(p,sizeof p,"%s/abandoned.tmp",root); file(p,90L<<20,1);
   nv_android_cache_trim(NV_ANDROID_CACHE_BYTES);
   assert(nv_android_cache_size() <= NV_ANDROID_CACHE_BYTES);
+  { /* 2.0.35: a poda deixa uma linha de diagnostico (o que apagou, por classe) e so uma. */
+    char d[600];
+    assert(nv_android_cache_diag(d,sizeof d));
+    assert(strstr(d,"[diag] androidcache:") && !strstr(d,"outros=0/") && strstr(d,"img=0/"));
+    assert(!nv_android_cache_diag(d,sizeof d));
+  }
   puts("Android storage: LRU budget, recursive clear, symlinks and user state PASS");
 }

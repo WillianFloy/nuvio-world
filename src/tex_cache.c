@@ -950,14 +950,25 @@ int tex_pressao_pct(int nivel) {
   if (nivel >= 5) return 80;
   return 100;
 }
+// DIAGNOSTICO 2.0.35 (so medicao): de onde vem cada aviso de pressao. O log
+// da 2.0.33 so dizia "trim 80"; o nivel 80 sai tanto do callback do Android
+// (onTrimMemory) quanto de tex_aliviar (aviso de MemAvailable < 150 MB no
+// relatorio de 3 s). Sem saber qual, nao da para escolher a correcao.
+static const char *pressaoOrigem = "onTrimMemory";
+static unsigned pressaoContaTrim, pressaoContaAliviar, pressaoContaOutra;
 void tex_pressao_memoria(int nivel) {
   int pct = tex_pressao_pct(nivel);
   if (pct >= 100) return;
+  if (!strcmp(pressaoOrigem, "aliviar(MemAvailable)")) pressaoContaAliviar++;
+  else if (!strcmp(pressaoOrigem, "onTrimMemory")) pressaoContaTrim++;
+  else pressaoContaOutra++;
   /* Aviso mais fraco nao afrouxa um mais forte ainda em vigor. */
   if (pressaoAtiva() && pressaoPct < pct) pct = pressaoPct;
   pressaoPct = pct;
   pressaoAte = SDL_GetTicks() + NV_TEX_PRESSAO_MS;
   printf("[tex] pressao de memoria (trim %d): teto a %d%% por %u s\n", nivel, pct, NV_TEX_PRESSAO_MS / 1000u);
+  printf("[diag] pressao origem=%s avisos: onTrimMemory=%u aliviar=%u outra=%u\n",
+         pressaoOrigem, pressaoContaTrim, pressaoContaAliviar, pressaoContaOutra);
   fflush(stdout);
 }
 #ifdef NV_ANDROID
@@ -1043,8 +1054,30 @@ void tex_memoria_livre(long livreMb) {
   pressaoPlayMin = pct == 25 ? 20 : pct == 50 ? (orcMemTotal >= 3500 ? 35 : 20) : 100;
   if (pressaoPlayLigada && pressaoPlayMin < pressaoPlay) pressaoPlay = pressaoPlayMin;
 }
+// DIAGNOSTICO 2.0.35: estado da pressao e do orcamento, 1 linha so quando muda
+// (teto efetivo em MB, % de pressao, ou memoria livre em faixas de 20 MB).
+// Roda no relatorio de 3 s, no fio principal; le sem o mutex dos itens (so
+// escalares) e nao altera nada.
+void tex_diag_limites(long *usadosKB, long *limiteKB) {
+  if (usadosKB) *usadosKB = bytesUsados / 1024;
+  if (limiteKB) *limiteKB = limiteBytes() / 1024;
+}
+int tex_diag_pressao(char *buf, size_t tam, long livreMb) {
+  static long ultLim = -1, ultFaixa = -1; static int ultPct = -1, ultLivrePct = -1;
+  long lim = limiteBytes(), mb = lim / 1048576, faixa = livreMb < 0 ? -1 : livreMb / 20;
+  int pct = pressaoPct, lpct = pressaoLivrePct;
+  if (mb == ultLim && pct == ultPct && lpct == ultLivrePct && faixa == ultFaixa) return 0;
+  ultLim = mb; ultPct = pct; ultLivrePct = lpct; ultFaixa = faixa;
+  snprintf(buf, tam, "[diag] tex: teto efetivo=%ld MB de %ld MB (trim=%d%% livre=%d%% play=%d%%) "
+           "usados=%.1f MB MemAvailable=%ld MB avisos onTrim=%u aliviar=%u",
+           mb, orcamento / 1048576, pct, lpct, (int)pressaoPlay,
+           bytesUsados / 1048576.0, livreMb, pressaoContaTrim, pressaoContaAliviar);
+  return 1;
+}
 void tex_aliviar(void) {
+  pressaoOrigem = "aliviar(MemAvailable)";
   tex_pressao_memoria(80);
+  pressaoOrigem = "onTrimMemory";
   if (!mtx) return;
   SDL_LockMutex(mtx);
   soltarCpu(1);

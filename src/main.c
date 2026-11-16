@@ -2375,6 +2375,13 @@ int main(int argc, char **argv) {
 #ifndef NV_ANDROID
       tex_memoria_livre(memlog_livre_mb());   // #415; Android usa o trim
 #endif
+      { // DIAGNOSTICO 2.0.35: so medicao; uma linha quando algo muda.
+        char dl[480];
+        if (tex_diag_pressao(dl, sizeof dl, memlog_livre_mb())) { printf("%s\n", dl); fflush(stdout); }
+#ifdef NV_ANDROID
+        if (nv_android_cache_diag(dl, sizeof dl)) { printf("%s\n", dl); fflush(stdout); }
+#endif
+      }
       NvCacheArteStats cacheArteStats;
       tex_estatisticas(&itens, &pend, &bytes, &quentes, &bytesQ);
       memset(&cacheArteStats, 0, sizeof cacheArteStats);

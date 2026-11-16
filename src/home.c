@@ -1188,6 +1188,13 @@ int home_proximo_desfocar(const CatItem *ci, const char *arte) {
 // A arte de tela anda DENTRO do retangulo pelo shader, com as rampas paradas;
 // o poster (que nao preenche o retangulo) anda o rect inteiro, e quem chama
 // recorta em r.
+// DIAGNOSTICO 2.0.35 (so medicao): por que a ultima arte de destaque desenhou ou
+// nao. 1 sem caminho, 2 invisivel (alfa ~0), 3 sem textura, 4 sem copia
+// desfocada, 5 desenhou arte plana, 6 desenhou poster (so ate 42% da largura),
+// 7 camadas ok, 8 camadas recusou (layout/sem caminho), 9 camadas recusou
+// (poster/desfocar tratado como nao plana), 10 camadas recusou (textura ausente).
+static int homeDiagArte;
+int home_vitrine_diag_arte(void) { return homeDiagArte; }
 static int desenhaArteHero(GfxRect r, GfxModo modo, const CatItem *item,
                            const char *path, float alpha, float desl) {
   int ehPoster = 0;
@@ -1206,14 +1213,15 @@ static int desenhaArteHero(GfxRect r, GfxModo modo, const CatItem *item,
   GLuint tex;
   if (item && path && path[0] && item->poster[0] && !strcmp(path, item->poster))
     ehPoster = 1;
-  if (!arte || !arte[0]) return 0;
-  if (alpha <= 0.004f) return 1;   // invisivel: nem o quad de tela cheia
+  if (!arte || !arte[0]) { homeDiagArte = 1; return 0; }
+  if (alpha <= 0.004f) { homeDiagArte = 2; return 1; }   // invisivel: nem o quad de tela cheia
   tex = tex_obter_hero(arte);
-  if (!tex) return 0;
+  if (!tex) { homeDiagArte = 3; return 0; }
   if (home_proximo_desfocar(item, arte)) {
     tex = gfx_desfocado(tex, arte);   // copia 96x54; sem ela, nada (nunca o still nitido)
-    if (!tex) return 0;
+    if (!tex) { homeDiagArte = 4; return 0; }
   }
+  homeDiagArte = ehPoster ? 6 : 5;
   gfx_tex_aspect_atual = tex_aspecto(arte);
   gfx_desliza_atual = ehPoster ? 0.0f : desl;
   if (!ehPoster && modo == GFX_VITRINE) {
@@ -7134,6 +7142,13 @@ void home_vitrine_medida(float *w, float *h, float *passo, float *rotH) {
   *passo = *w + gapDe(FILEIRA_NORMAL);
   *rotH = temRotulo(FILEIRA_NORMAL) ? NV_POSTER_COPY_H : 0.0f;
 }
+// DIAGNOSTICO 2.0.35: hash da URL da arte de destaque e se ela e o proprio poster.
+// NAO pede textura ao cache (nao muda a ordem do cache).
+unsigned long home_vitrine_diag_arte_info(const CatItem *ci, int *ehPoster) {
+  const char *a = ci ? arte_hero_do_item(ci) : NULL;
+  if (ehPoster) *ehPoster = (ci && a && a[0] && ci->poster[0] && !strcmp(a, ci->poster)) ? 1 : 0;
+  return a && a[0] ? tex_hash_public(a) : 0;
+}
 // 1 quando a arte do destaque do item ja esta decodificada (e pede o decode).
 int home_vitrine_arte_pronta(const CatItem *ci) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;
@@ -7145,7 +7160,7 @@ int home_vitrine_arte(const CatItem *ci, float alfa) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;
   int lay = home_vitrine_layout();
   GfxRect r = { 0, 0, NV_TELA_W, ANC(NV_HERO_CHEIO_H) };
-  if (!a || !a[0] || alfa <= 0.004f) return 0;
+  if (!a || !a[0] || alfa <= 0.004f) { homeDiagArte = (!a || !a[0]) ? 1 : 2; return 0; }
   if (lay == HOME_LAYOUT_MODERNA) return desenhaArteHero(r, GFX_HERO_CHEIO, ci, a, alfa, 0.0f);
   if (lay == HOME_LAYOUT_PADRAO) r = (GfxRect){ 0, ANC(NV_PAD_BANNER_Y), NV_TELA_W, ANC(NV_PAD_BANNER_H) };
   else r.h = ANC(NV_DIN_ARTE_H);
@@ -7162,10 +7177,11 @@ int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *en
   const char *a = entra ? arte_hero_do_item(entra) : NULL, *b = sai ? arte_hero_do_item(sai) : NULL;
   float aspA = 0.0f, aspB = 0.0f;
   GLuint tA, tB;
-  if (home_vitrine_layout() != HOME_LAYOUT_MODERNA || !a || !a[0] || !b || !b[0]) return 0;
-  if (!heroArtePlana(entra, a, &aspA) || !heroArtePlana(sai, b, &aspB)) return 0;
+  if (home_vitrine_layout() != HOME_LAYOUT_MODERNA || !a || !a[0] || !b || !b[0]) { homeDiagArte = 8; return 0; }
+  if (!heroArtePlana(entra, a, &aspA) || !heroArtePlana(sai, b, &aspB)) { homeDiagArte = 9; return 0; }
   tA = tex_obter_hero(a); tB = tex_obter_hero(b);
-  if (!tA || !tB) return 0;
+  if (!tA || !tB) { homeDiagArte = 10; return 0; }
+  homeDiagArte = 7;
   return gfx_hero_camadas((GfxRect){ 0, 0, NV_TELA_W, ANC(NV_HERO_CHEIO_H) }, GFX_HERO_CHEIO,
                           tA, aspA, alfaEntra, tB, aspB, alfaSai);
 }

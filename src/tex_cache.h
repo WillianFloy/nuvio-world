@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include "arteurl.h"
 // Cache de texturas com decode FORA da thread de desenho.
 //
@@ -267,6 +268,8 @@ void tex_memoria_livre(long livreMb);
 // baixados em fila e slots FALHOU. Antes de reabrir o pipeline com a TV sem
 // memoria (#415).
 void tex_aliviar(void);
+void tex_diag_limites(long *usadosKB, long *limiteKB);   /* 2.0.35 */
+int  tex_diag_pressao(char *buf, size_t tam, long livreMb);   /* 2.0.35: linha [diag] quando o teto muda */
 // O valor que "Automatico" significa: o perfil aprovado pelo diagnostico, ou
 // o padrao do aparelho com 0. Travado pelo teto da RAM; nao passa por cima de
 // Ajustes, de NV_TEX_MB_FIXO nem de NUVIO_TEX_MB.

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #include <utime.h>
 
@@ -94,14 +95,68 @@ uint64_t nv_android_cache_size_all(void) {
   scan(root,NULL,&n,&bytes,0,0);
   pthread_mutex_unlock(&lock); return bytes;
 }
+/* DIAGNOSTICO 2.0.35 (so medicao, nao muda o que e apagado): quanto custa cada
+ * poda, o que ela apaga (imagens x fileiras das Collections x o resto) e quanto
+ * cada classe ocupava antes. Lido pelo relatorio de 3 s (nv_android_cache_diag). */
+typedef struct { unsigned n; uint64_t bytes; } Classe;
+static struct {
+  unsigned chamadas, comPoda, varridosMax; double msTotal, msMax;
+  Classe apagou[3];      /* 0 imagens, 1 colrow-*.bin, 2 outros */
+  uint64_t ocupava[3];   /* bytes por classe antes da ultima poda com apagamento */
+  uint64_t totalAntes, cap; unsigned versao, vista;
+} diag;
+static int classeDe(const char *p) {
+  if (strstr(p,"/images/")) return 0;
+  if (strstr(p,"/colrow-")) return 1;
+  return 2;
+}
+static double agoraMs(void) {
+  struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
+  return t.tv_sec*1000.0+t.tv_nsec/1e6;
+}
 void nv_android_cache_trim(uint64_t cap) {
   Entry *list=NULL; size_t n=0; uint64_t bytes=0;
+  double t0=agoraMs();
   pthread_mutex_lock(&lock);
   scan(nv_android_cache_dir(),&list,&n,&bytes,0,0);
   if (n>1) qsort(list,n,sizeof *list,oldest);
+  uint64_t antes=bytes, oc[3]={0,0,0}; int apagou=0;
+  if (bytes>cap) for (size_t i=0;i<n;i++) oc[classeDe(list[i].path)]+=list[i].bytes;
   for (size_t i=0;i<n && bytes>cap;i++)
-    if (!unlink(list[i].path)) bytes-=list[i].bytes;
+    if (!unlink(list[i].path)) {
+      int c=classeDe(list[i].path);
+      bytes-=list[i].bytes; apagou=1;
+      diag.apagou[c].n++; diag.apagou[c].bytes+=list[i].bytes;
+    }
+  double ms=agoraMs()-t0;
+  diag.chamadas++; diag.msTotal+=ms; if (ms>diag.msMax) diag.msMax=ms;
+  if (n>diag.varridosMax) diag.varridosMax=(unsigned)n;
+  if (apagou) {
+    diag.comPoda++; diag.totalAntes=antes; diag.cap=cap;
+    for (int c=0;c<3;c++) diag.ocupava[c]=oc[c];
+    diag.versao++;
+  }
   free(list); pthread_mutex_unlock(&lock);
+}
+/* Uma linha [diag] se houve poda com apagamento desde a ultima leitura; 0 se nada novo. */
+int nv_android_cache_diag(char *buf,size_t tam) {
+  int novo;
+  pthread_mutex_lock(&lock);
+  novo=diag.versao!=diag.vista;
+  if (novo) {
+    diag.vista=diag.versao;
+    snprintf(buf,tam,"[diag] androidcache: %u podas em %u chamadas, %.1f ms total (max %.1f), "
+      "ate %u arquivos varridos; apagado img=%u/%.1fMB col=%u/%.1fMB outros=%u/%.1fMB; "
+      "antes da ultima poda %.1fMB de teto %.1fMB (img %.1f col %.1f outros %.1f)",
+      diag.comPoda,diag.chamadas,diag.msTotal,diag.msMax,diag.varridosMax,
+      diag.apagou[0].n,diag.apagou[0].bytes/1048576.0,
+      diag.apagou[1].n,diag.apagou[1].bytes/1048576.0,
+      diag.apagou[2].n,diag.apagou[2].bytes/1048576.0,
+      diag.totalAntes/1048576.0,diag.cap/1048576.0,
+      diag.ocupava[0]/1048576.0,diag.ocupava[1]/1048576.0,diag.ocupava[2]/1048576.0);
+  }
+  pthread_mutex_unlock(&lock);
+  return novo;
 }
 int nv_android_cache_clear(void) {
   size_t n=0; uint64_t b=0;

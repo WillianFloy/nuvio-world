@@ -18,5 +18,12 @@ ok("(vitHeroEntra < 1.0f && !ant)" in v, "sem tela cheia escura extra na troca")
 ok("void gfx_desfoque_aquecer(void)" in g and "gfx_desfoque_aquecer();" in m, "desfoque aquecido na abertura")
 ok("!it && !vitChave(vitHeroAtual)" in v, "destaque fica no Ver tudo/fileira vazia")
 ok("account snapshot identical: kept" in c and "snapshot aplicado em" in c, "snapshot igual nao reaplica; tempo no log")
+# 2.0.35: instrumentacao de diagnostico presente e SEM mudar comportamento.
+ok("[diag] pressao origem=%s" in t and 'pressaoOrigem = "aliviar(MemAvailable)"' in t, "diag: origem do aviso de pressao")
+ok("int tex_diag_pressao(" in t and "tex_diag_pressao(dl, sizeof dl, memlog_livre_mb())" in m, "diag: estado do teto de texturas no relatorio de 3 s")
+ok("[diag] androidcache:" in a and "nv_android_cache_diag(dl, sizeof dl)" in m, "diag: podas do androidcache no relatorio de 3 s")
+ok("[diag-hero] ruim" in v and "home_vitrine_diag_arte()" in v and "static int homeDiagArte;" in h, "diag: bloco vermelho do destaque")
+ok("#define NV_ANDROID_CACHE_BYTES (80ULL << 20)" in open("src/androidcache.h").read(), "diag nao mexe no teto de 80 MB (so mede)")
+ok("if (ant && vitHeroEntra < 1.0f) {\n      trocou = home_vitrine_arte_troca(ant, a, hero, a * e);" in v, "diag: ordem das chamadas de arte preservada")
 print("desempenho_2034: tudo ok")
 P

@@ -3755,15 +3755,53 @@ static void vitDesenhar(float a, float x0) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
+  int dTroca = 0, dAnt = 0, dHero = 0;   // DIAGNOSTICO 2.0.35: codigos de home_vitrine_diag_arte
   if (hero) {
     float e = vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra);
-    if (ant && vitHeroEntra < 1.0f && home_vitrine_arte_troca(ant, a, hero, a * e)) arte = 1;
+    int trocou = 0;
+    if (ant && vitHeroEntra < 1.0f) {
+      trocou = home_vitrine_arte_troca(ant, a, hero, a * e);
+      dTroca = home_vitrine_diag_arte();
+    }
+    if (trocou) arte = 1;
     else {
-      if (ant && vitHeroEntra < 1.0f) arte |= home_vitrine_arte(ant, a);
-      arte |= home_vitrine_arte(hero, a * e);
+      if (ant && vitHeroEntra < 1.0f) { arte |= home_vitrine_arte(ant, a); dAnt = home_vitrine_diag_arte(); }
+      arte |= home_vitrine_arte(hero, a * e); dHero = home_vitrine_diag_arte();
     }
   }
+  int fundoUsado = !arte;
   if (!arte) fundoColecao(a);
+  { // DIAGNOSTICO 2.0.35 (so log): o bloco vermelho de ~4 quadros na troca de destaque.
+    // Registra os quadros em que o destaque existe mas a arte caiu no fundo da
+    // Collection (arte==0), a troca em camadas foi recusada, a textura faltou
+    // ou o destaque e o proprio poster. Uma linha a cada MUDANCA de situacao
+    // e uma de fechamento com a duracao; no maximo 120 linhas por execucao.
+    static unsigned long ultSig; static Uint32 desde; static unsigned quadros, linhas; static int ruimAntes;
+    int ruim = hero && (fundoUsado || dTroca == 9 || dTroca == 10 || dAnt == 3 || dAnt == 4 ||
+                        dHero == 3 || dHero == 4 || dHero == 6 || dAnt == 6);
+    int pAnt = 0, pHero = 0;
+    unsigned long hAnt = ant ? home_vitrine_diag_arte_info(ant, &pAnt) : 0;
+    unsigned long hHero = hero ? home_vitrine_diag_arte_info(hero, &pHero) : 0;
+    unsigned long sig = (unsigned long)(fundoUsado * 1u) ^ ((unsigned long)dTroca << 3) ^ ((unsigned long)dAnt << 8) ^
+                        ((unsigned long)dHero << 13) ^ (hAnt * 2654435761UL) ^ (hHero * 40503UL);
+    if (ruim) {
+      quadros++;
+      if ((!ruimAntes || sig != ultSig) && linhas < 120) {
+        long usadosKB = 0, limiteKB = 0;
+        tex_diag_limites(&usadosKB, &limiteKB);
+        printf("[diag-hero] ruim fundoColecao=%d troca=%d ant=%d hero=%d entra=%.2f a=%.2f sai=%.2f "
+               "antHash=%08lx poster=%d heroHash=%08lx poster=%d tex=%ld/%ld KB\n",
+               fundoUsado, dTroca, dAnt, dHero, vitHeroEntra, a, sai, hAnt, pAnt, hHero, pHero,
+               usadosKB, limiteKB);
+        fflush(stdout); linhas++;
+      }
+      if (!ruimAntes) { desde = SDL_GetTicks(); quadros = 1; }
+    } else if (ruimAntes && linhas < 120) {
+      printf("[diag-hero] normal de volta apos %u quadro(s) em %u ms\n", quadros, (unsigned)(SDL_GetTicks() - desde));
+      fflush(stdout); linhas++;
+    }
+    ruimAntes = ruim; ultSig = sig;
+  }
   degradeMarca(a, home_vitrine_layout() == HOME_LAYOUT_DINAMICA ? NV_TELA_H : NV_SHELF_TOP);
   // O bloco do destaque comeca abaixo do cabecalho (anel e legenda descem ate
   // ~34 px do centro da linha), com folga: logo largo, alto ou nome em texto.

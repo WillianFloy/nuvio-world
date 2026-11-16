@@ -141,6 +141,8 @@ int  home_pediu_guia(char *id, int tam);
 // que nao esta no catalogo global. Ver home.c.
 void home_vitrine_medida(float *w, float *h, float *passo, float *rotH);
 int  home_vitrine_arte_pronta(const CatItem *ci);
+int  home_vitrine_diag_arte(void);   /* 2.0.35: codigo do ultimo desenho de arte (ver home.c) */
+unsigned long home_vitrine_diag_arte_info(const CatItem *ci, int *ehPoster);
 int  home_vitrine_arte(const CatItem *ci, float alfa);
 int  home_vitrine_layout(void);
 float home_vitrine_topo(float filH);
