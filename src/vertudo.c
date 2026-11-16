@@ -1207,6 +1207,19 @@ static int vitOcultar = -1, vitProjetoSujo;
 static VtChave vitFocoChave;
 static int vitN, vitMulti, vitCarga, vitFR, vitFC, vitMexeu, vitUnicoN = -1;
 static int vitColLemb[VIT_LIN_MAX];
+// 2.0.39: A POSICAO HORIZONTAL DE CADA FILEIRA SOBREVIVE A REPROJECAO. Na TV toda
+// reprojecao (fonte/pagina recebida, fileira descarregada ou recarregada pela
+// janela de carga, revalidacao do cache) zerava vitSx de TODAS as fileiras e a
+// mola as trazia de volta: ao subir/descer, as fileiras ja avancadas voltavam ao
+// 1o cartaz e deslizavam ate o lugar (2.0.31 trouxe o gatilho, o foco fixo da
+// 2.0.33 o deixou visivel). Agora cada fileira guarda a CHAVE ESTAVEL (IMDb+tipo
+// ou TMDB, nao o titulo) do item lembrado; a reprojecao reencontra a coluna por
+// ela e so corrige o deslocamento pela diferenca de alvo (sem salto), e a
+// fileira descarregada volta direto para a coluna onde estava.
+static VtChave vitLembChave[VIT_LIN_MAX];
+static unsigned char vitLembTem[VIT_LIN_MAX];   // 0 nada, 1 item (chave), 2 "Ver tudo"
+static unsigned char vitSxAjuste[VIT_LIN_MAX];  // 0 nada, 1 soma a diferenca de alvo, 2 assenta no alvo
+static int vitSxColAnt[VIT_LIN_MAX], vitSxTotAnt[VIT_LIN_MAX];
 static Uint32 vitNomeEm, vitReleEm;
 static float vitScroll, vitScrollV, vitSx[VIT_LIN_MAX], vitSv[VIT_LIN_MAX];
 // O destaque: o que esta na tela, o que saiu, e o que o foco pede.
@@ -1407,6 +1420,14 @@ static CatItem *vitItem(int r, int c) {
 static CatItem *vitChave(int k) { return k < 0 ? NULL : vitItem(k / vitCap, k % vitCap); }
 static int vitTemVerTudo(int r) { return r >= 0 && r < vitN && vitLin[r].n > 0 && !vitLin[r].semFonte; }
 static int vitColunas(int r) { return vitLin[r].n + vitTemVerTudo(r); }
+static int chaveValida(const VtChave *k) { return k->id[0] || k->tmdb > 0; }
+// Guarda a chave do item na coluna `col` da fileira `r` (antes de ela mudar).
+static void vitLembrarLinha(int r, int col) {
+  if (r < 0 || r >= vitN || !vitLin[r].n) return;   // vazia: fica a chave que ja havia
+  if (vitTemVerTudo(r) && col == vitLin[r].n) { memset(&vitLembChave[r], 0, sizeof vitLembChave[r]); vitLembTem[r] = 2; return; }
+  guardarChave(&vitLembChave[r], vitItem(r, col));
+  vitLembTem[r] = chaveValida(&vitLembChave[r]) ? 1 : 0;
+}
 static int vitPaginaFonte(void) {
   return lay == VT_LAY_VITRINE && vitMulti ? vitLin[source].pagina :
          (collection->sources[source].prov[0] ? 1 : 0);
@@ -1464,13 +1485,18 @@ static void vitProjetar(void) {
   CatItem *heroAntes = vitChave(vitHeroAtual), *antAntes = vitChave(vitHeroAnt);
   VtChave ant2Chave; CatItem *ant2Antes = vitChave(vitHeroAnt2);
   guardarChave(&heroChave, heroAntes); guardarChave(&antChave, antAntes); guardarChave(&ant2Chave, ant2Antes);
+  // A coluna da fileira em foco vive em vitFC (vitColLemb dela so e gravado ao sair).
+  if (vitFR < vitN && vitLin[vitFR].n) vitColLemb[vitFR] = vitFC;
   for (int r = 0; r < vitN; r++) {
     VitLin *l = &vitLin[r];
-    int antesN = l->n;
+    int antesN = l->n, colAnt = vitColLemb[r], totAnt = vitColunas(r);
     short antesVis[VIT_ITENS];
     memcpy(antesVis, vitVis[r], sizeof antesVis);
-    int lembradoTudo = vitTemVerTudo(r) && vitColLemb[r] == l->n;
-    int lembrado = vitColLemb[r] < l->n ? vitVis[r][vitColLemb[r]] : -1;
+    // A chave e a do ULTIMO estado consistente (gravada no fim da reprojecao
+    // anterior e a cada passo do foco): aqui o buffer da fileira ja pode ter
+    // sido reescrito pela fonte/pagina nova.
+    int lembradoTudo = vitLembTem[r] == 2, porChave = vitLembTem[r] == 1, achou = 0;
+    int lembrado = !porChave && colAnt < antesN ? vitVis[r][colAnt] : -1;   // sem ID: indice bruto, como antes
     l->n = 0;
     for (int i = 0; i < l->brutoN + (ocultar ? l->extraN : 0) && l->n < vitCap; i++) {
       int bruto = i < l->brutoN ? i : vitCap + i - l->brutoN;
@@ -1479,16 +1505,31 @@ static void vitProjetar(void) {
       if (!it) continue;
       if (ocultar && desc_filme_visto(it)) continue;
       vitVis[r][l->n] = (short)bruto;
-      if (bruto == lembrado) vitColLemb[r] = l->n;
+      if (!achou && (porChave ? mesmaChave(&vitLembChave[r], it) : bruto == lembrado)) { vitColLemb[r] = l->n; achou = 1; }
       l->n++;
     }
     if (lembradoTudo && vitTemVerTudo(r)) vitColLemb[r] = l->n;
+    else if (!achou && !antesN) vitColLemb[r] = 0;   // fileira nova (ou o item lembrado saiu): do inicio
     else if (vitColLemb[r] >= vitColunas(r)) vitColLemb[r] = l->n ? l->n - 1 : 0;
-    // Receiving another row/page must not cancel an unchanged mobile swipe.
-    int manter = vtTelefone() && l->n >= antesN;
-    for (int i = 0; manter && i < antesN; i++)
-      if (antesVis[i] != vitVis[r][i]) manter = 0;
-    if (!manter) vitSx[r] = vitSv[r] = 0.0f;
+    if (vtTelefone()) {
+      // Receiving another row/page must not cancel an unchanged mobile swipe.
+      int manter = l->n >= antesN;
+      for (int i = 0; manter && i < antesN; i++)
+        if (antesVis[i] != vitVis[r][i]) manter = 0;
+      if (!manter) vitSx[r] = vitSv[r] = 0.0f;
+      vitSxAjuste[r] = 0;
+    } else if (!l->n) {
+      vitSxAjuste[r] = 0;   // vazia: nada na tela; a chave fica para quando voltar
+    } else if (!antesN) {
+      // (Re)carregada: ja na coluna lembrada, sem deslizar. A fileira refeita
+      // pelo reagrupamento (mesmo grupo) ja veio com o ajuste por diferenca.
+      if (vitSxAjuste[r] != 1) { vitSxAjuste[r] = 2; vitSv[r] = 0.0f; }
+    } else if (!vitSxAjuste[r]) {
+      // Mesma fileira: o deslocamento atual fica; so soma a diferenca entre o
+      // alvo novo e o antigo (item lembrado mudou de coluna, fileira cresceu).
+      vitSxAjuste[r] = 1; vitSxColAnt[r] = colAnt; vitSxTotAnt[r] = totAnt;
+    }
+    vitLembrarLinha(r, vitColLemb[r]);   // vazia: mantem a chave anterior
   }
   vitFR = linha < vitN ? linha : (vitN ? vitN - 1 : 0);
   vitFC = coluna;
@@ -1532,6 +1573,7 @@ static void vitProjetar(void) {
   }
   vitOcultar = ocultar; vitRevisao = revisao; vitProjetoSujo = 0;
   vitLembrarFoco();
+  vitLembrarLinha(vitFR, vitFC);
 #ifdef NV_TOUCH_UI
   vitPonteiroInvalidar(0);
 #endif
@@ -1618,6 +1660,8 @@ static void vitIniciar(void) {
   memset(&vitFocoChave, 0, sizeof vitFocoChave);
   vitOcultar = -1; vitProjetoSujo = 1;
   memset(vitColLemb, 0, sizeof vitColLemb);
+  memset(vitLembChave, 0, sizeof vitLembChave); memset(vitLembTem, 0, sizeof vitLembTem);
+  memset(vitSxAjuste, 0, sizeof vitSxAjuste);
   memset(vitSx, 0, sizeof vitSx); memset(vitSv, 0, sizeof vitSv);
   vitCarga = 0; vitFR = vitFC = 0; vitMexeu = 0; vitUnicoN = -1;
   vitScroll = vitScrollV = 0.0f;
@@ -1742,6 +1786,17 @@ static void vitAgrupar(int n) {
   int focoTudo = vitTemVerTudo(vitFR) && vitFC == vitLin[vitFR].n;
   char focoNome[96] = "";
   if (focoTudo) snprintf(focoNome, sizeof focoNome, "%s", vitLin[vitFR].nome);
+  // 2.0.39 (TV): os grupos sao refeitos do zero e um grupo novo muda os indices.
+  // A memoria de cada fileira (chave do item lembrado e deslocamento) segue o
+  // NOME do grupo, nao a posicao no vetor.
+  static struct { char nome[96]; VtChave chave; unsigned char tem; float x, v; int col, tot; } memo[VIT_LIN_MAX];
+  int memoN = vtTelefone() ? 0 : vitN;
+  for (int r = 0; r < memoN; r++) {
+    snprintf(memo[r].nome, sizeof memo[r].nome, "%s", vitLin[r].nome);
+    memo[r].chave = vitLembChave[r]; memo[r].tem = vitLembTem[r];
+    memo[r].x = vitSx[r]; memo[r].v = vitSv[r];
+    memo[r].col = r == vitFR ? vitFC : vitColLemb[r]; memo[r].tot = vitColunas(r);
+  }
 #ifdef NV_TOUCH_UI
   // Later pages can insert a new decade before existing rows. Touch positions
   // belong to those groups, not to the array slots they happened to occupy.
@@ -1805,6 +1860,18 @@ static void vitAgrupar(int n) {
       }
     }
     l->estado = VIT_PRONTA;
+  }
+  if (memoN) {
+    for (int r = 0; r < vitN; r++) {
+      memset(&vitLembChave[r], 0, sizeof vitLembChave[r]); vitLembTem[r] = 0;
+      vitSx[r] = vitSv[r] = 0.0f; vitColLemb[r] = 0; vitSxAjuste[r] = 0;
+      for (int i = 0; i < memoN; i++) if (!strcmp(vitLin[r].nome, memo[i].nome)) {
+        vitLembChave[r] = memo[i].chave; vitLembTem[r] = memo[i].tem;
+        vitSx[r] = memo[i].x; vitSv[r] = memo[i].v;
+        if (memo[i].tot > 0) { vitSxAjuste[r] = 1; vitSxColAnt[r] = memo[i].col; vitSxTotAnt[r] = memo[i].tot; }
+        break;
+      }
+    }
   }
   vitProjetoSujo = 1;
   vitProjetar();
@@ -2015,6 +2082,9 @@ static void vitCarregar(Uint32 agora) {
       if (r >= vitFR - atras && r <= vitFR + frente) continue;
       if (vitLin[r].estado != VIT_PRONTA || vitPedidos[r] || vitManualFonte == r ||
           vitManualPendente[r] || !vitLinBuf[r]) continue;
+      // 2.0.39: a chave (gravada no ultimo estado consistente) leva a fileira
+      // de volta para esta coluna quando ela recarregar.
+      vitSxAjuste[r] = 0;
       vitLinSoltar(r);
       vitLin[r].n = vitLin[r].brutoN = vitLin[r].extraN = 0;
       vitLin[r].mais = 0; vitLin[r].pagina = 0;
@@ -2209,6 +2279,7 @@ static void vitEvento(int k) {
   }
   if (vitFR < vitN && vitFC >= vitColunas(vitFR)) vitFC = vitLin[vitFR].n ? vitLin[vitFR].n - 1 : 0;
   vitLembrarFoco();
+  vitLembrarLinha(vitFR, vitFC);   // 2.0.39: reprojecao no mesmo quadro nao desfaz o passo
 }
 
 // Medidas das fileiras: as da Home (home_vitrine_medida). O topo da primeira e
@@ -2299,6 +2370,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
   vitProjetar();
   if (!vitMexeu) vitFocoInicial();
   vitLembrarFoco();
+  vitLembrarLinha(vitFR, vitFC);   // 2.0.39: a coluna da fileira em foco, pela chave
   // Destaque: o item sob o foco; so troca depois de 140 ms parado e com a arte
   // nova decodificada (ou 700 ms de espera), e a arte nova entra em 250 ms.
   { int des = !vitItem(vitFR, vitFC) ? -1 : vitFR * vitCap + vitFC;
@@ -2393,6 +2465,10 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       // focada), entao nenhuma fica com um cartao cortado depois de repouso.
       int cab = vitFixoN(w, passo), col = r == vitFR ? vitFC : vitColLemb[r];
       float alvoX = vitgeom_fixo_alvo(col, vitColunas(r), cab, passo);
+      if (vitSxAjuste[r] == 2) { vitSx[r] = alvoX; vitSv[r] = 0.0f; }
+      else if (vitSxAjuste[r] == 1)
+        vitSx[r] += alvoX - vitgeom_fixo_alvo(vitSxColAnt[r], vitSxTotAnt[r], cab, passo);
+      vitSxAjuste[r] = 0;
       // Cartaz aberto perto do fim da fileira: ela anda o que falta para ele
       // caber antes da espiada da direita (e volta quando fecha).
       for (int k = 0; k < 2; k++) {

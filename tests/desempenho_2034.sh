@@ -40,5 +40,11 @@ ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahea
 ok("#define VIT_HERO_DUR 0.35f" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
 ok("vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;" in v and "vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;" in v, "troca interrompida empilha a camada com o progresso que tinha")
 ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai;" in v, "arte e texto do destaque por camadas")
+# 2.0.39: a reprojecao nao zera mais a posicao horizontal das fileiras na TV.
+ok("if (!manter) vitSx[r] = vitSv[r] = 0.0f;\n      vitSxAjuste[r] = 0;\n    } else if (!l->n) {" in v, "reprojecao: so o telefone zera vitSx")
+ok("porChave ? mesmaChave(&vitLembChave[r], it) : bruto == lembrado" in v and "static VtChave vitLembChave[VIT_LIN_MAX];" in v, "coluna lembrada reencontrada pela chave estavel (IMDb/TMDB)")
+ok("vitSx[r] += alvoX - vitgeom_fixo_alvo(vitSxColAnt[r], vitSxTotAnt[r], cab, passo);" in v and "if (vitSxAjuste[r] == 2) { vitSx[r] = alvoX; vitSv[r] = 0.0f; }" in v, "deslocamento ajustado pela diferenca de alvo, sem deslizar")
+ok("vitLembrarLinha(r, vitColLemb[r]);   // vazia: mantem a chave anterior" in v and "if (r < 0 || r >= vitN || !vitLin[r].n) return;" in v, "fileira descarregada guarda a chave para voltar a coluna")
+ok("memo[i].chave; vitLembTem[r] = memo[i].tem;" in v, "reagrupamento (fonte unica) segue o nome do grupo")
 print("desempenho_2034: tudo ok")
 P
