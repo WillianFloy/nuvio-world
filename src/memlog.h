@@ -10,6 +10,8 @@ int memlog_android_fraco(void);   // Android com RAM total <= 3 GiB (box Onn); 0
 long memlog_livre_mb(void);   // MemAvailable em MiB; -1 = desconhecido
 // Abaixo disto o webOS fecha o app ("liberar memoria"); e o limiar do aviso.
 #define MEMLOG_PISO_MB 150
+int memlog_piso_para_ram(long ramMb);    // 2.0.36: piso do aviso proporcional a RAM (150 MB a partir de 1965 MB)
+int memlog_folga_para_ram(long ramMb);   // 2.0.36: folga para rearmar o aviso
 void memlog_devolver(void);    // malloc_trim: heap livre de volta ao sistema
 // #415: reabrir o pipeline depois de um erro com a TV abaixo do piso e o OOM
 // que fecha o app. Abaixo do piso chama `aliviar` e le de novo. 1 = pode abrir

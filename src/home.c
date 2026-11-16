@@ -7220,6 +7220,17 @@ void home_vitrine_cartao(const CatItem *ci, GfxRect base, GfxRect card, float al
   gfx_opacidade_grupo = og;
 }
 
+// PRE-BUSCA do cartaz de um item da Vitrine (2.0.36): a MESMA arte e largura de
+// home_vitrine_cartao, para quando ele aparecer ja estar no cache. So especula
+// com o cache ocioso e sem pressao de memoria (tex_lookahead_pedir): nunca atrasa
+// um cartaz visivel. 1 se fez um pedido novo.
+int home_vitrine_cartao_prebuscar(const CatItem *ci) {
+  const char *cam;
+  if (!ci) return 0;
+  cam = arte_por_formato(ci, ajustes_posteres_deitados());
+  return cam && cam[0] ? tex_lookahead_pedir(cam, larguraDe(FILEIRA_NORMAL)) : 0;
+}
+
 // O CARTAO FOCADO, PINTADO DE UM LUGAR SO. A home o pinta na fileira e o menu do
 // cartaz (ctxmenu.c) o pinta DE NOVO por cima do veu: a mesma funcao, com os
 // mesmos parametros, para o cartao nao mudar de arte, recorte, rotulo ou logo

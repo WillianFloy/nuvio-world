@@ -25,5 +25,12 @@ ok("[diag] androidcache:" in a and "nv_android_cache_diag(dl, sizeof dl)" in m, 
 ok("[diag-hero] ruim" in v and "home_vitrine_diag_arte()" in v and "static int homeDiagArte;" in h, "diag: bloco vermelho do destaque")
 ok("#define NV_ANDROID_CACHE_BYTES (80ULL << 20)" in open("src/androidcache.h").read(), "diag nao mexe no teto de 80 MB (so mede)")
 ok("if (ant && vitHeroEntra < 1.0f) {\n      trocou = home_vitrine_arte_troca(ant, a, hero, a * e);" in v, "diag: ordem das chamadas de arte preservada")
+# 2.0.36: correcoes medidas no log da TV (guardas de codigo-fonte; o teste real e na TV).
+ml=open("src/memlog.c").read(); co=open("src/colecoes.c").read()
+ok("VtChave heroChave, antChave;" in v and "novoHero" in v and "vitHeroDes = -1;" in v, "destaque sobrevive a reprojecao pela chave do titulo")
+ok("if (hero || vitItem(vitFR, vitFC)) {" in v and "} else { fundoUsado = 1; fundoColecao(a); }" in v, "sem arte e com titulo: fundo escuro, nunca o banner da Collection")
+ok("memlog_piso_para_ram(lerKB(\"/proc/meminfo\", \"MemTotal:\") / 1024)" in ml and "folgaAviso()" in ml, "limiar de memoria baixa proporcional a RAM (Android)")
+ok("  if (sim == arteConta) return;\n  atalhoValido = 0;" in co and "snapshotsIgnorados++;" in co, "col_arte_conta nao invalida o atalho do snapshot identico")
+ok("vitgeom_prebusca(vitFR, fc, eixo, dh, dv" in v and "tex_lookahead_pedir(cam, larguraDe(FILEIRA_NORMAL))" in h, "pre-carga direcional da Vitrine")
 print("desempenho_2034: tudo ok")
 P

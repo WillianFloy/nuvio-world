@@ -1243,6 +1243,8 @@ int col_resposta_valida(const char *json) {
 // a conta ja aplicada, o resultado e identico: nao refaz. O tempo de cada fase
 // vai para o log para a proxima medicao dizer o que sobrou.
 static unsigned addonsAplicado;
+static unsigned snapshotsIgnorados;   // 2.0.36: reaplicacoes evitadas (teste e log)
+unsigned col_snapshots_ignorados(void) { return snapshotsIgnorados; }
 // Fraca: varios testes ligam colecoes.c sem addons.c; no app ela sempre existe.
 extern unsigned addons_versao(void) __attribute__((weak));
 static unsigned addonsVersao(void) { return addons_versao ? addons_versao() : 0u; }
@@ -1260,10 +1262,15 @@ static int definirJson(const char *json) {
   double t0 = colAgoraMs(), tPrep, tBases0, tFim;
   if (json && atalhoValido && contaAplicada && !semConta && ultimoJson && !strcmp(json, ultimoJson) &&
       addonsVersao() == addonsAplicado) {
+    snapshotsIgnorados++;
     printf("[collections] account snapshot identical: kept (%d folders, %.1f ms)\n",
            nContaAplicada, colAgoraMs() - t0);
     return nContaAplicada;
   }
+  // Mesmo JSON mas o atalho nao vale: diz POR QUE (a proxima medicao precisa disso).
+  if (json && ultimoJson && !strcmp(json, ultimoJson))
+    printf("[collections] snapshot igual reaplicado: atalho=%d conta=%d semConta=%d addons=%u/%u\n",
+           atalhoValido, contaAplicada, semConta, addonsVersao(), addonsAplicado);
   if (!prepararResposta(json, &solto, &arr)) {
     printf("[collections] missing or incomplete account snapshot retained\n");
     free(solto); return 0;
@@ -1515,10 +1522,14 @@ int col_podar_fontes_addon(int (*ausente)(const char *id, const char *base)) {
 }
 
 void col_arte_conta(int sim) {
-  atalhoValido = 0;
   char *j;
   sim = sim ? 1 : 0;
+  // 2.0.36: app.c chama isto a cada atualizacao com o valor do ajuste. Zerar o
+  // atalho ANTES de comparar o impedia de valer: o log da TV mostrou 7 de 8
+  // snapshots identicos reaplicados (~740 ms no fio principal) e nenhum
+  // "identical: kept". So invalida quando o ajuste de fato muda.
   if (sim == arteConta) return;
+  atalhoValido = 0;
   arteConta = sim;
   // Sem resposta da conta (ou sem pacote) nao ha casamento a refazer: o proximo
   // col_definir_json ja le o valor novo.

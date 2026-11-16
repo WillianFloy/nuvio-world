@@ -27,6 +27,46 @@ static long lerKB(const char *path, const char *campo) {
 }
 #endif
 
+// 2.0.36: o piso do aviso de memoria baixa, proporcional a RAM no Android. O
+// log da TCL (932 MB) mostrou MemAvailable normal de 130-190 MB: o piso fixo de
+// 150 MB disparava `aliviarMemoria` 5 vezes em ~2 min, e cada uma derrubava o
+// teto de texturas de 48 MB para 11 MB por 30 s (ciclo de redecodificacao e
+// carregamento visivel). A escala e a do webOS (tex_memoria_livre: 150 MB para
+// 1965 MB de RAM), com piso minimo; de 1965 MB para cima fica em 150 MB. O
+// onTrimMemory do Android segue como sinal de pressao REAL do sistema.
+int memlog_piso_para_ram(long ramMb) {
+  if (ramMb <= 0 || ramMb >= 1965) return MEMLOG_PISO_MB;
+  long piso = MEMLOG_PISO_MB * ramMb / 1965;
+  return (int)(piso < 48 ? 48 : piso);
+}
+// Para voltar a armar o aviso a memoria precisa passar do piso por esta folga
+// (60 MB na escala de 1965 MB): MemAvailable oscila dezenas de MB em segundos.
+int memlog_folga_para_ram(long ramMb) {
+  if (ramMb <= 0 || ramMb >= 1965) return 0;
+  long folga = 60 * ramMb / 1965;
+  return (int)(folga < 16 ? 16 : folga);
+}
+#if defined(__linux__) && !defined(__EMSCRIPTEN__)
+static int pisoAviso(void) {
+#ifdef __ANDROID__
+  static int piso = -1;
+  if (piso < 0) piso = memlog_piso_para_ram(lerKB("/proc/meminfo", "MemTotal:") / 1024);
+  return piso;
+#else
+  return MEMLOG_PISO_MB;
+#endif
+}
+static int folgaAviso(void) {
+#ifdef __ANDROID__
+  static int folga = -1;
+  if (folga < 0) folga = memlog_folga_para_ram(lerKB("/proc/meminfo", "MemTotal:") / 1024);
+  return folga;
+#else
+  return 0;
+#endif
+}
+#endif
+
 void memlog_amostra(char *sufixo, size_t tamanho) {
   if (!tamanho) return;
   sufixo[0] = 0;
@@ -35,13 +75,16 @@ void memlog_amostra(char *sufixo, size_t tamanho) {
   long disponivel = lerKB("/proc/meminfo", "MemAvailable:");
   if (rss < 0 || disponivel < 0) return;
   snprintf(sufixo, tamanho, " | mem=%.1f/%.1fMB", rss / 1024.0, disponivel / 1024.0);
-  if (disponivel < MEMLOG_PISO_MB * 1024 && !abaixo) {
-    printf("[mem] aviso MemAvailable<%dMB mem=%.1f/%.1fMB\n", MEMLOG_PISO_MB, rss / 1024.0, disponivel / 1024.0);
+  int piso = pisoAviso();
+  if (disponivel < piso * 1024L && !abaixo) {
+    printf("[mem] aviso MemAvailable<%dMB mem=%.1f/%.1fMB\n", piso, rss / 1024.0, disponivel / 1024.0);
     fflush(stdout);
     if (avisoCb) avisoCb();   // texturas + mkvass + texto + libass + heap
     else memlog_devolver();
   }
-  abaixo = disponivel < MEMLOG_PISO_MB * 1024;
+  // Armado de novo so acima do piso + folga (no Android; fora dele a folga e 0).
+  if (disponivel < piso * 1024L) abaixo = 1;
+  else if (disponivel >= (piso + folgaAviso()) * 1024L) abaixo = 0;
 #endif
 }
 

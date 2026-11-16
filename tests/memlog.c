@@ -36,6 +36,12 @@ static int logFake(const char *fmt, ...) {
 
 int main(void) {
   char s[96];
+  // 2.0.36: piso do aviso proporcional a RAM (TCL de 932 MB: 71 MB, nao 150 MB).
+  assert(memlog_piso_para_ram(932) == 71 && memlog_piso_para_ram(1965) == 150);
+  assert(memlog_piso_para_ram(4096) == 150 && memlog_piso_para_ram(0) == 150);
+  assert(memlog_piso_para_ram(512) == 48);   // piso minimo
+  assert(memlog_folga_para_ram(932) == 28 && memlog_folga_para_ram(1965) == 0);
+  assert(memlog_folga_para_ram(100) == 16);
   status = "Name:\tnuvio\nVmSize: 999999 kB\nVmRSS:\t235520 kB\nThreads: 8\n";
   meminfo = "MemTotal: 2012160 kB\nMemFree: 1024 kB\nMemAvailable: 307200 kB\n";
   memlog_amostra(s, sizeof s);

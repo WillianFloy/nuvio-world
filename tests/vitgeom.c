@@ -119,5 +119,30 @@ int main(void) {
         }
     }
     puts("vitgeom foco fixo: ok"); }
+  { // 2.0.36: pre-carga direcional — ordem, limites, sem duplicata, direcao.
+    int nCols[6] = {12, 12, 12, 0, 12, 5}, lemb[6] = {0, 3, 0, 0, 7, 2};
+    VgPre o[64];
+    int n = vitgeom_prebusca(1, 2, 0, +1, +1, 6, nCols, lemb, 5, o, 64);
+    assert(n > 0 && o[0].r == 1 && o[0].c == 2 + 5);          // horizontal: 1o fora da tela, a frente
+    assert(o[1].r == 1 && o[1].c == 2 + 6 && o[3].c == 2 + 8);
+    for (int i = 0; i < n; i++) {                              // limites e unicidade
+      assert(o[i].r >= 0 && o[i].r < 6 && o[i].c >= 0 && o[i].c < nCols[o[i].r]);
+      for (int j = i + 1; j < n; j++) assert(!(o[i].r == o[j].r && o[i].c == o[j].c));
+    }
+    n = vitgeom_prebusca(1, 8, 0, -1, +1, 6, nCols, lemb, 5, o, 64);   // andando para a esquerda
+    assert(n > 0 && o[0].r == 1 && o[0].c == 8 - 5);
+    n = vitgeom_prebusca(1, 2, 1, +1, +1, 6, nCols, lemb, 5, o, 64);   // vertical para baixo
+    assert(o[0].r == 2 && o[0].c == lemb[2] && o[4].r == 2 && o[4].c == lemb[2] + 4);
+    { int viuLinha3 = 0; for (int i = 0; i < n; i++) if (o[i].r == 3) viuLinha3 = 1; assert(!viuLinha3); }  // fileira vazia
+    n = vitgeom_prebusca(4, 0, 1, -1, -1, 6, nCols, lemb, 5, o, 64);   // vertical para cima
+    assert(o[0].r == 3 + 0 || o[0].r == 2);                    // pula a fileira sem cartazes
+    assert(o[0].r == 2 && o[0].c == lemb[2]);
+    n = vitgeom_prebusca(0, 0, 1, +1, -1, 6, nCols, lemb, 5, o, 64);   // sem fileira acima: so a horizontal
+    for (int i = 0; i < n; i++) assert(o[i].r >= 0);
+    n = vitgeom_prebusca(0, 0, 1, +1, +1, 6, nCols, lemb, 5, o, 3);    // respeita o teto
+    assert(n == 3);
+    assert(vitgeom_prebusca(0, 0, 0, 1, 1, 0, nCols, lemb, 5, o, 8) == 0);   // sem fileiras
+    assert(vitgeom_prebusca(9, 0, 0, 1, 1, 6, nCols, lemb, 5, o, 8) == 0);   // foco fora
+    puts("vitgeom pre-carga direcional: ok"); }
   return 0;
 }

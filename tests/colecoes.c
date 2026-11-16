@@ -352,6 +352,17 @@ int main(void) {
            !strcmp(col_folder(1)->logo, "https://cdn/pv-logo.png"));
     assert(col_definir_json(conta) == 2);   // ciclo de sync com o ajuste ligado: estavel
     assert(!strcmp(col_folder(0)->cover, "https://cdn/nf.webp"));
+    // 2.0.36: app.c repete col_arte_conta(valor atual) a cada atualizacao; isso NAO
+    // pode invalidar o atalho do snapshot identico (era 7 de 8 reaplicados na TV).
+    { unsigned antes = col_snapshots_ignorados();
+      col_arte_conta(1); col_arte_conta(1); col_arte_conta(1);
+      assert(col_definir_json(conta) == 2);
+      assert(col_snapshots_ignorados() == antes + 1);
+      assert(col_definir_json(conta) == 2 && col_snapshots_ignorados() == antes + 2);
+      col_arte_conta(0);   // mudar o ajuste continua refazendo (restaura o pacote)
+      assert(strstr(col_folder(0)->cover, "c/f1.jpg"));
+      col_arte_conta(1);
+      assert(!strcmp(col_folder(0)->cover, "https://cdn/nf.webp")); }
     col_arte_conta(0);   // desligar devolve a arte curada
     assert(strstr(col_folder(0)->cover, "c/f1.jpg") && col_folder(0)->frames == 12 &&
            strstr(col_folder(0)->hero, "c/f1h.jpg") && strstr(col_folder(1)->logo, "c/f2l.png"));

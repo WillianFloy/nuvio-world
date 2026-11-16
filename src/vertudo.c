@@ -1428,6 +1428,14 @@ static void vitProjetar(void) {
   if (!vitProjetoSujo && ocultar == vitOcultar && (!ocultar || revisao == vitRevisao)) return;
   int linha = vitFR, coluna = vitFC;
   int noTudo = vitTemVerTudo(linha) && coluna == vitLin[linha].n;
+  // 2.0.36: o destaque sobrevive a reprojecao pela CHAVE do titulo. Toda fonte
+  // recebida (e toda pagina) reprojeta a Vitrine, e zerar o destaque aqui o
+  // fazia sumir e reentrar do zero (entra=0, sem destaque anterior) — o log da
+  // TV mostrou o bloco vermelho logo apos "fonte N recebida". Os indices sao da
+  // projecao antiga; a chave acha o MESMO titulo na nova (se sumiu, zera como antes).
+  VtChave heroChave, antChave;
+  CatItem *heroAntes = vitChave(vitHeroAtual), *antAntes = vitChave(vitHeroAnt);
+  guardarChave(&heroChave, heroAntes); guardarChave(&antChave, antAntes);
   for (int r = 0; r < vitN; r++) {
     VitLin *l = &vitLin[r];
     int antesN = l->n;
@@ -1473,7 +1481,21 @@ static void vitProjetar(void) {
   else if (vitFC >= vitColunas(vitFR)) vitFC = vitLin[vitFR].n ? vitLin[vitFR].n - 1 : 0;
   // Os indices dos destaques eram da projecao anterior; nao deixam um filme
   // ocultado aparecer no hero nem apontam para o vizinho que tomou seu lugar.
-  vitHeroAtual = vitHeroAnt = vitHeroDes = -1; vitHeroEntra = 1.0f;
+  // Religa pelo titulo (a copia mais proxima do foco); sem achar, zera como antes.
+  { int novoHero = -1, novoAnt = -1;
+    for (int passo = 0; vitN && passo < vitN && ((heroAntes && novoHero < 0) || (antAntes && novoAnt < 0)); passo++) {
+      int r = (vitFR + passo) % vitN;
+      for (int c = 0; c < vitLin[r].n; c++) {
+        CatItem *cand = vitItem(r, c);
+        if (!cand) continue;
+        if (heroAntes && novoHero < 0 && mesmaChave(&heroChave, cand)) novoHero = r * vitCap + c;
+        if (antAntes && novoAnt < 0 && mesmaChave(&antChave, cand)) novoAnt = r * vitCap + c;
+      }
+    }
+    vitHeroDes = -1;
+    if (novoHero < 0) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
+    else { vitHeroAtual = novoHero; vitHeroAnt = novoAnt; }
+  }
   vitOcultar = ocultar; vitRevisao = revisao; vitProjetoSujo = 0;
   vitLembrarFoco();
 #ifdef NV_TOUCH_UI
@@ -2209,6 +2231,34 @@ static void vitAtualizar(float dt, Uint32 agora) {
   vitAtualizarCorpo(dt, agora);
   gfx_escala_sair(esc);
 }
+// PRE-CARGA DIRECIONAL (2.0.36). Pede os cartazes que o foco vai alcancar, pela
+// direcao em que ele anda (ordem em vitgeom_prebusca). So especula com o cache
+// ocioso e sem pressao (tex_lookahead_pedir), entao nunca atrasa o que esta
+// visivel; um pedido novo por vez, no maximo 20 varreduras por segundo.
+static void vitPrebuscar(float w, float passo, Uint32 agora) {
+  static int antFR = -1, antFC = -1, eixo = 1, dh = 1, dv = 1;
+  static Uint32 ultima;
+  if (vitFR != antFR || vitFC != antFC) {
+    if (antFR >= 0) {
+      if (vitFR != antFR) { eixo = 1; dv = vitFR > antFR ? 1 : -1; }
+      else { eixo = 0; dh = vitFC > antFC ? 1 : -1; }
+    }
+    antFR = vitFR; antFC = vitFC;
+  }
+  if (vtTelefone() || tabFocus || vitN <= 0 || vitFR < 0 || vitFR >= vitN || !vitLin[vitFR].n ||
+      w <= 0.0f || passo <= 0.0f || agora - ultima < 50) return;
+  ultima = agora;
+  int nCols[VIT_LIN_MAX], lemb[VIT_LIN_MAX], nLin = vitN < VIT_LIN_MAX ? vitN : VIT_LIN_MAX;
+  for (int r = 0; r < nLin; r++) { nCols[r] = vitLin[r].n; lemb[r] = vitColLemb[r]; }
+  int fc = vitFC < vitLin[vitFR].n ? vitFC : vitLin[vitFR].n - 1;
+  int nAdiante = (int)ceilf((NV_TELA_W - vitAncora(w, passo)) / passo);
+  VgPre cand[32];
+  int n = vitgeom_prebusca(vitFR, fc, eixo, dh, dv, nLin, nCols, lemb, nAdiante, cand, 32);
+  for (int i = 0; i < n; i++) {
+    CatItem *it = vitItem(cand[i].r, cand[i].c);
+    if (it && home_vitrine_cartao_prebuscar(it)) break;
+  }
+}
 static void vitAtualizarCorpo(float dt, Uint32 agora) {
   float w, h, passo, rot, alvo;
   vitCarregar(agora);
@@ -2235,6 +2285,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = -1; }
     } }
   home_vitrine_medida(&w, &h, &passo, &rot);
+  vitPrebuscar(w, passo, agora);
   alvo = (float)vitFR * vitPasso();
   { // So cartaz VERTICAL (o deitado ja mostra a arte larga) de um titulo de
     // verdade (nao "Ver tudo"), fora do telefone e sem menu do cartaz aberto.
@@ -3751,7 +3802,8 @@ static void vitDesenhar(float a, float x0) {
   // de Collection, ou o PRIMEIRO destaque entrando. Na troca entre dois
   // destaques a arte que sai ja cobre tudo (2.0.34: era uma tela cheia a mais
   // em toda troca).
-  if (a < 0.99f || sai > 0.0f || !hero || (vitHeroEntra < 1.0f && !ant)) {
+  int fundoPintado = a < 0.99f || sai > 0.0f || !hero || (vitHeroEntra < 1.0f && !ant);
+  if (fundoPintado) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
@@ -3769,29 +3821,40 @@ static void vitDesenhar(float a, float x0) {
       arte |= home_vitrine_arte(hero, a * e); dHero = home_vitrine_diag_arte();
     }
   }
-  int fundoUsado = !arte;
-  if (!arte) fundoColecao(a);
+  // 2.0.36: com um titulo sob o foco e a arte do destaque ainda a caminho, o
+  // fundo e o ESCURO do app, nunca o banner borrado da Collection (opaco, da cor
+  // da marca: o "bloco vermelho" de ate 951 ms medido na TV). O banner fica so
+  // para a Collection sem titulo nenhum.
+  int semArte = !arte;
+  int fundoUsado = 0;
+  if (semArte) {
+    if (hero || vitItem(vitFR, vitFC)) {
+      if (!fundoPintado) {
+        GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+        gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, a); }
+    } else { fundoUsado = 1; fundoColecao(a); }
+  }
   { // DIAGNOSTICO 2.0.35 (so log): o bloco vermelho de ~4 quadros na troca de destaque.
     // Registra os quadros em que o destaque existe mas a arte caiu no fundo da
     // Collection (arte==0), a troca em camadas foi recusada, a textura faltou
     // ou o destaque e o proprio poster. Uma linha a cada MUDANCA de situacao
     // e uma de fechamento com a duracao; no maximo 120 linhas por execucao.
     static unsigned long ultSig; static Uint32 desde; static unsigned quadros, linhas; static int ruimAntes;
-    int ruim = hero && (fundoUsado || dTroca == 9 || dTroca == 10 || dAnt == 3 || dAnt == 4 ||
+    int ruim = hero && (semArte || fundoUsado || dTroca == 9 || dTroca == 10 || dAnt == 3 || dAnt == 4 ||
                         dHero == 3 || dHero == 4 || dHero == 6 || dAnt == 6);
     int pAnt = 0, pHero = 0;
     unsigned long hAnt = ant ? home_vitrine_diag_arte_info(ant, &pAnt) : 0;
     unsigned long hHero = hero ? home_vitrine_diag_arte_info(hero, &pHero) : 0;
-    unsigned long sig = (unsigned long)(fundoUsado * 1u) ^ ((unsigned long)dTroca << 3) ^ ((unsigned long)dAnt << 8) ^
+    unsigned long sig = (unsigned long)((fundoUsado + 2 * semArte) * 1u) ^ ((unsigned long)dTroca << 3) ^ ((unsigned long)dAnt << 8) ^
                         ((unsigned long)dHero << 13) ^ (hAnt * 2654435761UL) ^ (hHero * 40503UL);
     if (ruim) {
       quadros++;
       if ((!ruimAntes || sig != ultSig) && linhas < 120) {
         long usadosKB = 0, limiteKB = 0;
         tex_diag_limites(&usadosKB, &limiteKB);
-        printf("[diag-hero] ruim fundoColecao=%d troca=%d ant=%d hero=%d entra=%.2f a=%.2f sai=%.2f "
+        printf("[diag-hero] ruim fundoColecao=%d semArte=%d troca=%d ant=%d hero=%d entra=%.2f a=%.2f sai=%.2f "
                "antHash=%08lx poster=%d heroHash=%08lx poster=%d tex=%ld/%ld KB\n",
-               fundoUsado, dTroca, dAnt, dHero, vitHeroEntra, a, sai, hAnt, pAnt, hHero, pHero,
+               fundoUsado, semArte, dTroca, dAnt, dHero, vitHeroEntra, a, sai, hAnt, pAnt, hHero, pHero,
                usadosKB, limiteKB);
         fflush(stdout); linhas++;
       }

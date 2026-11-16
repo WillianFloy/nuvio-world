@@ -75,4 +75,49 @@ static inline float vitgeom_fixo_alvo(int col, int total, int n, float passo) {
   return (float)(col > max ? max : col) * passo;
 }
 
+// PRE-CARGA DIRECIONAL (2.0.36). A Vitrine pedia cada cartaz so quando ele
+// aparecia (0 chamadas a tex_lookahead_* em vertudo.c): na TV de 932 MB cada
+// passo para uma fileira/coluna nova mostrava cartazes cinza ate a rede e o
+// decode terminarem. Esta conta devolve, NA ORDEM, os cartazes que ainda nao
+// estao na tela e que o foco vai alcançar primeiro, pela direcao em que ele anda:
+//  - eixo 0 (horizontal): adiante na fileira (a partir do 1o fora da tela), depois
+//    os 2 de tras que ja passaram da espiada, depois as fileiras vizinhas;
+//  - eixo 1 (vertical): a fileira seguinte na direcao (na coluna lembrada), a
+//    outra depois dela, e so entao a fileira de baixo/cima do outro lado, e a
+//    horizontal.
+// `nAdiante` = cartoes do foco ate a borda direita. Os que ja estao na tela ou
+// em cache nao custam nada: quem pede (tex_lookahead_pedir) recusa o que o
+// cache ja tem, e so especula com o cache ocioso, sem pressao de memoria.
+typedef struct { short r, c; } VgPre;
+static inline int vitgeom_pre_add(VgPre *out, int n, int max, int r, int c,
+                                  int nLin, const int *nCols) {
+  if (n >= max || r < 0 || r >= nLin || c < 0 || c >= nCols[r]) return n;
+  for (int i = 0; i < n; i++) if (out[i].r == r && out[i].c == c) return n;
+  out[n].r = (short)r; out[n].c = (short)c;
+  return n + 1;
+}
+static inline int vitgeom_prebusca(int fr, int fc, int eixo, int dh, int dv,
+                                   int nLin, const int *nCols, const int *colLemb,
+                                   int nAdiante, VgPre *out, int max) {
+  int n = 0, k, d, rr;
+  if (!out || max <= 0 || !nCols || nLin <= 0 || fr < 0 || fr >= nLin) return 0;
+  if (nAdiante < 1) nAdiante = 1;
+  dh = dh < 0 ? -1 : 1; dv = dv < 0 ? -1 : 1;
+  for (int passo = 0; passo < 2; passo++) {
+    if ((passo == 0) == (eixo == 0)) {   // horizontal
+      for (d = nAdiante; d <= nAdiante + 3; d++) n = vitgeom_pre_add(out, n, max, fr, fc + dh * d, nLin, nCols);
+      for (d = 2; d <= 3; d++) n = vitgeom_pre_add(out, n, max, fr, fc - dh * d, nLin, nCols);
+    } else {                             // vertical
+      for (d = 1; d <= 3; d++) {
+        rr = fr + dv * d;
+        if (rr < 0 || rr >= nLin) break;
+        int base = colLemb ? colLemb[rr] : fc;
+        int quantos = d == 3 ? 3 : nAdiante;
+        for (k = 0; k < quantos; k++) n = vitgeom_pre_add(out, n, max, rr, base + k, nLin, nCols);
+      }
+    }
+  }
+  return n;
+}
+
 #endif

@@ -130,6 +130,7 @@ void col_esquecer_perfil(void);
    arte curada do pacote, como sempre. Trocar refaz o casamento com a ultima
    resposta da conta, na hora (a revisao muda e a home remonta). */
 void col_arte_conta(int sim);
+unsigned col_snapshots_ignorados(void);   /* 2.0.36: snapshots identicos NAO reaplicados */
 // Chave de fileira de um grupo: collection_<id da colecao> quando a colecao
 // tem id (web e catordem usam o id), senao collection_<titulo do grupo>.
 void col_chave_grupo(const char *group, char *dst, unsigned n);
