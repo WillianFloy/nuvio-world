@@ -1218,7 +1218,25 @@ static float vitHeroEntra = 1.0f;
 static int vitExpR = -1, vitExpC = -1;
 static Uint32 vitExpDesde;
 static float vitExpAbre;
+// 2.0.37: o cartaz que ESTAVA aberto fecha animado (antes zerava num quadro
+// so, e a fileira dava um salto). Fica num segundo espaco ate voltar a 0.
+static int vitExpAntR = -1, vitExpAntC = -1;
+static float vitExpAntF;
 #define VIT_EXP_ASPECTO (16.0f / 9.0f)
+
+// Passa o cartaz aberto (se estava realmente aberto) para o espaco que fecha.
+static void vitExpFechar(void) {
+  if (vitExpR >= 0 && vitExpAbre > 0.02f) { vitExpAntR = vitExpR; vitExpAntC = vitExpC; vitExpAntF = vitExpAbre; }
+}
+// Largura extra de um cartaz aberto (ou fechando) para o cartaz (r, c): *propria
+// e o que ele mesmo ganha; o retorno e o quanto os da direita deslocam.
+static float vitExpExtra(int r, int c, float w, float h, float *propria) {
+  float un = h * VIT_EXP_ASPECTO - w, des = 0.0f, p = 0.0f;
+  if (r == vitExpR && vitExpAbre > 0.0f) { if (c == vitExpC) p += un * vitExpAbre; else if (c > vitExpC) des += un * vitExpAbre; }
+  if (r == vitExpAntR && vitExpAntF > 0.0f) { if (c == vitExpAntC) p += un * vitExpAntF; else if (c > vitExpAntC) des += un * vitExpAntF; }
+  *propria = p;
+  return des;
+}
 
 // Cada fileira tem seu pedido; o catalogo unico de Ver tudo continua separado.
 // A tela e o fio possuem uma referencia cada. Fechar/trocar nao espera rede,
@@ -2291,14 +2309,21 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     // verdade (nao "Ver tudo"), fora do telefone e sem menu do cartaz aberto.
     int pode = ajustes_col_expandir() && !vtTelefone() && !tabFocus && w < h &&
                vitFR < vitN && vitFC < vitLin[vitFR].n && vitItem(vitFR, vitFC);
-    if (!pode) { vitExpAbre = 0.0f; vitExpR = vitExpC = -1; }
+    if (!pode) { vitExpFechar(); vitExpAbre = 0.0f; vitExpR = vitExpC = -1; }
     else {
       if (vitFR != vitExpR || vitFC != vitExpC) {
+        vitExpFechar();
         vitExpR = vitFR; vitExpC = vitFC; vitExpDesde = agora; vitExpAbre = 0.0f;
+        // voltou ao cartaz que fechava: continua de onde ele estava
+        if (vitExpAntR == vitExpR && vitExpAntC == vitExpC) { vitExpAbre = vitExpAntF; vitExpAntR = vitExpAntC = -1; vitExpAntF = 0.0f; }
       }
       if (ctx_aberto()) { if (vitExpAbre < 0.999f) vitExpDesde = agora; }
       else if (vitExpDesde && agora - vitExpDesde >= (Uint32)(ajustes_col_expandir_atraso() * 1000.0f))
         vitExpAbre = anim_mola(vitExpAbre, 1.0f, dt, NV_MOLA_TELA);
+    }
+    if (vitExpAntR >= 0) {
+      vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);
+      if (vitExpAntF < 0.01f) { vitExpAntR = vitExpAntC = -1; vitExpAntF = 0.0f; }
     } }
   { // O FOCO ENTRA E SAI ANIMADO: anel e zoom crescem no cartaz novo enquanto o
     // anterior volta ao tamanho de repouso (nada de liga/desliga num quadro).
@@ -2341,10 +2366,14 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       float alvoX = vitgeom_fixo_alvo(col, vitColunas(r), cab, passo);
       // Cartaz aberto perto do fim da fileira: ela anda o que falta para ele
       // caber antes da espiada da direita (e volta quando fecha).
-      if (r == vitExpR && vitExpAbre > 0.0f) {
-        float A = vitAncora(w, passo), extra = (h * VIT_EXP_ASPECTO - w) * vitExpAbre;
-        float dir = A + vitExpC * passo - alvoX + w + extra, lim = vitgeom_limite(A, w, passo, cab);
-        if (dir > lim) alvoX += dir - lim;
+      for (int k = 0; k < 2; k++) {
+        int er = k ? vitExpAntR : vitExpR, ec = k ? vitExpAntC : vitExpC;
+        float ef = k ? vitExpAntF : vitExpAbre;
+        if (r == er && ef > 0.0f) {
+          float A = vitAncora(w, passo), extra = (h * VIT_EXP_ASPECTO - w) * ef;
+          float dir = A + ec * passo - alvoX + w + extra, lim = vitgeom_limite(A, w, passo, cab);
+          if (dir > lim) alvoX += dir - lim;
+        }
       }
       vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
                             dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
@@ -3834,6 +3863,16 @@ static void vitDesenhar(float a, float x0) {
         gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, a); }
     } else { fundoUsado = 1; fundoColecao(a); }
   }
+  // 2.0.37: AO SAIR DA COLLECTION OS TEXTOS NAO SE SOBREPOEM. A saida apaga a
+  // Vitrine inteira (anim 1 -> 0) por cima da Home, que ja mostra o proprio
+  // cabecalho ("By Year"); o titulo da Collection, as fileiras e o destaque
+  // apagavam no mesmo ritmo e os dois cabecalhos coexistiam (video 2.0.34). A
+  // arte e o fundo seguem a saida normal; o CONTEUDO (textos, fileiras, cartazes)
+  // some na primeira metade dela, antes de o cabecalho da Home aparecer.
+  if (!aberta) {
+    float f = fmaxf(0.0f, fminf(1.0f, (anim - 0.55f) / 0.45f));
+    a *= f * f * (3.0f - 2.0f * f);
+  }
   { // DIAGNOSTICO 2.0.35 (so log): o bloco vermelho de ~4 quadros na troca de destaque.
     // Registra os quadros em que o destaque existe mas a arte caiu no fundo da
     // Collection (arte==0), a troca em camadas foi recusada, a textura faltou
@@ -3916,10 +3955,10 @@ static void vitDesenhar(float a, float x0) {
       }
       for (int c = 0; c < vitColunas(r); c++) {
         float cx = xr + c * passo - vitSx[r];
-        float abre = r == vitExpR && c == vitExpC ? vitExpAbre : 0.0f;
-        float extra = r == vitExpR && vitExpAbre > 0.0f ? (h * VIT_EXP_ASPECTO - w) * vitExpAbre : 0.0f;
-        if (r == vitExpR && c > vitExpC) cx += extra;   // os da direita abrem espaco
-        GfxRect base = { cx, cy, w + (abre > 0.0f ? extra : 0.0f), h }, card = base;
+        float abre = r == vitExpR && c == vitExpC ? vitExpAbre : (r == vitExpAntR && c == vitExpAntC ? vitExpAntF : 0.0f);
+        float propria = 0.0f;
+        cx += vitExpExtra(r, c, w, h, &propria);   // os da direita abrem (ou devolvem) espaco
+        GfxRect base = { cx, cy, w + propria, h }, card = base;
         int sel = r == vitFR && c == vitFC && !tabFocus;
         float acc = ac;
         // Telefone: liga/desliga como sempre. TV: o foco entra e sai animado.

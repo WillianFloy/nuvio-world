@@ -480,12 +480,19 @@ static SDL_cond *condLivre;
 // vez por item retirado, nao por quadro. Reordenar a fila inteira custaria o
 // mesmo e perderia a ordem de chegada dos demais, que e o que faz a fileira
 // aparecer da esquerda para a direita em vez de embaralhada.
+// 2.0.37: PRIORIDADE DA FILA. O pedido ESPECULATIVO (pre-busca direcional, item
+// `lookahead`) fica atras do que a tela pede de verdade: a fila era FIFO dentro
+// do nivel 0, entao um cartaz visivel pedido depois esperava atras de toda a
+// pre-busca (fila-rede de 899 ms em media no log 2.0.35, 73 de 240 > 1 s).
+// Logo 2*2+1 > tela cheia 1*2+1 > cartaz visivel 1 > especulativo 0.
+static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }
+
 static int tirarFila(int *f, int *ini, int fim) {
   int p = *ini, achou = -1, idx, nivel = 0;
-  // NIVEL 2 = LOGO DE TITULO, 1 = tela cheia, 0 = o resto. O primeiro de maior
-  // nivel vence; empate fica na ordem de chegada.
+  // O primeiro de maior prioridade vence; empate fica na ordem de chegada.
   while (p != fim) {
-    if (itens[f[p]].urgente > nivel) { achou = p; nivel = itens[f[p]].urgente; }
+    int pr = prioFila(&itens[f[p]]);
+    if (pr > nivel) { achou = p; nivel = pr; }
     p = (p + 1) % MAX_FILA;
   }
   if (achou < 0) {

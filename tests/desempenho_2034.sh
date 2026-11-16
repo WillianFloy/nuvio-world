@@ -32,5 +32,9 @@ ok("if (hero || vitItem(vitFR, vitFC)) {" in v and "} else { fundoUsado = 1; fun
 ok("memlog_piso_para_ram(lerKB(\"/proc/meminfo\", \"MemTotal:\") / 1024)" in ml and "folgaAviso()" in ml, "limiar de memoria baixa proporcional a RAM (Android)")
 ok("  if (sim == arteConta) return;\n  atalhoValido = 0;" in co and "snapshotsIgnorados++;" in co, "col_arte_conta nao invalida o atalho do snapshot identico")
 ok("vitgeom_prebusca(vitFR, fc, eixo, dh, dv" in v and "tex_lookahead_pedir(cam, larguraDe(FILEIRA_NORMAL))" in h, "pre-carga direcional da Vitrine")
+# 2.0.37: texto sobreposto ao sair, fechamento animado do pôster expandido, prioridade da fila.
+ok("if (!aberta) {\n    float f = fmaxf(0.0f, fminf(1.0f, (anim - 0.55f) / 0.45f));" in v, "saida da Collection apaga o conteudo na 1a metade")
+ok("static void vitExpFechar(void)" in v and "vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);" in v and "vitExpExtra(r, c, w, h, &propria)" in v, "pôster expandido fecha animado")
+ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }" in t and "int pr = prioFila(&itens[f[p]]);" in t, "fila de rede: pedido visivel antes do especulativo")
 print("desempenho_2034: tudo ok")
 P
