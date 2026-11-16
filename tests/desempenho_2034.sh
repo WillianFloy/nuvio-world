@@ -13,8 +13,8 @@ ok("#define NV_CACHE_DISCO_MAX (192L * 1024L * 1024L)" in t and "NV_CACHE_DISCO_
 ok("colcache_gravar(p->chave" in v and "vitDoColcache(r)" in v and "COLCACHE_FRESCO_S" in v, "fileiras das Collections do colcache")
 ok("vitMesmoConteudo(r, p)" in v, "revalidacao sem mudanca nao troca a fileira")
 ok('"colrow-*.bin"' in a, "colcache na pasta de cache do Android")
-ok("home_vitrine_arte_troca(ant, a, hero, a * e)" in v and "gfx_hero_camadas((GfxRect){ 0, 0, NV_TELA_W" in h, "troca de destaque numa passada")
-ok("(vitHeroEntra < 1.0f && !ant)" in v, "sem tela cheia escura extra na troca")
+ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "gfx_hero_camadas((GfxRect){ 0, 0, NV_TELA_W" in h, "troca de destaque numa passada")
+ok("(camN > 0 && camP[0] < 1.0f)" in v, "sem tela cheia escura extra na troca")
 ok("void gfx_desfoque_aquecer(void)" in g and "gfx_desfoque_aquecer();" in m, "desfoque aquecido na abertura")
 ok("!it && !vitChave(vitHeroAtual)" in v, "destaque fica no Ver tudo/fileira vazia")
 ok("account snapshot identical: kept" in c and "snapshot aplicado em" in c, "snapshot igual nao reaplica; tempo no log")
@@ -24,7 +24,7 @@ ok("int tex_diag_pressao(" in t and "tex_diag_pressao(dl, sizeof dl, memlog_livr
 ok("[diag] androidcache:" in a and "nv_android_cache_diag(dl, sizeof dl)" in m, "diag: podas do androidcache no relatorio de 3 s")
 ok("[diag-hero] ruim" in v and "home_vitrine_diag_arte()" in v and "static int homeDiagArte;" in h, "diag: bloco vermelho do destaque")
 ok("#define NV_ANDROID_CACHE_BYTES (80ULL << 20)" in open("src/androidcache.h").read(), "diag nao mexe no teto de 80 MB (so mede)")
-ok("if (ant && vitHeroEntra < 1.0f) {\n      trocou = home_vitrine_arte_troca(ant, a, hero, a * e);" in v, "diag: ordem das chamadas de arte preservada")
+ok("if (camN >= 2) {\n      trocou = home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1]);" in v, "diag: ordem das chamadas de arte preservada")
 # 2.0.36: correcoes medidas no log da TV (guardas de codigo-fonte; o teste real e na TV).
 ml=open("src/memlog.c").read(); co=open("src/colecoes.c").read()
 ok("VtChave heroChave, antChave;" in v and "novoHero" in v and "vitHeroDes = -1;" in v, "destaque sobrevive a reprojecao pela chave do titulo")
@@ -36,5 +36,9 @@ ok("vitgeom_prebusca(vitFR, fc, eixo, dh, dv" in v and "tex_lookahead_pedir(cam,
 ok("if (!aberta) {\n    float f = fmaxf(0.0f, fminf(1.0f, (anim - 0.55f) / 0.45f));" in v, "saida da Collection apaga o conteudo na 1a metade")
 ok("static void vitExpFechar(void)" in v and "vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);" in v and "vitExpExtra(r, c, w, h, &propria)" in v, "pôster expandido fecha animado")
 ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }" in t and "int pr = prioFila(&itens[f[p]]);" in t, "fila de rede: pedido visivel antes do especulativo")
+# 2.0.38: troca do destaque continua quando interrompida (pilha de camadas), 350 ms.
+ok("#define VIT_HERO_DUR 0.35f" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
+ok("vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;" in v and "vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;" in v, "troca interrompida empilha a camada com o progresso que tinha")
+ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai;" in v, "arte e texto do destaque por camadas")
 print("desempenho_2034: tudo ok")
 P

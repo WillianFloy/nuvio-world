@@ -1210,9 +1210,18 @@ static int vitColLemb[VIT_LIN_MAX];
 static Uint32 vitNomeEm, vitReleEm;
 static float vitScroll, vitScrollV, vitSx[VIT_LIN_MAX], vitSv[VIT_LIN_MAX];
 // O destaque: o que esta na tela, o que saiu, e o que o foco pede.
-static int vitHeroAtual = -1, vitHeroAnt = -1, vitHeroDes = -1;
+// 2.0.38: PILHA DE ATE 3 CAMADAS, cada uma com o proprio progresso. Uma troca
+// interrompida por outra (o passo seguinte chega antes de os ~350 ms acabarem)
+// nao reaproveita mais o destaque "meio entrado" como se estivesse inteiro: ele
+// continua com a opacidade que tinha e a nova camada entra por cima. Sem salto.
+#define VIT_HERO_DUR 0.35f
+static int vitHeroAtual = -1, vitHeroAnt = -1, vitHeroAnt2 = -1, vitHeroDes = -1;
 static Uint32 vitHeroDesde;
-static float vitHeroEntra = 1.0f;
+static float vitHeroEntra = 1.0f, vitHeroEntraAnt = 1.0f, vitHeroEntraAnt2 = 1.0f;
+static void vitHeroZerar(void) {
+  vitHeroAtual = vitHeroAnt = vitHeroAnt2 = -1;
+  vitHeroEntra = vitHeroEntraAnt = vitHeroEntraAnt2 = 1.0f;
+}
 // EXPANSAO DO CARTAZ VERTICAL EM FOCO (Ajustes > Coleções, dono 15/11): o mesmo
 // gesto da Home. Relogio zera a cada movimento; abre depois do atraso parado.
 static int vitExpR = -1, vitExpC = -1;
@@ -1453,7 +1462,8 @@ static void vitProjetar(void) {
   // projecao antiga; a chave acha o MESMO titulo na nova (se sumiu, zera como antes).
   VtChave heroChave, antChave;
   CatItem *heroAntes = vitChave(vitHeroAtual), *antAntes = vitChave(vitHeroAnt);
-  guardarChave(&heroChave, heroAntes); guardarChave(&antChave, antAntes);
+  VtChave ant2Chave; CatItem *ant2Antes = vitChave(vitHeroAnt2);
+  guardarChave(&heroChave, heroAntes); guardarChave(&antChave, antAntes); guardarChave(&ant2Chave, ant2Antes);
   for (int r = 0; r < vitN; r++) {
     VitLin *l = &vitLin[r];
     int antesN = l->n;
@@ -1501,18 +1511,24 @@ static void vitProjetar(void) {
   // ocultado aparecer no hero nem apontam para o vizinho que tomou seu lugar.
   // Religa pelo titulo (a copia mais proxima do foco); sem achar, zera como antes.
   { int novoHero = -1, novoAnt = -1;
-    for (int passo = 0; vitN && passo < vitN && ((heroAntes && novoHero < 0) || (antAntes && novoAnt < 0)); passo++) {
+    int novoAnt2 = -1;
+    for (int passo = 0; vitN && passo < vitN && ((heroAntes && novoHero < 0) || (antAntes && novoAnt < 0) || (ant2Antes && novoAnt2 < 0)); passo++) {
       int r = (vitFR + passo) % vitN;
       for (int c = 0; c < vitLin[r].n; c++) {
         CatItem *cand = vitItem(r, c);
         if (!cand) continue;
         if (heroAntes && novoHero < 0 && mesmaChave(&heroChave, cand)) novoHero = r * vitCap + c;
         if (antAntes && novoAnt < 0 && mesmaChave(&antChave, cand)) novoAnt = r * vitCap + c;
+        if (ant2Antes && novoAnt2 < 0 && mesmaChave(&ant2Chave, cand)) novoAnt2 = r * vitCap + c;
       }
     }
     vitHeroDes = -1;
-    if (novoHero < 0) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
-    else { vitHeroAtual = novoHero; vitHeroAnt = novoAnt; }
+    if (novoHero < 0) vitHeroZerar();
+    else {
+      vitHeroAtual = novoHero; vitHeroAnt = novoAnt; vitHeroAnt2 = novoAnt < 0 ? -1 : novoAnt2;
+      if (vitHeroAnt < 0) vitHeroEntraAnt = 1.0f;
+      if (vitHeroAnt2 < 0) vitHeroEntraAnt2 = 1.0f;
+    }
   }
   vitOcultar = ocultar; vitRevisao = revisao; vitProjetoSujo = 0;
   vitLembrarFoco();
@@ -1605,7 +1621,7 @@ static void vitIniciar(void) {
   memset(vitSx, 0, sizeof vitSx); memset(vitSv, 0, sizeof vitSv);
   vitCarga = 0; vitFR = vitFC = 0; vitMexeu = 0; vitUnicoN = -1;
   vitScroll = vitScrollV = 0.0f;
-  vitHeroAtual = vitHeroAnt = vitHeroDes = -1; vitHeroEntra = 1.0f;
+  vitHeroZerar(); vitHeroDes = -1;
   memset(vitLinAlfa, 0, sizeof vitLinAlfa); memset(vitLinEntra, 0, sizeof vitLinEntra);
   vitFocoR = vitFocoC = vitFocoAntR = vitFocoAntC = -1; vitFocoF = vitFocoAntF = 0.0f;
   vitNomeEm = vitReleEm = 0;
@@ -1821,7 +1837,7 @@ static void vitAgrupar(int n) {
       for (int c = 0; c < vitLin[r].n; c++)
         if (mesmaChave(&focoAntes, vitItem(r, c))) { vitFR = r; vitFC = c; r = vitN; break; }
     // The highlight's encoded row/column belongs to the previous grouping.
-    vitHeroAtual = vitHeroAnt = vitHeroDes = -1; vitHeroEntra = 1.0f;
+    vitHeroZerar(); vitHeroDes = -1;
   }
   vitPonteiroInvalidar(0);
 #endif
@@ -2291,17 +2307,30 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     if (it && des != vitHeroAtual) {
       Uint32 parado = agora - vitHeroDesde;
       if (vitHeroAtual < 0 || (parado >= 140 && (home_vitrine_arte_pronta(it) || parado >= 700))) {
-        vitHeroAnt = vitHeroAtual; vitHeroAtual = des;
+        // Empilha: o que estava na tela continua com o progresso que tinha.
+        // Se ja eram 3 camadas, a de baixo sai e a seguinte termina na hora
+        // (so no toque rapidissimo; no ritmo normal a de baixo ja acabou).
+        if (vitHeroAnt2 >= 0 && vitChave(vitHeroAnt2)) vitHeroEntraAnt = 1.0f;
+        vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;
+        vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;
+        vitHeroAtual = des;
         vitHeroEntra = 0.0f;   // o primeiro destaque tambem entra (abrir ou trocar de Collection)
       }
-    } else if (!it && !vitChave(vitHeroAtual)) { vitHeroAtual = vitHeroAnt = -1; vitHeroEntra = 1.0f; }
+    } else if (!it && !vitChave(vitHeroAtual)) vitHeroZerar();
     // Foco no "Ver tudo" ou numa fileira ainda sem titulo: o destaque que esta
     // na tela FICA (2.0.34). Zerar escurecia a tela inteira e o destaque
     // seguinte entrava animado de novo — a piscada ao subir/descer.
     if (vitHeroEntra < 1.0f) {
-      vitHeroEntra += dt / 0.45f;   // troca do destaque: arte e texto juntos, sem salto
-      if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = -1; }
-    } }
+      vitHeroEntra += dt / VIT_HERO_DUR;   // troca do destaque: arte e texto juntos, sem salto
+      if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = vitHeroAnt2 = -1; vitHeroEntraAnt = vitHeroEntraAnt2 = 1.0f; }
+    }
+    if (vitHeroAnt >= 0 && vitHeroEntraAnt < 1.0f) {   // a camada anterior termina de entrar, no mesmo ritmo
+      vitHeroEntraAnt += dt / VIT_HERO_DUR;
+      if (vitHeroEntraAnt >= 1.0f) { vitHeroEntraAnt = 1.0f; vitHeroAnt2 = -1; vitHeroEntraAnt2 = 1.0f; }
+    }
+    if (vitHeroAnt2 >= 0 && vitHeroEntraAnt2 < 1.0f)
+      vitHeroEntraAnt2 = fminf(1.0f, vitHeroEntraAnt2 + dt / VIT_HERO_DUR);
+  }
   home_vitrine_medida(&w, &h, &passo, &rot);
   vitPrebuscar(w, passo, agora);
   alvo = (float)vitFR * vitPasso();
@@ -3809,6 +3838,12 @@ static void vitDesenhar(float a, float x0) {
   float w, h, passo, rot, pas = vitPasso(), topo = vitTopo();
   float viewportBottom = topo - 8.0f + vitAlturaViewport();
   CatItem *hero = vitChave(vitHeroAtual), *ant = vitChave(vitHeroAnt);
+  // Camadas do destaque, de baixo para cima (2.0.38): cada uma com o progresso proprio.
+  CatItem *camIt[3]; float camP[3]; int camN = 0;
+  { CatItem *c2 = vitChave(vitHeroAnt2);
+    if (c2 && vitHeroEntraAnt2 < 1.0f + 1e-6f && ant) { camIt[camN] = c2; camP[camN++] = vitHeroEntraAnt2; }
+    if (ant) { camIt[camN] = ant; camP[camN++] = vitHeroEntraAnt; }
+    if (hero) { camIt[camN] = hero; camP[camN++] = vitHeroEntra; } }
   int arte = 0;
   home_vitrine_medida(&w, &h, &passo, &rot);
 #ifdef NV_TOUCH_UI
@@ -3831,23 +3866,26 @@ static void vitDesenhar(float a, float x0) {
   // de Collection, ou o PRIMEIRO destaque entrando. Na troca entre dois
   // destaques a arte que sai ja cobre tudo (2.0.34: era uma tela cheia a mais
   // em toda troca).
-  int fundoPintado = a < 0.99f || sai > 0.0f || !hero || (vitHeroEntra < 1.0f && !ant);
+  int fundoPintado = a < 0.99f || sai > 0.0f || !hero || (camN > 0 && camP[0] < 1.0f);
   if (fundoPintado) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
   int dTroca = 0, dAnt = 0, dHero = 0;   // DIAGNOSTICO 2.0.35: codigos de home_vitrine_diag_arte
   if (hero) {
-    float e = vitHeroEntra * vitHeroEntra * (3.0f - 2.0f * vitHeroEntra);
-    int trocou = 0;
-    if (ant && vitHeroEntra < 1.0f) {
-      trocou = home_vitrine_arte_troca(ant, a, hero, a * e);
+    // Composicao "por cima" camada a camada: mix(mix(c0, c1, e1), c2, e2). A
+    // de baixo vale e(p) (1 quando ja entrou); duas primeiras numa passada so.
+    float al[3];
+    for (int i = 0; i < camN; i++) { float p = fminf(1.0f, camP[i]); al[i] = a * p * p * (3.0f - 2.0f * p); }
+    int trocou = 0, i0 = 0;
+    if (camN >= 2) {
+      trocou = home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1]);
       dTroca = home_vitrine_diag_arte();
+      if (trocou) { arte = 1; i0 = 2; }
     }
-    if (trocou) arte = 1;
-    else {
-      if (ant && vitHeroEntra < 1.0f) { arte |= home_vitrine_arte(ant, a); dAnt = home_vitrine_diag_arte(); }
-      arte |= home_vitrine_arte(hero, a * e); dHero = home_vitrine_diag_arte();
+    for (int i = i0; i < camN; i++) {
+      arte |= home_vitrine_arte(camIt[i], al[i]);
+      if (i == camN - 1) dHero = home_vitrine_diag_arte(); else dAnt = home_vitrine_diag_arte();
     }
   }
   // 2.0.36: com um titulo sob o foco e a arte do destaque ainda a caminho, o
@@ -3912,16 +3950,25 @@ static void vitDesenhar(float a, float x0) {
   // um pouco e apagando na primeira metade; o novo entra de baixo para o lugar,
   // acendendo. So posicao e opacidade (o barato para a TV).
   if (hero) {
-    float t = vitHeroEntra, teto = cabCy + 34.0f + VIT_CAB_FOLGA;
-    if (ant && t < 1.0f) {
-      float sai = fminf(1.0f, t / 0.45f), ent = fmaxf(0.0f, (t - 0.30f) / 0.70f);
-      sai = sai * sai * (3.0f - 2.0f * sai); ent = ent * ent * (3.0f - 2.0f * ent);
-      if (sai < 1.0f) (void)home_vitrine_texto(ant, topo - 14.0f * sai, teto, a * (1.0f - sai));
-      vitHeroTopo = home_vitrine_texto(hero, topo + 18.0f * (1.0f - ent), teto, a * fmaxf(ent, 0.005f));
-    } else if (t < 1.0f) {   // primeiro destaque (abrir ou trocar de Collection): so entra
-      float ent = t * t * (3.0f - 2.0f * t);
-      vitHeroTopo = home_vitrine_texto(hero, topo + 18.0f * (1.0f - ent), teto, a * fmaxf(ent, 0.005f));
-    } else vitHeroTopo = home_vitrine_texto(hero, topo, teto, a);
+    float teto = cabCy + 34.0f + VIT_CAB_FOLGA;
+    // Cada camada: entra com ent(p) subindo de baixo e sai quando a de cima
+    // entra (sobe 14 px e apaga). Continuo na interrupcao: a camada que ja
+    // estava a meio caminho segue de onde estava, sem voltar a 100%.
+    for (int i = 0; i < camN; i++) {
+      float p = fminf(1.0f, camP[i]);
+      // Primeiro destaque (abrir ou trocar de Collection, sem camada abaixo): so entra, sem o atraso.
+      float pe = camN == 1 ? p : fmaxf(0.0f, (p - 0.30f) / 0.70f), ent = pe * pe * (3.0f - 2.0f * pe);
+      float sai = 0.0f;
+      if (i + 1 < camN) {
+        float q = fminf(1.0f, fminf(1.0f, camP[i + 1]) / 0.45f);
+        sai = q * q * (3.0f - 2.0f * q);
+      }
+      if (sai >= 1.0f) continue;
+      float al = a * (1.0f - sai) * fmaxf(ent, i == camN - 1 ? 0.005f : 0.0f);
+      float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai;
+      float topoBloco = home_vitrine_texto(camIt[i], ty, teto, al);
+      if (i == camN - 1) vitHeroTopo = topoBloco;
+    }
   }
 
   // As fileiras, recortadas abaixo do texto do destaque.

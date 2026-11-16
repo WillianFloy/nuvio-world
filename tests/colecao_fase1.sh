@@ -44,7 +44,7 @@ ok('"Vitrine", "Fluxo de capas"' not in aj and "V_COLECAO_EXIBICAO, VT_LAY_FLUXO
 ok("gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W)" in v and "gfx_sem_esvanecer_x();" in v, "pontas esvanecem por pixel, iguais")
 ok("vitgeom_fixo_alvo(col, vitColunas(r), cab, passo)" in v, "foco fixo na ancora (Netflix)")
 ok("vitFocoF" in v and "foco_zoom(base, ff)" in v and "foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), ff, a)" in v, "foco entra e sai animado")
-ok("home_vitrine_texto(ant, topo - 14.0f * sai" in v, "texto do destaque troca com transicao")
+ok("float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai" in v, "texto do destaque troca com transicao")
 ok("vitTrocaPend = folder;" in v and "vitTrocaSai += dt / 0.25f;" in v, "troca de Collection: sai antes de entrar")
 ok("vitHeroEntra = 0.0f;   // o primeiro destaque" in v and "vitLinEntra[r]" in v, "destaque e fileiras entram animados")
 ok("ajustes_navegacao_velocidade_cartazes()" in v and "0.85f" not in open("src/ajustes.c").read().split("float ajustes_navegacao_velocidade(void)")[1].split("}")[0], "deslize suave so nas fileiras")
