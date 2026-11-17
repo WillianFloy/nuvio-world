@@ -207,6 +207,16 @@ static int layEscolha;            // gravada (VT_LAY_AUTO = nunca escolheu)
 // Animacao do foco (anel e zoom) entrando no cartaz novo e saindo do anterior.
 static int vitFocoR = -1, vitFocoC = -1, vitFocoAntR = -1, vitFocoAntC = -1;
 static float vitFocoF, vitFocoAntF;
+// 2.0.40: AS MOLAS DA FILEIRA E DO FOCO NO TEMPO-BASE (NV_MOTION_MS, layout.h).
+// "Navegação geral rápida" ligada mantem a razao de antes (1/0,85) sobre a
+// desligada, e a "Velocidade da navegação" continua multiplicando. A rolagem
+// vertical NAO muda aqui (etapa propria).
+static float vitW2(void) {
+  return NV_MOTION_W2 * ajustes_navegacao_velocidade() * (ajustes_navegacao_horizontal_rapida() ? 1.0f / 0.85f : 1.0f);
+}
+static float vitW1(void) {
+  return NV_MOTION_W1 * ajustes_navegacao_velocidade() * (ajustes_navegacao_horizontal_rapida() ? 1.0f / 0.85f : 1.0f);
+}
 static float vitLinAlfa[COL_SOURCE_MAX];   // a fileira em foco acende, as outras esmaecem (animado)
 static float vitLinEntra[COL_SOURCE_MAX];  // 0..1: a fileira sobe e acende quando os cartazes chegam
 // TROCA DE COLLECTION COM A TELA ABERTA (Netflix -> Disney): o conteudo da atual
@@ -1227,7 +1237,7 @@ static float vitScroll, vitScrollV, vitSx[VIT_LIN_MAX], vitSv[VIT_LIN_MAX];
 // interrompida por outra (o passo seguinte chega antes de os ~350 ms acabarem)
 // nao reaproveita mais o destaque "meio entrado" como se estivesse inteiro: ele
 // continua com a opacidade que tinha e a nova camada entra por cima. Sem salto.
-#define VIT_HERO_DUR 0.35f
+#define VIT_HERO_DUR (NV_MOTION_MS / 1000.0f)   // 2.0.40: o tempo-base (350 ms)
 static int vitHeroAtual = -1, vitHeroAnt = -1, vitHeroAnt2 = -1, vitHeroDes = -1;
 static Uint32 vitHeroDesde;
 static float vitHeroEntra = 1.0f, vitHeroEntraAnt = 1.0f, vitHeroEntraAnt2 = 1.0f;
@@ -2433,8 +2443,8 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       if (vitFocoR >= 0 && vitFocoF > 0.05f) { vitFocoAntR = vitFocoR; vitFocoAntC = vitFocoC; vitFocoAntF = vitFocoF; }
       vitFocoR = r; vitFocoC = c; vitFocoF = 0.0f;
     }
-    vitFocoF = anim_mola(vitFocoF, r >= 0 ? 1.0f : 0.0f, dt, NV_MOLA_FOCO * 0.6f);
-    vitFocoAntF = anim_mola(vitFocoAntF, 0.0f, dt, NV_MOLA_FOCO * 0.6f);
+    vitFocoF = anim_mola(vitFocoF, r >= 0 ? 1.0f : 0.0f, dt, vitW1());
+    vitFocoAntF = anim_mola(vitFocoAntF, 0.0f, dt, vitW1());
     if (vitFocoAntF < 0.01f) vitFocoAntR = vitFocoAntC = -1; }
   float dtV = dt;
   { static Uint32 ultScroll;   // relogio proprio para as molas horizontais (TV lenta)
@@ -2480,8 +2490,7 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
           if (dir > lim) alvoX += dir - lim;
         }
       }
-      vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX,
-                            dtV, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));
+      vitSx[r] = anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX, dtV, vitW2());
     } else if (r == vitFR)
       vitSx[r] = anim_mola2(&vitSv[r], vitSx[r], vitFC > 1 ? (vitFC - 1) * passo : 0.0f,
                             dt, (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()));

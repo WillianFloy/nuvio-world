@@ -810,6 +810,15 @@ extern float nv_cor_fundo_viva[3];   // corviva.c
 // p(t)=1-(1+wt)e^-wt cruza a metade em 1,678/w = 146 ms com w=11,5, e o medido
 // foi ~145 ms. Ver anim_mola2() em anim.h para o porque da troca de mola.
 #define NV_MOLA2_SCROLL  11.5f
+// TEMPO-BASE DO MOVIMENTO (2.0.40, decisao do dono: ~350 ms). E o tempo que o
+// movimento VISIVEL leva para chegar a 90% do caminho (o olho le "chegou" ai; a
+// cauda ate 99% e so acomodacao). As frequencias saem dele: mola de 2a ordem
+// criticamente amortecida, p = 1 - (1+x)e^-x, p = 0,9 em x = 3,8897; mola de 1a
+// ordem, 1 - e^-x, p = 0,9 em x = 2,3026. Usado pelas Collections (fileira, foco,
+// destaque); a Home entra na proxima etapa.
+#define NV_MOTION_MS  350.0f
+#define NV_MOTION_W2  (3.8897f / (NV_MOTION_MS / 1000.0f))   // ~11,11 rad/s
+#define NV_MOTION_W1  (2.3026f / (NV_MOTION_MS / 1000.0f))   // ~6,58 /s
 #define NV_MOLA_TELA      9.0f
 // Abertura da PAGINA de secoes do detalhe. MEDIDO na folha do app web:
 // `.series-detail-shell.detail-scrolled .series-detail-backdrop` vai a

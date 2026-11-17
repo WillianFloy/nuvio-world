@@ -2030,7 +2030,8 @@ int main(int argc, char **argv) {
         if (e.type == SDL_KEYUP) navritmo_soltou(&navRitmo, (int)e.key.keysym.sym);
         else if (!ajustes_navegacao_horizontal_rapida() && !player_aberto() && !app_zap_ativo() &&
                  app_navegacao_cartazes() &&
-                 !navritmo_baixou(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym))
+                 !(vertudo_aberta() ? navritmo_baixou_vitrine(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)
+                                    : navritmo_baixou(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)))
           continue;
       }
       app_evento(&e);

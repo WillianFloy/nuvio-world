@@ -28,6 +28,7 @@
 typedef struct {
   int tecla;                 // a seta em curso (0 = nenhuma)
   unsigned inicio, ultimo, entregue;
+  unsigned alvo;             // navritmo_baixou_vitrine: quando vence o proximo passo
 } NavRitmo;
 
 // A tecla foi solta: o proximo KEYDOWN e um toque novo.
@@ -49,6 +50,33 @@ static inline int navritmo_baixou(NavRitmo *n, unsigned agora, int tecla) {
     return 1;
   }
   return 0;
+}
+
+// SEGURAR NA VITRINE DAS COLLECTIONS (2.0.40). O movimento passou a levar ~350 ms
+// (NV_MOTION_MS); segurando, um passo a cada NAV_PASSO_VITRINE_MS = 350 / 1,4:
+// ~1,4x a velocidade de toques (faixa aprovada: 1,25x a 1,5x). Ainda um item de
+// cada vez e sem fila. Diferente de navritmo_baixou, a cadencia segue uma AGENDA
+// (cada passo vence PASSO depois do ANTERIOR VENCIMENTO, nao da entrega): com o
+// controle repetindo a 33, 50 ou 100 ms o intervalo medio e o mesmo, em vez de
+// arredondar para cima ao multiplo da repeticao (de 250 a 300 ms antes).
+#define NAV_PASSO_VITRINE_MS 250u
+static inline int navritmo_baixou_vitrine(NavRitmo *n, unsigned agora, int tecla) {
+  unsigned espaco = agora - n->ultimo;   // entre este evento e o anterior
+  int novo = n->tecla != tecla || espaco > NAV_PAUSA_MS;
+  n->ultimo = agora;
+  if (novo) {
+    if (n->tecla == 0 && n->entregue && agora - n->entregue < NAV_TOQUE_MIN_MS) return 0;
+    n->tecla = tecla; n->inicio = agora; n->entregue = agora;
+    n->alvo = agora + NAV_ESPERA_MS;
+    return 1;
+  }
+  // Vence quando faltar menos que meia repeticao: o evento mais proximo da agenda.
+  if ((int)(agora + espaco / 2 - n->alvo) < 0) return 0;
+  n->entregue = agora;
+  n->alvo += NAV_PASSO_VITRINE_MS;
+  // Atrasou demais (quadro longo, TV lenta): recomeca a agenda daqui, sem rajada.
+  if ((int)(n->alvo - agora) < (int)(NAV_PASSO_VITRINE_MS / 2)) n->alvo = agora + NAV_PASSO_VITRINE_MS;
+  return 1;
 }
 
 #endif

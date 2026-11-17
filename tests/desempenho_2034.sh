@@ -37,7 +37,7 @@ ok("if (!aberta) {\n    float f = fmaxf(0.0f, fminf(1.0f, (anim - 0.55f) / 0.45f
 ok("static void vitExpFechar(void)" in v and "vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);" in v and "vitExpExtra(r, c, w, h, &propria)" in v, "pôster expandido fecha animado")
 ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }" in t and "int pr = prioFila(&itens[f[p]]);" in t, "fila de rede: pedido visivel antes do especulativo")
 # 2.0.38: troca do destaque continua quando interrompida (pilha de camadas), 350 ms.
-ok("#define VIT_HERO_DUR 0.35f" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
+ok("#define VIT_HERO_DUR (NV_MOTION_MS / 1000.0f)" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
 ok("vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;" in v and "vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;" in v, "troca interrompida empilha a camada com o progresso que tinha")
 ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai;" in v, "arte e texto do destaque por camadas")
 # 2.0.39: a reprojecao nao zera mais a posicao horizontal das fileiras na TV.
