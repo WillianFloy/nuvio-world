@@ -65,4 +65,21 @@ static inline float ht_vit_entra_de(int i, float p, float base) {
   return ht_ease((ht_clamp01(p) - ini) / (1.0f - ini));
 }
 static inline float ht_vit_entra(int i, float p) { return ht_vit_entra_de(i, p, HT_VIT_INI); }
+
+// ENTRADA DA COLLECTION (2.0.43, ajuste "Animacao de entrada das Collections"): ao abrir, o fundo
+// escuro do app ja esta la (a mola de abertura) e o conteudo entra progressivamente — primeiro o
+// cabecalho, depois as fileiras, uma apos a outra, subindo suave. So opacidade e Y.
+// `t` ms desde a abertura. Fim: 90 + 3*60 + 300 = 570 ms.
+#define HT_ENT_CAB_MS    300.0f
+#define HT_ENT_LIN_ATRASO 90.0f
+#define HT_ENT_LIN_PASSO  60.0f
+#define HT_ENT_LIN_MS    300.0f
+#define HT_ENT_LIN_MAX   3          // da 4a fileira em diante entram juntas com a 4a
+#define HT_ENT_LIN_PX    22.0f
+#define HT_ENT_TOTAL_MS  (HT_ENT_LIN_ATRASO + HT_ENT_LIN_PASSO * (float)HT_ENT_LIN_MAX + HT_ENT_LIN_MS)
+static inline float ht_ent_cab(float t) { return ht_ease(t / HT_ENT_CAB_MS); }
+static inline float ht_ent_lin(int r, float t) {
+  int k = r < 0 ? 0 : r > HT_ENT_LIN_MAX ? HT_ENT_LIN_MAX : r;
+  return ht_ease((t - HT_ENT_LIN_ATRASO - HT_ENT_LIN_PASSO * (float)k) / HT_ENT_LIN_MS);
+}
 #endif

@@ -723,6 +723,7 @@ typedef enum {
   AJ_COL_ITENS,            // itens por fileira da Vitrine (12..42)
   AJ_COL_EXPANDIR,         // expandir poster vertical ao focar (0 = ligado)
   AJ_COL_EXPANDIR_ATRASO,  // segundos parado antes de expandir
+  AJ_COL_ENTRADA,          // 2.0.43: animacao de entrada ao abrir uma Collection (0 = ligado)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -1867,6 +1868,7 @@ static const Opcao OPCOES[AJ_N] = {
   NUM("Quantidade de itens por fileira", 12, 42, 1, " itens"),
   ESC("Expandir posters verticais das Collections ao focar", V_LIGA, 2),
   NUM("Atraso da expansão", 0, 10, 1, " s"),
+  ESC("Animação de entrada das Collections", V_LIGA, 2),   // colEntradaLocal (2.0.43)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2205,6 +2207,7 @@ static const char *CHAVE[] = {
   "colItensFileiraLocal",
   "colExpandirLocal",
   "colExpandirAtrasoLocal",
+  "colEntradaLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3838,6 +3841,7 @@ int   ajustes_col_itens_fileira(void) {
   return v < 12 ? 12 : v > 42 ? 42 : v;
 }
 int   ajustes_col_expandir(void) { return lig(AJ_COL_EXPANDIR); }
+int   ajustes_col_entrada(void) { return lig(AJ_COL_ENTRADA); }   // 2.0.43
 float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
@@ -6153,7 +6157,7 @@ static int somenteDesteAparelho(int op) {
 // onde o historico vai e se o social existe. Entram na copia por perfil
 // (ajustes-p<N>.txt) e continuam FORA do blob (somenteDesteAparelho).
 static int perfilLocal(int i) {
-  return i == AJ_COL_ITENS || i == AJ_COL_EXPANDIR || i == AJ_COL_EXPANDIR_ATRASO ||
+  return i == AJ_COL_ITENS || i == AJ_COL_EXPANDIR || i == AJ_COL_EXPANDIR_ATRASO || i == AJ_COL_ENTRADA ||
          i == AJ_GUIA_ORDEM || i == AJ_GUIA_FONTE || i == AJ_COLECAO_EXIBICAO || i == AJ_CW_FONTE || i == AJ_CW_PROXIMO || i == AJ_SALVOS_DEST || i == AJ_HIST_CONTA || i == AJ_SOCIAL ||
          i == AJ_MENU_TOPO || i == AJ_MENU_TOPO_MODO || i == AJ_MENU_TOPO_TAMANHO || i == AJ_MENU_TOPO_ORDEM || i == AJ_MENU_TOPO_FIXO || i == AJ_MENU_TOPO_FOCO_EXPANDIDO || i == AJ_ABAS_ESTILO || i == AJ_OCULTAR_FILMES_VISTOS;
   return i == AJ_COLECAO_EXIBICAO || i == AJ_CW_FONTE || i == AJ_CW_PROXIMO || i == AJ_SALVOS_DEST || i == AJ_HIST_CONTA || i == AJ_SOCIAL ||
@@ -7845,6 +7849,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_COL_ITENS: return "Quantos títulos cada fileira da Vitrine mostra antes de Ver tudo. Fileiras perto do foco carregam primeiro; as distantes liberam memória e voltam ao se aproximar. Vale para este perfil nesta TV.";
     case AJ_COL_EXPANDIR: return "Nas Collections, o pôster vertical em foco cresce e abre a arte deitada depois de um instante parado. Vale para este perfil nesta TV.";
     case AJ_COL_EXPANDIR_ATRASO: return "Quanto tempo o foco precisa ficar parado num pôster das Collections antes de ele expandir.";
+    case AJ_COL_ENTRADA: return "Ao abrir uma Collection, o fundo escuro do app entra primeiro e o cabeçalho e as fileiras aparecem em sequência, de forma suave (cerca de meio segundo). Desligado: a Collection abre direto. Com Animações reduzidas ela sempre abre direto. Vale para este perfil nesta TV.";
     case AJ_COLECOES_STATUS: return "Mostra as pastas recebidas e quantas fontes de catálogo pertencem a addons ativos nesta TV. Se uma pasta foi recebida, mas nenhuma fonte está ativa, confira se o addon foi reconfigurado: nesse caso, selecione novamente o catálogo no editor de coleções do site.";
     case AJ_MURAL_TITULOS: return "Ligado (padrão): cada ladrilho do Mural mostra o nome do título. Desligado: o nome fica só no painel da direita. Vale só nesta TV.";
     case AJ_HOME_LAYOUT: return "Moderna: destaque atrás das fileiras. Padrão: destaque num banner no topo. Dinâmica: estilo Apple TV, com destaques grandes e Top 10.";

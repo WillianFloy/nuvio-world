@@ -174,6 +174,8 @@ static const Item TELA[] = {
       OPC(AJ_COL_ITENS),
     ROT("Pôster em foco"),
       OPC(AJ_COL_EXPANDIR), OPC(AJ_COL_EXPANDIR_ATRASO),
+    ROT("Entrada"),
+      OPC(AJ_COL_ENTRADA),
     ROT("Estado"),
       OPC(AJ_COLECOES_STATUS),
     ROT("Arte das pastas"),

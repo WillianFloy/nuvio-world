@@ -55,6 +55,20 @@ int main(void) {
   for (int i = 0; i < HT_N; i++) OK(ht_vit_entra(i, 1.0f) == 1.0f && ht_vit_entra(i, 0.0f) == 0.0f);
   for (float p = 0; p <= 1.0f; p += 0.01f)
     OK(ht_vit_entra(0, p) >= ht_vit_entra(1, p) - 1e-6f && ht_vit_entra(1, p) >= ht_vit_entra(2, p) - 1e-6f);
+  // Entrada da Collection (2.0.43): cabecalho primeiro, depois as fileiras em sequencia; fim em 570 ms.
+  OK(fabsf(HT_ENT_TOTAL_MS - 570.0f) < 1e-3f);
+  OK(ht_ent_cab(0.0f) == 0.0f && ht_ent_cab(HT_ENT_CAB_MS) == 1.0f && ht_ent_cab(HT_ENT_TOTAL_MS) == 1.0f);
+  for (int r = 0; r < 8; r++) {
+    OK(ht_ent_lin(r, 0.0f) == 0.0f && ht_ent_lin(r, HT_ENT_TOTAL_MS) == 1.0f);
+    float ant = -1; for (float t = 0; t <= 700.0f; t += 4.0f) { float v = ht_ent_lin(r, t); OK(v >= ant - 1e-6f && v >= 0.0f && v <= 1.0f); ant = v; }
+  }
+  for (float t = 0; t <= 700.0f; t += 4.0f) {   // o cabecalho vai a frente da 1a fileira, e cada fileira da seguinte
+    OK(ht_ent_cab(t) >= ht_ent_lin(0, t) - 1e-6f);
+    for (int r = 0; r < 3; r++) OK(ht_ent_lin(r, t) >= ht_ent_lin(r + 1, t) - 1e-6f);
+  }
+  OK(ht_ent_lin(4, 300.0f) == ht_ent_lin(3, 300.0f) && ht_ent_lin(9, 300.0f) == ht_ent_lin(3, 300.0f));   // 4a em diante juntas
+  { float maxPasso = 0; for (int r = 0; r < 4; r++) for (float t = 0; t < 700.0f; t += 16.7f) { float d = fabsf(ht_ent_lin(r, t + 16.7f) - ht_ent_lin(r, t)); if (d > maxPasso) maxPasso = d; }
+    OK(maxPasso < 0.12f); }
   puts(n ? "herotexto: FALHOU" : "herotexto: ok");
   return n ? 1 : 0;
 }

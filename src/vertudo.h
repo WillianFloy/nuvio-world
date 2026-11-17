@@ -28,6 +28,7 @@ void vertudo_colecao(const ColFolder *folder);
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,
                    const char *titulo);
 int  vertudo_aberta(void);
+float vertudo_entrada_ms(void);   // 2.0.43: ms desde a abertura da Collection (>= 570: assentado)
 const char *vertudo_perf_tag(void);
 // Perf-only navigation: first collection, then cycle without saving preferences.
 void vertudo_perf_cycle(void);

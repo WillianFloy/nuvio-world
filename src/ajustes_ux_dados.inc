@@ -186,6 +186,8 @@ static const char *uxSinonimos(int op) {
     case AJ_COL_ITENS: return "colecao colecoes collection collections fileira fileiras itens quantidade vitrine ver tudo limite";
     case AJ_COL_EXPANDIR: case AJ_COL_EXPANDIR_ATRASO:
       return "colecao colecoes collection collections poster cartaz vertical expandir expansao foco atraso tempo";
+    case AJ_COL_ENTRADA:
+      return "colecao colecoes collection collections entrada abrir animacao transicao suave cinematografica fade";
     case AJ_NAV_RAPIDA:
       return "navegacao geral rapida setas controle segurar repetir netflix passo um por vez fast general navigation d-pad hold";
     case AJ_NAV_VELOCIDADE:

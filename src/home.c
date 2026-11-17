@@ -543,6 +543,7 @@ static float heroEntra = 1.0f;
 static int        heroTextoAtivo = 0;
 static float      heroTextoT = 0.0f;
 static HtInstante heroTextoIni;
+static void colCamAvancar(float dt);   // hero da pasta (Collections da Home), 2.0.43
 // Stage switches fade through the base background, never stack fullscreen passes.
 static int palcoFundoModo = 1, palcoFundoAlvo = 1, palcoFundoItem = -1;
 static float palcoFundoT = 1.0f, palcoFundoInicio = 1.0f;
@@ -1952,7 +1953,7 @@ static float sobraDireitaFoco(int r, float abre) {
 }
 
 // --- FOCO FIXO NA HOME (2.0.41), o mesmo modelo das Collections (vitgeom.h) ------
-// So nas fileiras NORMAL e POSTER, na TV. O cartaz em foco fica sempre no mesmo
+// So nas fileiras NORMAL, POSTER e (2.0.43) COLECOES DA HOME (CATALOGOS), na TV. O cartaz em foco fica sempre no mesmo
 // ponto da tela — o do 1o cartaz, alinhado ao titulo (homeConteudoX; a margem NAO
 // muda) — e a fileira desliza por baixo dele. Sobra a "espiada" do vizinho nas
 // duas pontas, que esvanece (gfx_esvanecer_x, um uniforme do shader: nenhuma
@@ -1964,7 +1965,8 @@ static int homeFocoFixo(int r) {
   if (r < 0 || r >= nFileiras) return 0;
   if (telefoneui_ativo() || homeRetratoTelefone()) return 0;
   t = fileiras[r].tipo;
-  return t == FILEIRA_NORMAL || t == FILEIRA_POSTER;
+  // 2.0.43: as COLLECTIONS DA HOME (grupos do perfil, FILEIRA_CATALOGOS) seguem o mesmo modelo.
+  return t == FILEIRA_NORMAL || t == FILEIRA_POSTER || t == FILEIRA_CATALOGOS;
 }
 static int homeFixoTotal(int r) {
   int n = fileiras[r].n + (fileiras[r].verTudo ? 1 : 0);
@@ -4058,6 +4060,7 @@ static void home_atualizar_(float dt, Uint32 agora) {
     palcoItemA = fminf(1.0f, palcoItemA + k);
   }
 
+  colCamAvancar(dt);   // 2.0.43: hero da pasta (Collections da Home)
   if (heroTextoAtivo) {
     heroTextoT += dt * 1000.0f;
     if (motionReduzido || ht_acabou(heroTextoT)) heroTextoAtivo = 0;
@@ -4289,26 +4292,57 @@ static const char *dinColQuer(void) {
   f = col_folder(fileiras[foco.fileira].folders[foco.coluna]);
   return f ? col_banner(f) : "";
 }
+// 2.0.43: a troca de pasta e um CROSSFADE de NV_HERO_ARTE_FADE_MS (350 ms), nao mais "apaga e so
+// depois acende". O banner da pasta nova e pedido no instante em que o foco muda; a troca so
+// comeca com ele pronto (limite NV_HERO_ESPERA_MS) e, ate la, o anterior segue inteiro. A
+// Dinamica nao mostra logo nem texto de pasta: so este fundo. Uma troca nova espera a que esta
+// no ar terminar de acender (sem salto) e vai direto ao ultimo desejo.
+static char  dinColAnt[512];     // banner por baixo enquanto o novo acende
+static float dinColEspera;       // ms que o banner desejado espera ficar pronto
 static void dinArteColecao(float dt) {
   const char *quer = dinColQuer();
-  int reduz = ajustes_animacoes_reduzidas();
-  if (strcmp(quer, dinColArte)) {   // outra pasta: apaga a que esta e troca no zero
-    dinColAlfa = reduz ? 0.0f : dinColAlfa - dt * 4.0f;
-    if (dinColAlfa <= 0.0f) {
-      dinColAlfa = 0.0f;
-      snprintf(dinColArte, sizeof dinColArte, "%s", quer);
+  int reduz = ajustes_animacoes_reduzidas() || gfx_efeitos_minimos();
+  float ms = dt * 1000.0f;
+  if (!quer[0]) {                   // saiu das pastas: apaga como sempre
+    dinColAnt[0] = 0; dinColEspera = 0.0f;
+    dinColAlfa = ajustes_animacoes_reduzidas() ? 0.0f : dinColAlfa - dt * 4.0f;
+    if (dinColAlfa <= 0.0f) { dinColAlfa = 0.0f; dinColArte[0] = 0; }
+  } else if (!dinColArte[0]) {      // primeira pasta: entra acendendo
+    snprintf(dinColArte, sizeof dinColArte, "%s", quer);
+    dinColAlfa = reduz ? 1.0f : 0.0f; dinColAnt[0] = 0; dinColEspera = 0.0f;
+  } else if (strcmp(quer, dinColArte)) {   // outra pasta: crossfade, quando o banner estiver pronto
+    dinColEspera += ms;
+    int pronto = tex_obter_hero(quer) != 0 || dinColEspera >= NV_HERO_ESPERA_MS;
+    if (dinColAlfa >= 1.0f && pronto) {
+      if (reduz) { snprintf(dinColArte, sizeof dinColArte, "%s", quer); dinColAlfa = 1.0f; dinColAnt[0] = 0; }
+      else {
+        snprintf(dinColAnt, sizeof dinColAnt, "%s", dinColArte);
+        snprintf(dinColArte, sizeof dinColArte, "%s", quer);
+        dinColAlfa = 0.0f;
+      }
+      dinColEspera = 0.0f;
+    } else if (dinColAlfa < 1.0f) dinColAlfa = fminf(1.0f, dinColAlfa + ms / NV_HERO_ARTE_FADE_MS);
+  } else {
+    dinColEspera = 0.0f;
+    dinColAlfa = reduz ? 1.0f : fminf(1.0f, dinColAlfa + ms / NV_HERO_ARTE_FADE_MS);
+  }
+  if (dinColAlfa >= 1.0f) dinColAnt[0] = 0;
+  float cin = 1.0f - trailercinema_t(&heroCinema);
+  GfxRect r = { 0.0f, 0.0f, NV_TELA_W, DIN_COL_H };
+  if (dinColAnt[0]) {               // por baixo, inteiro, ate o novo cobrir
+    GLuint t = tex_obter_hero(dinColAnt);
+    if (t) {
+      gfx_tex_aspect_atual = tex_aspecto(dinColAnt);
+      gfx_rect(r, t, GFX_VITRINE, 0.92f, 0.28f, 1.0f, 0.0f, 0.0f, 0, 0, cin);
+      gfx_tex_aspect_atual = 0.0f;
     }
-  } else if (dinColArte[0]) {
-    dinColAlfa = reduz ? 1.0f : dinColAlfa + dt * 3.0f;
-    if (dinColAlfa > 1.0f) dinColAlfa = 1.0f;
-  } else dinColAlfa = 0.0f;
+  }
   if (dinColArte[0] && dinColAlfa > 0.004f) {
+    float k = dinColAlfa * dinColAlfa * (3.0f - 2.0f * dinColAlfa);   // a mesma suavizacao do hero
     GLuint t = tex_obter_hero(dinColArte);
     if (t) {
-      GfxRect r = { 0.0f, 0.0f, NV_TELA_W, DIN_COL_H };
       gfx_tex_aspect_atual = tex_aspecto(dinColArte);
-      gfx_rect(r, t, GFX_VITRINE, 0.92f, 0.28f, 1.0f, 0.0f, 0.0f, 0, 0,
-               dinColAlfa * (1.0f - trailercinema_t(&heroCinema)));
+      gfx_rect(r, t, GFX_VITRINE, 0.92f, 0.28f, 1.0f, 0.0f, 0.0f, 0, 0, (dinColAnt[0] ? k : dinColAlfa) * cin);
       gfx_tex_aspect_atual = 0.0f;
     }
   }
@@ -5072,6 +5106,158 @@ static void desenhaPalcoArte(void) {
     desenhaPalcoItem(&palcoItens[1], palcoFundoAlpha * (1.0f - palcoItemA));
   desenhaPalcoItem(&palcoItens[0], palcoFundoAlpha * palcoItemA);
 }
+// ---------- HERO DA PASTA (Collections da Home), 2.0.43 -----------------------------
+// Uma CAMADA por pasta mostrada: a arte acende por cima da anterior em NV_HERO_ARTE_FADE_MS
+// (350 ms) e o texto/logo dela entra escalonado (herotexto.h) enquanto o da anterior sai.
+// Trocas interrompidas empilham (ate 4 camadas) e cada uma segue de onde estava: sem salto.
+// O banner e o logo da pasta nova sao PEDIDOS NO MESMO INSTANTE em que o foco muda; a troca
+// so comeca com os dois prontos (limite NV_HERO_ESPERA_MS) — o fundo e o logo nunca trocam em
+// momentos diferentes — e, enquanto esperam, o destaque anterior continua inteiro na tela.
+typedef struct { int pasta; float t; int coberta; float tCob; HtInstante snap; } ColCam;
+static ColCam colCam[4];
+static int colCamN = 0, colDes = -1;
+static Uint32 colDesEm;
+static const char *pastaLogoUrl(const ColFolder *f) {
+  if (!f || f->editorial || !f->logo[0] || !strcasecmp(f->group, "Directors")) return NULL;
+  return artehero_url_logo_larg(f->logo, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f);
+}
+// Pede (a cada quadro, como o desenho pediria) o banner e o logo e diz se os dois ja estao no cache.
+static int pastaPronta(const ColFolder *f) {
+  int pronto = 1;
+  if (f->editorial) { if (f->hero[0] && !tex_obter_hero(f->hero)) pronto = 0; }
+  else if (!strcasecmp(f->group, "Directors")) {
+    diretor_pedir(f->title);
+    if (!diretor_pronto(f->title)) pronto = 0;
+    else { const char *a = diretor_hero(f->title); if (a[0] && !tex_obter_hero(a)) pronto = 0; }
+  } else {
+    const char *a = col_banner(f), *u = pastaLogoUrl(f);
+    if (a[0] && !tex_obter_hero(a)) pronto = 0;
+    if (u && !tex_obter_logo_larg(u, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f)) pronto = 0;
+  }
+  return pronto;
+}
+static ColCam colCamNova(int pasta, float t) { ColCam c; memset(&c, 0, sizeof c); c.pasta = pasta; c.t = t; return c; }
+static void colCamManter(int idDes, Uint32 agora, int semAnim) {
+  if (colCamN == 0) { colCam[0] = colCamNova(idDes, 1.0e6f); colCamN = 1; colDes = idDes; return; }
+  if (idDes == colCam[colCamN - 1].pasta) { colDes = idDes; return; }   // voltou (ou ficou) na que ja esta
+  if (idDes != colDes) { colDes = idDes; colDesEm = agora; }
+  const ColFolder *f = col_folder(idDes);
+  if (f && !pastaPronta(f) && (Uint32)(agora - colDesEm) < (Uint32)NV_HERO_ESPERA_MS) return;   // o anterior segue inteiro
+  if (semAnim) { colCam[0] = colCamNova(idDes, 1.0e6f); colCamN = 1; return; }
+  ColCam *c = &colCam[colCamN - 1];
+  c->coberta = 1; c->tCob = 0.0f; c->snap = ht_instante(c->t);
+  if (colCamN == 4) { memmove(colCam, colCam + 1, 3 * sizeof(ColCam)); colCamN = 3; }
+  colCam[colCamN++] = colCamNova(idDes, 0.0f);
+}
+static void colCamAvancar(float dt) {
+  int j = -1;
+  for (int i = 0; i < colCamN; i++) {
+    colCam[i].t += dt * 1000.0f;
+    if (colCam[i].coberta) colCam[i].tCob += dt * 1000.0f;
+    if (colCam[i].t >= NV_HERO_ARTE_FADE_MS) j = i;
+  }
+  if (j > 0) { memmove(colCam, colCam + j, (size_t)(colCamN - j) * sizeof(ColCam)); colCamN -= j; }
+}
+// O FUNDO da pasta (o banner ou, no editorial, o cabecalho). `aEd`/`aBn` ja trazem o alfa da camada.
+static void pastaArteHero(const ColFolder *folder, GfxRect r, GfxModo modoHero, float aBn, float aEd, int principal) {
+  if (folder->editorial) {
+    /* Art is authored for this rectangle, not cropped as a movie backdrop.
+       The neutral canvas continues below it; no art behind the shelves. */
+    GLuint art = tex_obter_hero(folder->hero);
+    GfxRect header = heroArtworkOverlayRect(heroEditorialRect(folder->editorial,
+                     folder->editorial == 2 ? tex_aspecto(folder->hero) : 0.0f), r);
+    if (art && header.w > 0 && header.h > 0 && aEd > 0.004f)
+      gfx_rect(header, art, folder->editorial == 2 ? GFX_EDITORIAL : GFX_TEXTO, 0, 0, 0, 0, 1, 1, 1, aEd);
+    if (principal) heroArteRect = header;
+    return;
+  }
+  int ehDiretor = !strcasecmp(folder->group, "Directors");
+  // A colecao ja traz o banner certo: e um fundo neutro, sem lettering, feito para receber o
+  // conteudo por cima. O retrato do diretor entra como uma segunda camada dissolvida no lado
+  // direito — nunca como um card e nunca como o backdrop de um filme conhecido.
+  // A ORDEM DO WEB: heroBackdropUrl > coverImageUrl > backdropImageUrl da colecao (col_banner).
+  const char *art = col_banner(folder);
+  GLuint t = 0;
+  if (ehDiretor) {
+    // Pessoa: o fundo e o backdrop do titulo mais conhecido; sem ele, um fundo escuro liso.
+    // Nunca o retrato (nem o do pacote) ampliado.
+    diretor_pedir(folder->title);
+    art = diretor_hero(folder->title);
+    if (!art[0] && aBn > 0.004f) gfx_cor(r, 0, 0.035f, 0.035f, 0.05f, aBn);
+  }
+  if (art[0]) t = tex_obter_hero(art);
+  if (art[0] && principal) corviva_definir(art, CORVIVA_HOME);
+  if (t && aBn > 0.004f) {
+    gfx_tex_aspect_atual = tex_aspecto(art);
+    if (modoHero == GFX_VITRINE)   // Padrao: tela cheia, dissolvida na base
+      gfx_rect(r, t, modoHero, vitVeu, vitAncora, vitDissolve, vitRaio, vitVeuIni, 0, 0, aBn);
+    else gfx_rect(r, t, modoHero, 0, 0, 0, 0, 0, 0, 0, aBn);
+    gfx_tex_aspect_atual = 0;
+  }
+  if (principal) heroArteRect = r;
+}
+// LOGO/TITULO (elemento 0), GRUPO + LEGENDA (1) e o que for de diretor/editorial (1 e 2): cada
+// elemento com o seu alfa e o seu deslocamento Y (herotexto.h). `a` = alfa base do bloco.
+static void pastaTextoHero(const ColFolder *folder, float a, const float *al, const float *dy) {
+  float x = homeConteudoX();
+  const float a0 = a * al[0], a1 = a * al[1], a2 = a * al[2];
+  if (folder->editorial) {
+    int director = !strcasecmp(folder->group, "Directors");
+    const char *section = director ? "DIRETORES" : !strcmp(folder->group, "Streaming") ? "STREAMING" : !strcmp(folder->group, "Themes") ? "TEMAS" : !strcmp(folder->group, "Genres") ? "GÊNEROS" : "COLEÇÕES";
+    txt_desenhar_alpha(txt_linha(TXT_HERO_META, section, 190, 193, 200, 255), x, 122 + dy[0], a0);
+    txt_bloco(TXT_TITULO1, folder->title, 244, 243, 247, x, 183 + dy[0], homeTextoLargura(860), 72, a0, 2);
+    char caption[160];
+    snprintf(caption, sizeof caption, "%s  ·  %d %s", i18n(director ? "Filmografia" : "Seleção de cinema e séries"), folder->nSources, i18n(folder->nSources == 1 ? "lista" : "listas"));
+    txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META, caption, 190, 193, 200, 255, homeTextoLargura(860)), x, 358 + dy[1], a1);
+    txt_desenhar_alpha(txt_linha(TXT_HERO_META, "OK para explorar", 224, 225, 230, 255), x, 406 + dy[2], a2);
+    return;
+  }
+  int ehDiretor = !strcasecmp(folder->group, "Directors");
+  TxtLinha group = txt_linha(TXT_HERO_META, folder->group, 201, 206, 218, 255);
+  txt_desenhar_alpha(group, x, NV_COLLECTION_HERO_GROUP_Y + dy[1], a1);
+  if (ehDiretor) {
+    TxtLinha name = txt_linha_corta(TXT_TITULO1, folder->title, 244, 243, 247, 255, homeTextoLargura(780));
+    txt_desenhar_alpha(name, x, NV_COLLECTION_HERO_LOGO_Y + dy[0], a0);
+    const char *meta = diretor_meta(folder->title);
+    if (meta[0])
+      txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META, meta, 201, 206, 218, 255, homeTextoLargura(780)),
+                         x, NV_COLLECTION_HERO_LOGO_Y + 92.0f + dy[1], a1);
+    const char *con = diretor_conhecido(folder->title);
+    if (con[0]) {
+      char linha[300];
+      snprintf(linha, sizeof linha, i18n("Conhecido por  %s"), con);
+      txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META, linha, 220, 224, 233, 255, homeTextoLargura(780)),
+                         x, NV_COLLECTION_HERO_LOGO_Y + 136.0f + dy[2], a2);
+    }
+    char caption[96];
+    snprintf(caption, sizeof caption, i18n("%d %s · OK para explorar"),
+             folder->nSources, i18n(folder->nSources == 1 ? "lista" : "listas"));
+    txt_desenhar_alpha(txt_linha_corta(TXT_HERO_SIN, caption, 205, 210, 221, 255, homeTextoLargura(780)),
+                       x, NV_COLLECTION_HERO_CAPTION_Y + dy[2], a2);
+    return;
+  }
+  // As logos de colecao sao arte, nao texto rasterizado. O limite de decode fica acima do
+  // tamanho desenhado para preservar nitidez quando a proporcao da logo pede a altura maxima.
+  const char *urlFl = pastaLogoUrl(folder);
+  GLuint logo = urlFl ? tex_obter_logo_larg(urlFl, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f) : 0;
+  float ap = logo ? tex_aspecto(urlFl) : 0;
+  if (logo && ap > 0) {
+    float w = NV_COLLECTION_HERO_LOGO_MAX_W, h = w / ap;
+    if (h > NV_COLLECTION_HERO_LOGO_MAX_H) { h = NV_COLLECTION_HERO_LOGO_MAX_H; w = h * ap; }
+    gfx_rect((GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h}, logo,
+             tex_marca_escura(urlFl) ? GFX_MARCA : GFX_TEXTO,
+             0, 0, 0, 0, .96f, .97f, .98f, a0);
+  } else {
+    TxtLinha name = txt_linha_corta(TXT_TITULO1, folder->title, 241, 243, 247, 255, homeTextoLargura(700));
+    txt_desenhar_alpha(name, x, NV_COLLECTION_HERO_LOGO_Y + dy[0], a0);
+  }
+  char caption[96]; snprintf(caption, sizeof caption, i18n("%d %s · OK para explorar"), folder->nSources, i18n(folder->nSources == 1 ? "lista" : "listas"));
+  TxtLinha sub = homeRetratoTelefone()
+    ? txt_linha_corta(TXT_HERO_SIN, caption, 205, 210, 221, 255, homeTextoLargura(900))
+    : txt_linha(TXT_HERO_SIN, caption, 205, 210, 221, 255);
+  txt_desenhar_alpha(sub, x, NV_COLLECTION_HERO_CAPTION_Y + dy[1], a1);
+}
+
 static void desenhaHero(Uint32 agora, float saida) {
   (void)agora;
   const int motionReduzido = ajustes_animacoes_reduzidas();
@@ -5147,6 +5333,14 @@ static void desenhaHero(Uint32 agora, float saida) {
   }
 
   sinW = homeTextoLargura(sinW);
+  // 2.0.43: pasta de uma Collection da Home em foco (Moderna/Padrao)? Fora disso a camada zera.
+  int pastaFocoId = -1;
+  if(!focoHero&&lay!=HOME_LAYOUT_DINAMICA&&foco.fileira>=0&&foco.fileira<nFileiras&&
+     fileiras[foco.fileira].tipo==FILEIRA_CATALOGOS&&foco.coluna>=0&&foco.coluna<fileiras[foco.fileira].n&&
+     col_folder(fileiras[foco.fileira].folders[foco.coluna]))
+    pastaFocoId=fileiras[foco.fileira].folders[foco.coluna];
+  const int pastaFoco=pastaFocoId>=0;
+  if(!pastaFoco) { colCamN=0; colDes=-1; }
   if(!focoHero && lay==HOME_LAYOUT_MODERNA && foco.fileira>=0 && foco.fileira<nFileiras && fileiras[foco.fileira].tipo==FILEIRA_SOCIAL) {
     float x=homeConteudoX(),a=(1-saida)*heroVisivelToque();
     const Fileira *s=&fileiras[foco.fileira];
@@ -5232,126 +5426,30 @@ static void desenhaHero(Uint32 agora, float saida) {
   // COLECAO EM FOCO: o destaque vira o banner da pasta. Moderna e Padrao; a
   // Dinamica nao tem destaque parado no topo e mostra o mesmo banner por tras
   // do cabecalho da fileira (dinArteColecao).
-  if(!focoHero&&lay!=HOME_LAYOUT_DINAMICA&&foco.fileira>=0&&foco.fileira<nFileiras&&fileiras[foco.fileira].tipo==FILEIRA_CATALOGOS) {
-    const ColFolder *folder=col_folder(fileiras[foco.fileira].folders[foco.coluna]);
-    if(folder) {
-      if(folder->editorial) {
-        /* Art is authored for this rectangle, not cropped as a movie backdrop.
-           The neutral canvas continues below it; no art behind the shelves. */
-        float x=homeConteudoX(),a=(1-saida)*heroVisivelToque();
-        GLuint art=tex_obter_hero(folder->hero);
-        GfxRect header=heroArtworkOverlayRect(heroEditorialRect(folder->editorial,
-                      folder->editorial==2 ? tex_aspecto(folder->hero) : 0.0f), r);
-        if(art && header.w>0 && header.h>0)
-          gfx_rect(header,art,folder->editorial==2?GFX_EDITORIAL:GFX_TEXTO,0,0,0,0,1,1,1,a);
-        heroArteRect=header;
-        int director=!strcasecmp(folder->group,"Directors");
-        const char *section=director?"DIRETORES":!strcmp(folder->group,"Streaming")?"STREAMING":!strcmp(folder->group,"Themes")?"TEMAS":!strcmp(folder->group,"Genres")?"GÊNEROS":"COLEÇÕES";
-        txt_desenhar_alpha(txt_linha(TXT_HERO_META,section,190,193,200,255),x,122,a);
-        txt_bloco(TXT_TITULO1,folder->title,244,243,247,x,183,homeTextoLargura(860),72,a,2);
-        char caption[160];
-        snprintf(caption,sizeof caption,"%s  ·  %d %s",i18n(director?"Filmografia":"Seleção de cinema e séries"),folder->nSources,i18n(folder->nSources==1?"lista":"listas"));
-        txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META,caption,190,193,200,255,homeTextoLargura(860)),x,358,a);
-        txt_desenhar_alpha(txt_linha(TXT_HERO_META,"OK para explorar",224,225,230,255),x,406,a);
-        return;
-      }
-      int ehDiretor=!strcasecmp(folder->group,"Directors");
-      // A colecao ja traz o banner certo: e um fundo neutro, sem lettering,
-      // feito para receber o conteudo por cima. O retrato do diretor entra como
-      // uma segunda camada dissolvida no lado direito — nunca como um card e
-      // nunca como o backdrop de um filme conhecido.
-      // A ORDEM DO WEB: heroBackdropUrl > coverImageUrl > backdropImageUrl da
-      // colecao (col_banner). Antes a pasta sem hero proprio pegava o fundo do
-      // grupo antes da capa, e a sem nada ficava vazia.
-      const char *art=col_banner(folder);
-      GLuint t=0;
-      if (ehDiretor) {
-        // Pessoa: o fundo e o backdrop do titulo mais conhecido; sem ele, um
-        // fundo escuro liso. Nunca o retrato (nem o do pacote) ampliado.
-        diretor_pedir(folder->title);
-        art=diretor_hero(folder->title);
-        if (!art[0]) gfx_cor(r,0,0.035f,0.035f,0.05f,aArte);
-      }
-      if (!t && art[0]) t=tex_obter_hero(art);
-      if (art[0]) corviva_definir(art, CORVIVA_HOME);
-      if(t){gfx_tex_aspect_atual=tex_aspecto(art);
-        if(modoHero==GFX_VITRINE)   // Padrao: tela cheia, dissolvida na base
-          gfx_rect(r,t,modoHero,vitVeu,vitAncora,vitDissolve,vitRaio,vitVeuIni,0,0,aArte);
-        else gfx_rect(r,t,modoHero,0,0,0,0,0,0,0,aArte);
-        gfx_tex_aspect_atual=0;}
-      heroArteRect=r;
-      float x=homeConteudoX(),a=(1-saida)*heroVisivelToque();
-      TxtLinha group=txt_linha(TXT_HERO_META,folder->group,201,206,218,255);
-      txt_desenhar_alpha(group,x,NV_COLLECTION_HERO_GROUP_Y,a);
-      if (ehDiretor) {
-        TxtLinha name=txt_linha_corta(TXT_TITULO1,folder->title,244,243,247,255,homeTextoLargura(780));
-        txt_desenhar_alpha(name,x,NV_COLLECTION_HERO_LOGO_Y,a);
-        const char *meta=diretor_meta(folder->title);
-        if (meta[0])
-          txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META,meta,201,206,218,255,homeTextoLargura(780)),
-                             x,NV_COLLECTION_HERO_LOGO_Y+92.0f,a);
-        const char *con=diretor_conhecido(folder->title);
-        if (con[0]) {
-          char linha[300];
-          snprintf(linha,sizeof linha,i18n("Conhecido por  %s"),con);
-          txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META,linha,220,224,233,255,homeTextoLargura(780)),
-                             x,NV_COLLECTION_HERO_LOGO_Y+136.0f,a);
-        }
-        char caption[96];
-        snprintf(caption, sizeof caption, i18n("%d %s · OK para explorar"),
-                 folder->nSources, i18n(folder->nSources == 1 ? "lista" : "listas"));
-        txt_desenhar_alpha(txt_linha_corta(TXT_HERO_SIN, caption,
-                                           205, 210, 221, 255, homeTextoLargura(780)),
-                           x, NV_COLLECTION_HERO_CAPTION_Y, a);
-        return;
-      }
-      // As logos de colecao sao arte, nao texto rasterizado. O limite de
-      // decode fica acima do tamanho desenhado para preservar nitidez quando
-      // a proporcao da logo pede a altura maxima.
-      const char *urlFl=(!ehDiretor && folder->logo[0])
-        ?artehero_url_logo_larg(folder->logo,NV_COLLECTION_HERO_LOGO_MAX_W+40.0f):NULL;
-      GLuint logo=urlFl?tex_obter_logo_larg(urlFl,NV_COLLECTION_HERO_LOGO_MAX_W+40.0f):0;
-      float ap=logo?tex_aspecto(urlFl):0;
-      float fimTitulo=NV_COLLECTION_HERO_LOGO_Y+NV_COLLECTION_HERO_LOGO_MAX_H;
-      if(logo&&ap>0){
-        float w=NV_COLLECTION_HERO_LOGO_MAX_W,h=w/ap;
-        if(h>NV_COLLECTION_HERO_LOGO_MAX_H){h=NV_COLLECTION_HERO_LOGO_MAX_H;w=h*ap;}
-        gfx_rect((GfxRect){x,NV_COLLECTION_HERO_LOGO_Y,w,h},logo,
-                 tex_marca_escura(urlFl)?GFX_MARCA:GFX_TEXTO,
-                 0,0,0,0,.96f,.97f,.98f,a);
-        fimTitulo=NV_COLLECTION_HERO_LOGO_Y+h;
-      } else {
-        TxtLinha name=txt_linha_corta(TXT_TITULO1,folder->title,241,243,247,255,homeTextoLargura(700));
-        txt_desenhar_alpha(name,x,NV_COLLECTION_HERO_LOGO_Y,a);
-        fimTitulo=NV_COLLECTION_HERO_LOGO_Y+name.h;
-      }
-      char caption[96];snprintf(caption,sizeof caption,i18n("%d %s · OK para explorar"),folder->nSources,i18n(folder->nSources==1?"lista":"listas"));
-      float yCap=NV_COLLECTION_HERO_CAPTION_Y;
-      if(ehDiretor) {
-        // Ficha do TMDB abaixo do nome: quem e, quando e onde nasceu, tres
-        // linhas de bio e os titulos por que e conhecido. Chega em segundo
-        // plano; ate chegar a legenda fica onde sempre ficou.
-        diretor_pedir(folder->title);
-        if(diretor_pronto(folder->title)) {
-          // O bloco comeca logo abaixo do nome e TERMINA antes do cabecalho da
-          // fileira (NV_SHELF_TOP): o numero de linhas da bio e o que cede.
-          // Largura 780: fica aquem do cartao da capa (que comeca em 1096).
-          float yy=fimTitulo+30,teto=ANC(NV_SHELF_TOP)-30,larg=780;
-          const char *meta=diretor_meta(folder->title),*bio=diretor_bio(folder->title),*con=diretor_conhecido(folder->title);
-          float fixo=(meta[0]?38:0)+(con[0]?38:0)+34;   // meta + conhecido + legenda
-          int linhas=(int)((teto-yy-fixo-12)/31);if(linhas>3)linhas=3;
-          if(meta[0]){txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META,meta,201,206,218,255,larg),x,yy,a);yy+=38;}
-          if(bio[0]&&linhas>0){yy+=txt_bloco(TXT_HERO_SIN,bio,222,225,232,x,yy,larg,31,a,linhas)+12;}
-          if(con[0]){char l[300];snprintf(l,sizeof l,i18n("Conhecido por  %s"),con);
-            txt_desenhar_alpha(txt_linha_corta(TXT_HERO_META,l,236,232,244,255,larg),x,yy,a);yy+=38;}
-          yCap=yy;
-        }
-      }
-      TxtLinha sub=homeRetratoTelefone()
-        ?txt_linha_corta(TXT_HERO_SIN,caption,205,210,221,255,homeTextoLargura(900))
-        :txt_linha(TXT_HERO_SIN,caption,205,210,221,255);txt_desenhar_alpha(sub,x,yCap,a);
-      return;
+  //
+  // 2.0.43 — TROCA COORDENADA: fundo, logo e informacoes (legenda, diretor,
+  // editorial) mudam numa so transicao (colcam). O desenho em si — mesmas
+  // posicoes, tamanhos e regras de antes — vive em pastaArteHero/pastaTextoHero.
+  if(pastaFoco) {
+    colCamManter(pastaFocoId, agora, motionReduzido || gfx_efeitos_minimos());
+    float aBase=(1-saida)*heroVisivelToque();
+    for(int i=0;i<colCamN;i++) {   // ARTE, de baixo para cima (a de cima acende por cima)
+      const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
+      float la=i==0?1.0f:ht_ease(colCam[i].t/NV_HERO_ARTE_FADE_MS);
+      pastaArteHero(f,r,modoHero,aArte*la,aBase*la,i==colCamN-1);
     }
+    for(int i=0;i<colCamN;i++) {   // TEXTO/LOGO, cada camada com a sua linha do tempo
+      const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
+      float al[HT_N],dy[HT_N]; int algum=0;
+      for(int k=0;k<HT_N;k++) {
+        if(colCam[i].coberta) { al[k]=ht_saida_alfa(&colCam[i].snap,k,colCam[i].tCob); dy[k]=ht_saida_dy(&colCam[i].snap,k,colCam[i].tCob); }
+        else { al[k]=ht_entra_alfa(k,colCam[i].t); dy[k]=ht_entra_dy(k,colCam[i].t);
+               if(i==colCamN-1&&al[k]<HT_PISO)al[k]=HT_PISO; }   // as linhas rasterizam ja na troca
+        if(al[k]>0.004f)algum=1;
+      }
+      if(algum)pastaTextoHero(f,aBase,al,dy);
+    }
+    return;
   }
 
   // TROCA SO COM A ARTE NOVA JA DECODIFICADA.
@@ -8144,7 +8242,11 @@ static void home_desenhar_(Uint32 agora) {
         continue;
       }
       if (tipo == FILEIRA_CATALOGOS) {
+        // 2.0.43: foco fixo tambem nas Collections da Home; as pontas esvanecem como nas outras.
+        const int focoFixoCol = homeFocoFixo(r);
+        if (focoFixoCol) homeFocoFixoFade(r);
         desenhaAtalhos(r, cardY);
+        if (focoFixoCol) gfx_sem_esvanecer_x();
         y += NV_LEGACY_ROW_HEAD_H + alturaTotalFil(r) + fileiraGap();
         continue;
       }
@@ -8875,7 +8977,7 @@ void home_abrir_sessao(void) {
   free(heroTrailerTocou); heroTrailerTocou = NULL;
   heroTrailerTocouN = heroTrailerTocouCap = 0; heroTrailerMemoriaFalhou = 0;
   trailercinema_zerar(&heroCinema);
-  dinColArte[0] = 0; dinColAlfa = 0.0f; dinUlt = 0;
+  dinColArte[0] = 0; dinColAnt[0] = 0; dinColEspera = 0.0f; dinColAlfa = 0.0f; dinUlt = 0;
   dinArteVista[0] = dinArteAssentada[0] = 0; dinVistaDesde = 0;
   for (int i = 0; i < 3; i++) dinCor[i] = dinAlvo[i] = DIN_CINZA[i];
   dinQueda = dinQuedaAlvo = 1.0f;

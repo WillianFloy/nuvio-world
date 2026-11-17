@@ -96,6 +96,10 @@ static float vtCardAltura(void);
 static int   aberta, foco, pedAbrir = -1;
 static int pedRelogio;
 static float anim, scrollY, velY;
+// 2.0.43: ms desde a abertura da Collection (herotexto.h, ht_ent_*). >= HT_ENT_TOTAL_MS = assentado
+// (ajuste desligado, animacoes reduzidas, efeitos minimos e telefone entram assentados).
+static float vitEntradaT = 1.0e6f;
+float vertudo_entrada_ms(void) { return vitEntradaT; }
 #ifdef NV_TOUCH_UI
 static int toqueLivre;
 static ToqueRolagem toqueAbas;
@@ -699,6 +703,7 @@ void vertudo_colecao(const ColFolder *folder) {
   // quando a primeira fonte com endereco e a quinta ou mais (#205).
   tabCursor = cursorInicial();
   if(lay==VT_LAY_VITRINE)tabFocus=0;   // sem barra de abas: o foco nasce nas fileiras
+  vitEntradaT = (ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone()) ? 0.0f : 1.0e6f;
 }
 
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,
@@ -2737,6 +2742,7 @@ void vertudo_atualizar(float dt, Uint32 agora) {
   float alvo, maxY;
   int n = nItens();
   anim = anim_mola(anim, aberta ? 1.0f : 0.0f, dt, NV_MOLA_TELA);
+  if (vitEntradaT < HT_ENT_TOTAL_MS) vitEntradaT += dt * 1000.0f; else vitEntradaT = 1.0e6f;
   if (!aberta) { vitTrocaPend = NULL; ctxhold_cancelar(&hold); return; }
   if (vitTrocaPend) {   // saida da Collection atual (~250 ms), depois a troca
     vitTrocaSai += dt / 0.25f;
@@ -4070,8 +4076,9 @@ static void vitDesenhar(float a, float x0) {
     // TV: a fileira entra subindo 28 px e acendendo quando os cartazes chegam;
     // a saida da troca de Collection desce 20 px.
     float ent = vtTelefone() || !vitLin[r].n ? 1.0f : fmaxf(0.0f, fminf(1.0f, vitLinEntra[r]));
-    float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai, cy = y + VIT_TITULO_H;
-    float ac = a * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);
+    float ee = vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_lin(r, vitEntradaT);   // 2.0.43: entrada da Collection
+    float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai + HT_ENT_LIN_PX * (1.0f - ee), cy = y + VIT_TITULO_H;
+    float ac = a * ee * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);
     float xr = vtTelefone() ? x0 : vitAncora(w, passo);   // inicio da fileira (TV: a ancora)
     VitLin *l = &vitLin[r];
     TxtLinha tt;
@@ -4179,6 +4186,8 @@ static void vitDesenhar(float a, float x0) {
   }
   gfx_sem_recorte();
 
+  // 2.0.43: o cabecalho entra primeiro na abertura da Collection (aCab = a * ht_ent_cab).
+  const float aCab = a * (vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
   // A faixa de cima: a colecao a que isto pertence e o botao "Exibição".
   { TxtLinha eb = txt_linha(TXT_HERO_META, rotuloGrupo(), 214, 219, 227, 255);
     const char *wm = wordmarkServico();
@@ -4188,7 +4197,7 @@ static void vitDesenhar(float a, float x0) {
       float wl = 420.0f, hl = wl / ap;
       if (hl > NV_ILHA_H) { hl = NV_ILHA_H; wl = hl * ap; }
       gfx_rect((GfxRect){ x0, NV_ILHA_Y, wl, hl }, tl, tex_marca_escura(wm) ? GFX_MARCA : GFX_TEXTO,
-               0, 0, 0, 0, .96f, .97f, .98f, a);
+               0, 0, 0, 0, .96f, .97f, .98f, aCab);
     } else {
       // UMA LINHA SO (dono, 14/10): sobretitulo e nome lado a lado, na mesma
       // linha de base, centrados na ilha do relogio; o nome corta antes dela.
@@ -4196,14 +4205,14 @@ static void vitDesenhar(float a, float x0) {
       TxtLinha tt = txt_linha_corta(TXT_TITULO3, titulo, 246, 247, 250, 255,
                                     NV_TELA_W - NV_ILHA_MARGEM_D - NV_ILHA_REP_W - 40.0f - ex);
       float ty = NV_ILHA_Y + (NV_ILHA_H - tt.h) * 0.5f, base = ty + tt.h * 0.8f;
-      if (!grupo("Streaming")) txt_desenhar_alpha(eb, x0, base - eb.h * 0.8f, a * 0.85f);
-      txt_desenhar_alpha(tt, ex, ty, a);
+      if (!grupo("Streaming")) txt_desenhar_alpha(eb, x0, base - eb.h * 0.8f, aCab * 0.85f);
+      txt_desenhar_alpha(tt, ex, ty, aCab);
       cabEb = (GfxRect){ x0, base - eb.h * 0.8f, eb.w, eb.h }; cabTt = (GfxRect){ ex, ty, tt.w, tt.h };
     } }
   // Anel e seletor na linha de baixo, como nas outras exibicoes.
   cabFim = 0.0f;
-  if (listaDePessoa() && vcTotal > 0 && !vtTelefone()) linhaVistos(x0, cabCy, a);
-  botaoExibicao(a, cabCy);
+  if (listaDePessoa() && vcTotal > 0 && !vtTelefone()) linhaVistos(x0, cabCy, aCab);
+  botaoExibicao(aCab, cabCy);
 #ifdef NV_TOUCH_UI
   if (vtTelefone()) vitPonteiroPronto = 1;
 #endif
