@@ -6912,7 +6912,8 @@ static void desenharAtrasDoPainel(void *ctx) {
   Uint32 agora = *(const Uint32 *)ctx;
   // "Ver tudo" cobre a tela de tras por completo (fundo opaco), entao a home
   // nao precisa ser desenhada por baixo — a mesma conta do detail_cobre_tela.
-  if (!detail_cobre_tela() && !vertudo_aberta()) {
+  // 2.0.44: durante o VOO DO CARTAO a Home fica por baixo (o cartao cresce a partir dela) ate ele cobrir a tela.
+  if (!detail_cobre_tela() && !vertudo_cobre_tela()) {
 #ifdef NV_TOUCH_UI
     sidebarToqueRegistrar(0);
 #endif

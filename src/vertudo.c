@@ -100,6 +100,23 @@ static float anim, scrollY, velY;
 // (ajuste desligado, animacoes reduzidas, efeitos minimos e telefone entram assentados).
 static float vitEntradaT = 1.0e6f;
 float vertudo_entrada_ms(void) { return vitEntradaT; }
+// 2.0.44: VOO DO CARTAO. O mesmo relogio (vitEntradaT, ms desde o clique) conduz o cartao, o fundo e a revelacao.
+static int vooTem;               // 1 enquanto o cartao esta em cena (0 .. HT_VOO_FIM_MS)
+static int vooPedido;            // vertudo_colecao_voo -> vertudo_colecao
+static GfxRect vooOrigem;        // onde o cartao estava na Home
+static float vooRaioPx;          // raio dos cantos dele (px)
+static float vooP(void) { return ht_voo_p(vitEntradaT); }
+static GfxRect vooRect(void) {
+  float p = vooP(), q = 1.0f - p;
+  return (GfxRect){ vooOrigem.x * q, vooOrigem.y * q, vooOrigem.w * q + NV_TELA_W * p, vooOrigem.h * q + NV_TELA_H * p };
+}
+int vertudo_voo_ativo(float *p, GfxRect *rect) {
+  if (!vooTem) return 0;
+  if (p) *p = vooP();
+  if (rect) *rect = vooRect();
+  return 1;
+}
+int vertudo_cobre_tela(void) { return aberta && (!vooTem || vooP() >= HT_VOO_COBRE); }
 #ifdef NV_TOUCH_UI
 static int toqueLivre;
 static ToqueRolagem toqueAbas;
@@ -703,7 +720,16 @@ void vertudo_colecao(const ColFolder *folder) {
   // quando a primeira fonte com endereco e a quinta ou mais (#205).
   tabCursor = cursorInicial();
   if(lay==VT_LAY_VITRINE)tabFocus=0;   // sem barra de abas: o foco nasce nas fileiras
-  vitEntradaT = (ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone()) ? 0.0f : 1.0e6f;
+  { const int anima = ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone();
+    vooTem = anima && vooPedido;   // sem cartao de origem: so a revelacao (o relogio comeca onde o cabecalho entra)
+    vitEntradaT = !anima ? 1.0e6f : vooTem ? 0.0f : HT_VOO_SEM_CARTAO_MS; }
+  vooPedido = 0;
+}
+void vertudo_colecao_voo(const ColFolder *folder, GfxRect origem, float raioPx) {
+  vooPedido = !aberta && folder && folder->nSources > 0;   // com a Vitrine ja aberta e troca de Collection, sem cartao
+  vooOrigem = origem; vooRaioPx = raioPx;
+  vertudo_colecao(folder);
+  vooPedido = 0;
 }
 
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,
@@ -740,7 +766,7 @@ void vertudo_abrir(const char *base, const char *tipo, const char *catId,
 
 int vertudo_aberta(void) { return aberta; }
 int vertudo_foco(void) { return foco; }
-void vertudo_fechar_seco(void) { vitTrocaPend = NULL; vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
+void vertudo_fechar_seco(void) { vooTem = 0; vitTrocaPend = NULL; vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
 int vertudo_pediu_abrir(void) { int v = pedAbrir; pedAbrir = -1; return v; }
 // ESQUERDA na coluna 0 da grade (ou na primeira aba da colecao): a barra
 // lateral abre POR CIMA da lista (dono, 03/10). Antes a coluna 0 voltava para
@@ -2340,6 +2366,24 @@ static float vitToqueMaxX(int r) {
 }
 #endif
 static void vitAtualizarCorpo(float dt, Uint32 agora);
+// 2.0.44: PRE-AQUECIMENTO DURANTE O VOO. O carregamento ja comecou no clique (openSource); enquanto o cartao
+// cresce, o que so seria pedido NO DESENHO (cartazes das primeiras fileiras e a arte do destaque) tambem e
+// pedido, para o conteudo ja estar pronto quando aparecer. Nada e desenhado aqui; so pedidos ao cache (os
+// mesmos arquivos e larguras que o desenho pede, sem especular alem das 3 primeiras fileiras visiveis).
+static void vooAquecer(void) {
+  if (lay != VT_LAY_VITRINE || vtTelefone() || vitN <= 0) return;
+  float esc = gfx_escala();
+  gfx_escala_sair(vtEscala());
+  float w, h, passo, rot;
+  home_vitrine_medida(&w, &h, &passo, &rot);
+  CatItem *it0 = vitItem(vitFR >= 0 ? vitFR : 0, vitFC >= 0 ? vitFC : 0);
+  if (it0) (void)home_vitrine_arte_pronta(it0);   // pede a arte do destaque
+  for (int r = 0; r < vitN && r < 3; r++) {
+    int cols = (int)ceilf((NV_TELA_W - vitAncora(w, passo)) / passo) + 1;
+    for (int c = 0; c < vitLin[r].n && c < cols; c++) (void)home_vitrine_cartao_aquecer(vitItem(r, c), w);
+  }
+  gfx_escala_sair(esc);
+}
 // AS MEDIDAS DA ATUALIZACAO NA MESMA ESCALA DO DESENHO. vertudo_desenhar desenha a
 // Vitrine com gfx_escala_sair(vtEscala()), e o tamanho do cartaz (gfx_poster_k) e o
 // topo (ANC) dependem da escala ativa. A atualizacao rodava na escala do app: o
@@ -2743,6 +2787,11 @@ void vertudo_atualizar(float dt, Uint32 agora) {
   int n = nItens();
   anim = anim_mola(anim, aberta ? 1.0f : 0.0f, dt, NV_MOLA_TELA);
   if (vitEntradaT < HT_ENT_TOTAL_MS) vitEntradaT += dt * 1000.0f; else vitEntradaT = 1.0e6f;
+  if (!aberta || vitEntradaT >= HT_VOO_FIM_MS) vooTem = 0;   // Voltar durante o voo: sai pelo caminho de sempre
+  if (vooTem) {
+    if (vitEntradaT < HT_VOO_MS) anim = ht_voo_fundo(vitEntradaT);   // o fundo acompanha o voo (nao a mola)
+    vooAquecer();
+  }
   if (!aberta) { vitTrocaPend = NULL; ctxhold_cancelar(&hold); return; }
   if (vitTrocaPend) {   // saida da Collection atual (~250 ms), depois a troca
     vitTrocaSai += dt / 0.25f;
@@ -4079,6 +4128,7 @@ static void vitDesenhar(float a, float x0) {
     float ee = vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_lin(r, vitEntradaT);   // 2.0.43: entrada da Collection
     float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai + HT_ENT_LIN_PX * (1.0f - ee), cy = y + VIT_TITULO_H;
     float ac = a * ee * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);
+    if (vooTem && r < 3 && ac < 0.006f && a > 0.01f && vitLin[r].n) ac = 0.006f;   // 2.0.44: rasteriza o texto e pede os cartazes antes de aparecer
     float xr = vtTelefone() ? x0 : vitAncora(w, passo);   // inicio da fileira (TV: a ancora)
     VitLin *l = &vitLin[r];
     TxtLinha tt;
@@ -4187,7 +4237,8 @@ static void vitDesenhar(float a, float x0) {
   gfx_sem_recorte();
 
   // 2.0.43: o cabecalho entra primeiro na abertura da Collection (aCab = a * ht_ent_cab).
-  const float aCab = a * (vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
+  float aCab = a * (vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
+  if (vooTem && vitEntradaT < HT_ENT_CAB_INI && aCab < 0.006f && a > 0.01f) aCab = 0.006f;   // o texto rasteriza antes de aparecer
   // A faixa de cima: a colecao a que isto pertence e o botao "Exibição".
   { TxtLinha eb = txt_linha(TXT_HERO_META, rotuloGrupo(), 214, 219, 227, 255);
     const char *wm = wordmarkServico();
@@ -4218,7 +4269,30 @@ static void vitDesenhar(float a, float x0) {
 #endif
 }
 
-void vertudo_desenhar(Uint32 agora) {
+// O CARTAO DO VOO (2.0.44), por cima do conteudo: a capa da pasta cresce da posicao real na Home ate a tela
+// cheia, cruza para o banner (que ja esta em cache, e o Hero da Home) e apaga dando lugar ao conteudo.
+// Duas camadas no maximo (capa e banner), so posicao/tamanho/opacidade: nada alem do que ja esta em cache.
+static void vooDesenhar(void) {
+  if (!vooTem || !collection) return;
+  const float t = vitEntradaT, al = ht_voo_cartao(t);
+  if (al <= 0.004f) return;
+  const float p = vooP(), mb = ht_voo_banner(t);
+  GfxRect r = vooRect();
+  const float raio = r.h > 0.0f ? (vooRaioPx * (1.0f - p)) / r.h : 0.0f;
+  const char *capa = col_capa(collection), *ban = col_banner(collection);
+  GLuint tc = capa && capa[0] ? tex_obter_larg_qualquer(capa, vooOrigem.w) : 0;
+  GLuint tb = ban && ban[0] && mb > 0.004f ? tex_obter_hero(ban) : 0;
+  const float foco = 1.0f - p;   // o brilho do foco do cartao vai embora ao crescer
+  if (tc) { gfx_tex_aspect_atual = tex_aspecto(capa); gfx_rect(r, tc, GFX_CARD, foco, 0, 0, raio, 0, 0, 0, al); gfx_tex_aspect_atual = 0; }
+  else gfx_cor(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, al);
+  if (tb) {   // o banner SEMPRE preenche (cover): a capa e cartaz retrato e nao cabe numa tela 16:9
+    gfx_tex_aspect_atual = tex_aspecto(ban); gfx_card_forcar_cover_atual = 1.0f;
+    gfx_rect(r, tb, GFX_CARD, foco, 0, 0, raio, 0, 0, 0, al * mb);
+    gfx_card_forcar_cover_atual = 0.0f; gfx_tex_aspect_atual = 0; }
+}
+static void vertudoCorpo(Uint32 agora);
+void vertudo_desenhar(Uint32 agora) { vertudoCorpo(agora); vooDesenhar(); }
+static void vertudoCorpo(Uint32 agora) {
   float a = anim, x0 = vtInicio();
   int n = nItens(), i, lin0 = -1;
   float corteTopo = VT_TOPO - 12.0f;

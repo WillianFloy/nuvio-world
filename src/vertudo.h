@@ -14,6 +14,7 @@
 #define NV_VERTUDO_H
 #include <SDL2/SDL.h>
 #include "colecoes.h"
+#include "gfx.h"
 // IDs persistidos por colecao e compartilhados pelo ajuste global. Acrescentar
 // novas exibicoes somente no fim; zero e automatico no global e herda-o na pasta.
 typedef enum {
@@ -23,6 +24,14 @@ typedef enum {
   VT_LAY_N
 } VtLayout;
 void vertudo_colecao(const ColFolder *folder);
+// 2.0.44: abre a Collection como VOO DO CARTAO: `origem` e o retangulo real do cartao da pasta na Home
+// (home_ancora_foco) e `raioPx` o raio dos cantos dele. Com o ajuste desligado / animacoes reduzidas /
+// efeitos minimos / telefone / Vitrine ja aberta abre como vertudo_colecao.
+void vertudo_colecao_voo(const ColFolder *folder, GfxRect origem, float raioPx);
+// 1 quando a Collection cobre a tela (a Home por baixo nao precisa ser desenhada). 0 durante o voo do cartao.
+int  vertudo_cobre_tela(void);
+// Do voo (testes): 1 enquanto o cartao esta em cena; p = progresso do crescimento 0..1; rect = onde ele esta.
+int  vertudo_voo_ativo(float *p, GfxRect *rect);
 
 // Abre com o catalogo de uma fileira da home.
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,

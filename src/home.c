@@ -347,6 +347,7 @@ static int  temItemFoco = 0;
 // O cartao focado de QUALQUER fileira (pilha e pasta inclusas, que nao tem
 // itemFoco): onde o menu contextual da fileira (ctxmenu.c) nasce ao lado.
 static GfxRect ancoraFoco; static int temAncoraFoco = 0;
+static float homeUnidade(void);   // 2.0.44: definida mais abaixo (o OK da pasta converte o raio para a tela)
 static uint64_t itemFocoSessao;
 static unsigned itemFocoCatalogo;
 static void publicarItemFoco(void) {
@@ -2694,7 +2695,13 @@ static void home_evento_(const SDL_Event *e) {
       if (fileiras[foco.fileira].tipo == FILEIRA_CATALOGOS) {
         if (dur >= NV_HOLD_MS) abrirMenuCartaz();
         else if (foco.coluna >= 0 && foco.coluna < fileiras[foco.fileira].n) {
-          vertudo_colecao(col_folder(fileiras[foco.fileira].folders[foco.coluna]));
+          // 2.0.44: o cartao da pasta CRESCE ate a tela (voo): a origem e o retangulo real dele (com o foco).
+          const ColFolder *fo = col_folder(fileiras[foco.fileira].folders[foco.coluna]);
+          GfxRect orig;
+          // `home_ancora_foco` ja devolve em coordenadas da TELA (a Home desenha na unidade dela: homeUnidade).
+          if (!focoHero && home_ancora_foco(&orig) && orig.w > 8.0f && orig.h > 8.0f)
+            vertudo_colecao_voo(fo, orig, raioDe(orig.w / homeUnidade(), orig.h / homeUnidade()) * orig.h);
+          else vertudo_colecao(fo);
         }
       } else if (noVerTudo) {
         if (fileiraEhCanal(&fileiras[foco.fileira])) {
@@ -5113,7 +5120,12 @@ static void desenhaPalcoArte(void) {
 // O banner e o logo da pasta nova sao PEDIDOS NO MESMO INSTANTE em que o foco muda; a troca
 // so comeca com os dois prontos (limite NV_HERO_ESPERA_MS) — o fundo e o logo nunca trocam em
 // momentos diferentes — e, enquanto esperam, o destaque anterior continua inteiro na tela.
-typedef struct { int pasta; float t; int coberta; float tCob; HtInstante snap; } ColCam;
+// Contador so para os testes: quadros em que o NOME da pasta foi desenhado no lugar da logo.
+static unsigned long homeTesteNomePasta;
+// 2.0.44: `logoT` = linha do tempo da LOGO configurada da pasta (ms desde que ela chegou). -1 = a camada
+// ainda nao foi desenhada; -2 = logo carregando (nada aparece, o espaco fica reservado); >= 0 = a logo
+// chegou e entra com fade; 1e6 = ja estava pronta na 1a vez (assentada). Nunca o nome no lugar dela.
+typedef struct { int pasta; float t; int coberta; float tCob; HtInstante snap; float logoT; } ColCam;
 static ColCam colCam[4];
 static int colCamN = 0, colDes = -1;
 static Uint32 colDesEm;
@@ -5124,19 +5136,47 @@ static const char *pastaLogoUrl(const ColFolder *f) {
 // Pede (a cada quadro, como o desenho pediria) o banner e o logo e diz se os dois ja estao no cache.
 static int pastaPronta(const ColFolder *f) {
   int pronto = 1;
-  if (f->editorial) { if (f->hero[0] && !tex_obter_hero(f->hero)) pronto = 0; }
+  if (f->editorial) { if (f->hero[0] && !tex_obter_hero(f->hero) && !tex_falhou(f->hero)) pronto = 0; }
   else if (!strcasecmp(f->group, "Directors")) {
     diretor_pedir(f->title);
     if (!diretor_pronto(f->title)) pronto = 0;
-    else { const char *a = diretor_hero(f->title); if (a[0] && !tex_obter_hero(a)) pronto = 0; }
+    else { const char *a = diretor_hero(f->title); if (a[0] && !tex_obter_hero(a) && !tex_falhou(a)) pronto = 0; }
   } else {
     const char *a = col_banner(f), *u = pastaLogoUrl(f);
-    if (a[0] && !tex_obter_hero(a)) pronto = 0;
-    if (u && !tex_obter_logo_larg(u, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f)) pronto = 0;
+    // Quem FALHOU (404, formato) conta como resolvido: nao ha o que esperar por uma URL morta.
+    if (a[0] && !tex_obter_hero(a) && !tex_falhou(a)) pronto = 0;
+    if (u && !tex_obter_logo_larg(u, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f) && !tex_falhou(u)) pronto = 0;
   }
   return pronto;
 }
-static ColCam colCamNova(int pasta, float t) { ColCam c; memset(&c, 0, sizeof c); c.pasta = pasta; c.t = t; return c; }
+static ColCam colCamNova(int pasta, float t) { ColCam c; memset(&c, 0, sizeof c); c.pasta = pasta; c.t = t; c.logoT = -1.0f; return c; }
+// A LOGO CONFIGURADA DA PASTA (2.0.44). Devolve o fator de opacidade da logo (0..1).
+//  - sem logo configurada, ou logo que FALHOU de vez (tex_falhou): 1 — o chamador desenha o nome em texto;
+//  - logo carregando: 0 — nada aparece e o espaco fica reservado (como o fundo, que so entra quando chega);
+//  - logo que chega depois: sobe com a curva de entrada do elemento 0 (sem estourar de uma vez);
+//  - logo ja pronta na 1a vez que a camada aparece: 1, assentada.
+static float colLogoFator(ColCam *c, const ColFolder *f) {
+  const char *u = pastaLogoUrl(f);
+  if (!u || tex_falhou(u)) return 1.0f;
+  int pronta = tex_obter_logo_larg(u, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f) != 0;
+  if (c->logoT == -1.0f) c->logoT = pronta ? 1.0e6f : -2.0f;
+  else if (c->logoT == -2.0f && pronta) c->logoT = 0.0f;
+  if (c->logoT < 0.0f) return 0.0f;
+  return c->logoT >= HT_ENTRA_MS ? 1.0f : ht_ease(c->logoT / HT_ENTRA_MS);
+}
+// Vizinhos (+-1) do cartao em foco: banner e logo ja a caminho (sem furar a fila; so 2 hero por vez na memoria da TV).
+static void pastaPrePedir(void) {
+  if (foco.fileira < 0 || foco.fileira >= nFileiras) return;
+  for (int d = -1; d <= 1; d += 2) {
+    int c = foco.coluna + d;
+    if (c < 0 || c >= fileiras[foco.fileira].n) continue;
+    const ColFolder *f = col_folder(fileiras[foco.fileira].folders[c]);
+    if (!f || f->editorial) continue;
+    const char *a = col_banner(f), *u = pastaLogoUrl(f);
+    if (a[0] && !tex_falhou(a)) (void)tex_obter_hero_quente(a);
+    if (u && !tex_falhou(u)) (void)tex_obter_logo_larg(u, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f);
+  }
+}
 static void colCamManter(int idDes, Uint32 agora, int semAnim) {
   if (colCamN == 0) { colCam[0] = colCamNova(idDes, 1.0e6f); colCamN = 1; colDes = idDes; return; }
   if (idDes == colCam[colCamN - 1].pasta) { colDes = idDes; return; }   // voltou (ou ficou) na que ja esta
@@ -5154,6 +5194,7 @@ static void colCamAvancar(float dt) {
   for (int i = 0; i < colCamN; i++) {
     colCam[i].t += dt * 1000.0f;
     if (colCam[i].coberta) colCam[i].tCob += dt * 1000.0f;
+    if (colCam[i].logoT >= 0.0f && colCam[i].logoT < 1.0e6f) colCam[i].logoT += dt * 1000.0f;
     if (colCam[i].t >= NV_HERO_ARTE_FADE_MS) j = i;
   }
   if (j > 0) { memmove(colCam, colCam + j, (size_t)(colCamN - j) * sizeof(ColCam)); colCamN -= j; }
@@ -5198,7 +5239,7 @@ static void pastaArteHero(const ColFolder *folder, GfxRect r, GfxModo modoHero, 
 }
 // LOGO/TITULO (elemento 0), GRUPO + LEGENDA (1) e o que for de diretor/editorial (1 e 2): cada
 // elemento com o seu alfa e o seu deslocamento Y (herotexto.h). `a` = alfa base do bloco.
-static void pastaTextoHero(const ColFolder *folder, float a, const float *al, const float *dy) {
+static void pastaTextoHero(const ColFolder *folder, float a, const float *al, const float *dy, float logoF) {
   float x = homeConteudoX();
   const float a0 = a * al[0], a1 = a * al[1], a2 = a * al[2];
   if (folder->editorial) {
@@ -5241,13 +5282,19 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
   const char *urlFl = pastaLogoUrl(folder);
   GLuint logo = urlFl ? tex_obter_logo_larg(urlFl, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f) : 0;
   float ap = logo ? tex_aspecto(urlFl) : 0;
-  if (logo && ap > 0) {
-    float w = NV_COLLECTION_HERO_LOGO_MAX_W, h = w / ap;
-    if (h > NV_COLLECTION_HERO_LOGO_MAX_H) { h = NV_COLLECTION_HERO_LOGO_MAX_H; w = h * ap; }
-    gfx_rect((GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h}, logo,
-             tex_marca_escura(urlFl) ? GFX_MARCA : GFX_TEXTO,
-             0, 0, 0, 0, .96f, .97f, .98f, a0);
-  } else {
+  const int logoFalhou = urlFl && tex_falhou(urlFl);
+  if (urlFl && !logoFalhou) {
+    // 2.0.44: LOGO CONFIGURADA = respeitada ate durante o carregamento. Nao ha nome de substituto:
+    // enquanto a imagem nao chega nada e desenhado ali (o espaco fica reservado).
+    if (logo && ap > 0 && logoF > 0.004f) {
+      float w = NV_COLLECTION_HERO_LOGO_MAX_W, h = w / ap;
+      if (h > NV_COLLECTION_HERO_LOGO_MAX_H) { h = NV_COLLECTION_HERO_LOGO_MAX_H; w = h * ap; }
+      gfx_rect((GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h}, logo,
+               tex_marca_escura(urlFl) ? GFX_MARCA : GFX_TEXTO,
+               0, 0, 0, 0, .96f, .97f, .98f, a0 * logoF);
+    }
+  } else {   // sem logo configurada, ou ela FALHOU de vez (tex_falhou): o nome em texto
+    homeTesteNomePasta++;
     TxtLinha name = txt_linha_corta(TXT_TITULO1, folder->title, 241, 243, 247, 255, homeTextoLargura(700));
     txt_desenhar_alpha(name, x, NV_COLLECTION_HERO_LOGO_Y + dy[0], a0);
   }
@@ -5432,6 +5479,7 @@ static void desenhaHero(Uint32 agora, float saida) {
   // posicoes, tamanhos e regras de antes — vive em pastaArteHero/pastaTextoHero.
   if(pastaFoco) {
     colCamManter(pastaFocoId, agora, motionReduzido || gfx_efeitos_minimos());
+    pastaPrePedir();
     float aBase=(1-saida)*heroVisivelToque();
     for(int i=0;i<colCamN;i++) {   // ARTE, de baixo para cima (a de cima acende por cima)
       const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
@@ -5447,7 +5495,7 @@ static void desenhaHero(Uint32 agora, float saida) {
                if(i==colCamN-1&&al[k]<HT_PISO)al[k]=HT_PISO; }   // as linhas rasterizam ja na troca
         if(al[k]>0.004f)algum=1;
       }
-      if(algum)pastaTextoHero(f,aBase,al,dy);
+      if(algum)pastaTextoHero(f,aBase,al,dy,colLogoFator(&colCam[i],f));
     }
     return;
   }
@@ -7365,6 +7413,13 @@ unsigned long home_vitrine_diag_arte_info(const CatItem *ci, int *ehPoster) {
   return a && a[0] ? tex_hash_public(a) : 0;
 }
 // 1 quando a arte do destaque do item ja esta decodificada (e pede o decode).
+// 2.0.44: pede (urgente, uma vez por arquivo) o cartaz de um item da Vitrine com a MESMA arte e largura do
+// desenho (home_vitrine_cartao), para o voo do cartao ja ter os posteres quando o conteudo aparecer.
+int home_vitrine_cartao_aquecer(const CatItem *ci, float w) {
+  if (!ci || w <= 0.0f) return 0;
+  const char *cam = arte_por_formato(ci, ajustes_posteres_deitados());
+  return cam && cam[0] ? tex_obter_larg(cam, w) != 0 : 0;
+}
 int home_vitrine_arte_pronta(const CatItem *ci) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;
   return !a || !a[0] || tex_obter_hero(a) != 0 || tex_falhou(a);

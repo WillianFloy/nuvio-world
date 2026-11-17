@@ -49,11 +49,13 @@ static int colfix_iniciar(int layout, int pastas, int hero_transicao) {
   n += snprintf(json + n, sizeof json - n, "{\"collections\":[{\"id\":\"cx\",\"title\":\"Themes\",\"folders\":[");
   for (int i = 0; i < pastas; i++) {
     char hero[96]; snprintf(hero, sizeof hero, i == 5 ? "deploy/app/art/nao-existe.jpg" : "deploy/app/art/%02d.jpg", (i * 3) % 20);
+    // A pasta 9 tem logo configurada que NAO existe (falha de vez); as demais i%3==0 tem a logo de verdade.
+    char logo[160]; snprintf(logo, sizeof logo, ",\"titleLogoUrl\":\"deploy/app/art/marcas/%s.png\"", i == 9 ? "logo-que-nao-existe" : "logo-novo-horizontal");
     n += snprintf(json + n, sizeof json - n,
       "%s{\"id\":\"f%d\",\"title\":\"Pasta %d\",\"coverImageUrl\":\"deploy/app/art/poster/%02d.jpg\",\"heroBackdropUrl\":\"%s\"%s,"
       "\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"mediaType\":\"MOVIE\",\"title\":\"x%d\"}]}",
       i ? "," : "", i, i + 1, i % 8, hero,
-      i % 3 == 0 ? ",\"titleLogoUrl\":\"deploy/app/art/marcas/logo-novo-horizontal.png\"" : "", i);
+      i % 3 == 0 ? logo : "", i);
   }
   n += snprintf(json + n, sizeof json - n, "]}]}");
   { int rcv = colfileiras_receber(json); printf("[fixture] colfileiras_receber=%d col_n=%d\n", rcv, col_n()); assert(rcv > 0); } colfileiras_sincronizar();

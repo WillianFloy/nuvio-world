@@ -55,9 +55,18 @@ int main(void) {
   for (int i = 0; i < HT_N; i++) OK(ht_vit_entra(i, 1.0f) == 1.0f && ht_vit_entra(i, 0.0f) == 0.0f);
   for (float p = 0; p <= 1.0f; p += 0.01f)
     OK(ht_vit_entra(0, p) >= ht_vit_entra(1, p) - 1e-6f && ht_vit_entra(1, p) >= ht_vit_entra(2, p) - 1e-6f);
-  // Entrada da Collection (2.0.43): cabecalho primeiro, depois as fileiras em sequencia; fim em 570 ms.
-  OK(fabsf(HT_ENT_TOTAL_MS - 570.0f) < 1e-3f);
-  OK(ht_ent_cab(0.0f) == 0.0f && ht_ent_cab(HT_ENT_CAB_MS) == 1.0f && ht_ent_cab(HT_ENT_TOTAL_MS) == 1.0f);
+  // Voo do cartao + revelacao integrada (2.0.44): uma linha do tempo so, fim em 630 ms (600..650).
+  OK(fabsf(HT_ENT_TOTAL_MS - 630.0f) < 1e-3f && HT_ENT_TOTAL_MS >= 600.0f && HT_ENT_TOTAL_MS <= 650.0f);
+  OK(HT_VOO_MS == 380.0f && HT_VOO_FIM_MS <= HT_ENT_TOTAL_MS);
+  OK(ht_voo_p(0.0f) == 0.0f && ht_voo_p(HT_VOO_MS) == 1.0f && ht_voo_p(HT_ENT_TOTAL_MS) == 1.0f);
+  OK(ht_voo_fundo(HT_VOO_FUNDO_INI) == 0.0f && ht_voo_fundo(HT_VOO_MS) == 1.0f);   // o fundo fecha junto com o voo
+  OK(ht_voo_banner(HT_VOO_BANNER_INI) == 0.0f && ht_voo_banner(HT_VOO_BANNER_INI + HT_VOO_BANNER_MS) == 1.0f);
+  OK(ht_voo_cartao(0.0f) == 1.0f && ht_voo_cartao(HT_VOO_CARTAO_INI) == 1.0f && ht_voo_cartao(HT_VOO_FIM_MS) == 0.0f);
+  OK(ht_voo_banner(HT_VOO_MS) == 1.0f);   // ao fim do voo o cartao ja e o banner, nao a capa pequena ampliada
+  OK(ht_ent_cab(0.0f) == 0.0f && ht_ent_cab(HT_ENT_CAB_INI) == 0.0f && ht_ent_cab(HT_ENT_CAB_INI + HT_ENT_CAB_MS) == 1.0f);
+  { float ant = -1; for (float t = 0; t <= 700.0f; t += 4.0f) {
+      float v = ht_voo_p(t); OK(v >= ant - 1e-6f && v >= 0.0f && v <= 1.0f); ant = v;
+      OK(ht_voo_cartao(t) >= 0.0f && ht_voo_cartao(t) <= 1.0f); } }
   for (int r = 0; r < 8; r++) {
     OK(ht_ent_lin(r, 0.0f) == 0.0f && ht_ent_lin(r, HT_ENT_TOTAL_MS) == 1.0f);
     float ant = -1; for (float t = 0; t <= 700.0f; t += 4.0f) { float v = ht_ent_lin(r, t); OK(v >= ant - 1e-6f && v >= 0.0f && v <= 1.0f); ant = v; }
@@ -67,8 +76,13 @@ int main(void) {
     for (int r = 0; r < 3; r++) OK(ht_ent_lin(r, t) >= ht_ent_lin(r + 1, t) - 1e-6f);
   }
   OK(ht_ent_lin(4, 300.0f) == ht_ent_lin(3, 300.0f) && ht_ent_lin(9, 300.0f) == ht_ent_lin(3, 300.0f));   // 4a em diante juntas
+  // A revelacao COMECA DENTRO do voo (nao depois dele), e o cartao ainda apaga enquanto as fileiras entram.
+  OK(HT_ENT_CAB_INI < HT_VOO_MS && HT_ENT_LIN_INI < HT_VOO_MS);
+  OK(HT_VOO_CARTAO_INI + HT_VOO_CARTAO_MS == HT_VOO_FIM_MS && HT_VOO_FIM_MS < HT_ENT_TOTAL_MS);
+  OK(HT_VOO_SEM_CARTAO_MS == HT_ENT_CAB_INI && HT_ENT_TOTAL_MS - HT_VOO_SEM_CARTAO_MS < 450.0f);   // sem cartao: ~440 ms
   { float maxPasso = 0; for (int r = 0; r < 4; r++) for (float t = 0; t < 700.0f; t += 16.7f) { float d = fabsf(ht_ent_lin(r, t + 16.7f) - ht_ent_lin(r, t)); if (d > maxPasso) maxPasso = d; }
-    OK(maxPasso < 0.12f); }
+    for (float t = 0; t < 700.0f; t += 16.7f) { float d = fabsf(ht_voo_p(t + 16.7f) - ht_voo_p(t)); if (d > maxPasso) maxPasso = d; }
+    OK(maxPasso < 0.13f); }
   puts(n ? "herotexto: FALHOU" : "herotexto: ok");
   return n ? 1 : 0;
 }

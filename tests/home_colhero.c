@@ -76,7 +76,8 @@ int main(int argc, char **argv) {
   for (int q = 0; q < 80; q++) { frames(1); if (colCamN > camMax) camMax = colCamN; if (colCamN >= 2 && colCam[0].t < NV_HERO_ARTE_FADE_MS) pop = 1; }
   ok(camMax >= 3, "trocas seguidas empilham as camadas");
   ok(!pop && colCamN == 1, "interrupcao: camada de baixo sempre inteira e tudo assenta numa so");
-  // 3. Banner que nao chega (pasta 5 sem arquivo): o anterior segue visivel ate o limite de 600 ms.
+  // 3. Banner que FALHA de vez (pasta 5 sem arquivo): o anterior segue inteiro ate a falha ser conhecida e a troca
+  //    NAO espera os 600 ms por uma URL morta (2.0.44). O limite de 600 ms continua para o que so demora (guarda no .sh).
   while (foco.coluna > 3) { key(SDLK_LEFT); frames(25); } frames(60);
   while (foco.coluna < 4) { key(SDLK_RIGHT); frames(25); } frames(60);
   int antes5 = colCam[colCamN - 1].pasta; Uint32 t0 = now;
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
   int trocou = -1, manteve = 1;
   for (int q = 0; q < 80; q++) { frames(1); if (colCam[colCamN-1].pasta != antes5) { trocou = (int)(now - t0); break; } if (colCamN != 1 || colCam[0].pasta != antes5) manteve = 0; }
   ok(manteve, "enquanto o banner nao chega, o destaque anterior fica inteiro");
-  ok(trocou >= (int)NV_HERO_ESPERA_MS - 40 && trocou <= (int)NV_HERO_ESPERA_MS + 100, "sem banner/logo a troca acontece no limite de 600 ms");
+  ok(trocou >= 0 && trocou < (int)NV_HERO_ESPERA_MS - 100, "banner que falhou de vez: a troca nao espera os 600 ms por uma URL morta");
   frames(60);
   // 4. Efeitos minimos / animacoes reduzidas: troca instantanea (uma camada, sem fade).
   gfx_definir_efeitos_minimos(1);

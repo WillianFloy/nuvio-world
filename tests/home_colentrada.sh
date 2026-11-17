@@ -7,7 +7,7 @@ python3 - <<'P'
 v = open('src/vertudo.c').read(); a = open('src/ajustes.c').read(); h = open('src/herotexto.h').read()
 def ok(c, msg):
     if not c: raise SystemExit("FAIL: " + msg)
-ok("vitEntradaT = (ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone()) ? 0.0f : 1.0e6f;" in v, "entrada so com o ajuste ligado, sem reduzidas/efeitos minimos/telefone")
+ok("vitEntradaT = !anima ? 1.0e6f : vooTem ? 0.0f : HT_VOO_SEM_CARTAO_MS;" in v and "ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone()" in v, "entrada so com o ajuste ligado, sem reduzidas/efeitos minimos/telefone (2.0.44: o relogio parte do clique, ou de 190 ms sem cartao)")
 ok("ht_ent_lin(r, vitEntradaT)" in v and "ht_ent_cab(vitEntradaT)" in v, "cabecalho e fileiras usam as curvas de entrada")
 ok('"colEntradaLocal"' in a and "AJ_COL_ENTRADA" in a, "ajuste persistido (colEntradaLocal)")
 ok("HT_ENT_TOTAL_MS" in h, "curvas de entrada")
