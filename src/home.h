@@ -153,6 +153,7 @@ void home_vitrine_cartao(const CatItem *ci, GfxRect base, GfxRect card, float al
 int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *entra, float alfaEntra);
 void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, float alfa);
 #endif
+int home_foco_fixo_ativo(void);   // 2.0.41: foco numa fileira NORMAL/POSTER de foco fixo (TV)
 const char *home_rastro_foco(void);
 // CARROSSEL DA DINAMICA: titulos (indices do catalogo) da fileira em foco e a
 // posicao do focado; 0 fora da Dinamica ou numa fileira que nao e de titulos.

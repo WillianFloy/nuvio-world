@@ -2030,8 +2030,11 @@ int main(int argc, char **argv) {
         if (e.type == SDL_KEYUP) navritmo_soltou(&navRitmo, (int)e.key.keysym.sym);
         else if (!ajustes_navegacao_horizontal_rapida() && !player_aberto() && !app_zap_ativo() &&
                  app_navegacao_cartazes() &&
-                 !(vertudo_aberta() ? navritmo_baixou_vitrine(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)
-                                    : navritmo_baixou(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)))
+                 !((vertudo_aberta() ||
+                    // 2.0.41: fileiras de foco fixo da Home (movimento de ~350 ms), so na horizontal
+                    ((e.key.keysym.sym == SDLK_LEFT || e.key.keysym.sym == SDLK_RIGHT) && home_foco_fixo_ativo()))
+                   ? navritmo_baixou_vitrine(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)
+                   : navritmo_baixou(&navRitmo, SDL_GetTicks(), (int)e.key.keysym.sym)))
           continue;
       }
       app_evento(&e);

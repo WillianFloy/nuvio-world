@@ -48,6 +48,7 @@ static void heroTempoInicio(int indice) {
 #include "pressdip.h"
 #include "revela.h"
 #include "layout.h"
+#include "vitgeom.h"
 #include "telefoneui.h"
 #include "ajustes.h"
 #include "cwordem.h"
@@ -1943,6 +1944,56 @@ static float sobraDireitaFoco(int r, float abre) {
        + (ajustes_borda_foco() ? NV_ANEL_FOCO : 0.0f);
 }
 
+// --- FOCO FIXO NA HOME (2.0.41), o mesmo modelo das Collections (vitgeom.h) ------
+// So nas fileiras NORMAL e POSTER, na TV. O cartaz em foco fica sempre no mesmo
+// ponto da tela — o do 1o cartaz, alinhado ao titulo (homeConteudoX; a margem NAO
+// muda) — e a fileira desliza por baixo dele. Sobra a "espiada" do vizinho nas
+// duas pontas, que esvanece (gfx_esvanecer_x, um uniforme do shader: nenhuma
+// passada ou textura a mais para a GPU). No fim da fileira ela para e o foco
+// anda ate o ultimo cartaz inteiro. PALCO, HEROI_DIVIDIDO e os demais tipos
+// seguem o caminho antigo (rolagem so na borda), sem nenhuma mudanca.
+static int homeFocoFixo(int r) {
+  TipoFileira t;
+  if (r < 0 || r >= nFileiras) return 0;
+  if (telefoneui_ativo() || homeRetratoTelefone()) return 0;
+  t = fileiras[r].tipo;
+  return t == FILEIRA_NORMAL || t == FILEIRA_POSTER;
+}
+static int homeFixoTotal(int r) {
+  int n = fileiras[r].n + (fileiras[r].verTudo ? 1 : 0);
+  return n > MAX_CARDS ? MAX_CARDS : n;
+}
+// Cartoes INTEIROS que cabem entre o inicio do conteudo e a margem direita, ja
+// descontado o que o cartaz em foco passa da caixa (escala, anel): o ultimo
+// cartaz inteiro em foco nunca passa da margem.
+static int homeFixoN(int r) {
+  float fim = homeConteudoDireita() - sobraDireitaFoco(r, 0.0f);
+  return vitgeom_cabem(homeConteudoX(), fim, larguraFil(r), passoFil(r));
+}
+// O mesmo tempo das Collections (NV_MOTION_MS, 2.0.40): a velocidade da navegacao
+// multiplica, e a "Navegacao geral rapida" mantem a razao antiga (1/0,85).
+static float homeW2(void) {
+  return NV_MOTION_W2 * ajustes_navegacao_velocidade()
+       * (ajustes_navegacao_horizontal_rapida() ? 1.0f / 0.85f : 1.0f);
+}
+static float homeW1(void) {
+  return NV_MOTION_W1 * ajustes_navegacao_velocidade()
+       * (ajustes_navegacao_horizontal_rapida() ? 1.0f / 0.85f : 1.0f);
+}
+// Rampa das pontas, no mesmo desenho das Collections: 0 na borda do conteudo da
+// esquerda (a rail, ou a tela) ate 1 no cartaz em foco; 1 ate o fim do ultimo
+// cartaz inteiro e 0 na borda direita da tela. As coordenadas sao as de
+// gfx_recorte (layout), como o resto da Home.
+static void homeFocoFixoFade(int r) {
+  float x0 = homeConteudoX() + bordaX(r), ov = sobraDireitaFoco(r, 0.0f) + 1.0f;
+  float zero = x0 - ANC(NV_CONTENT_PAD), cheio = x0 - ov;
+  float fimInt = x0 + (float)(homeFixoN(r) - 1) * passoFil(r) + larguraFil(r) + ov;
+  if (zero < 0.0f) zero = 0.0f;
+  if (cheio < zero + 1.0f) cheio = zero + 1.0f;
+  if (fimInt > NV_TELA_W - 1.0f) fimInt = NV_TELA_W - 1.0f;
+  gfx_esvanecer_x(zero, cheio, fimInt, NV_TELA_W);
+}
+
 // Alvo da rolagem horizontal da fileira `r` com a coluna `col` em foco, a
 // partir da rolagem `atual`. Separada de home_atualizar porque e ELA que o
 // #103 errava, e um teste sem janela nao consegue chamar o laco de atualizacao
@@ -1960,6 +2011,14 @@ static float alvoScrollFil(int r, int col, float atual, float abre) {
   }
   float folga = sobraDireitaFoco(r, abre);
   float alvo  = atual;
+  // FOCO FIXO: o foco na ancora; so o cartaz ABERTO (expandir_poster) ou o anel
+  // podem pedir um pouco mais, para nao passar da margem direita (a conta de
+  // sempre, #103), e a fileira nunca anda alem do fim.
+  if (homeFocoFixo(r)) {
+    alvo = vitgeom_fixo_alvo(col, homeFixoTotal(r), homeFixoN(r), passo);
+    if (dir + folga - alvo > util) alvo = dir + folga - util;
+    return alvo < 0.0f ? 0.0f : alvo;
+  }
   // HERÓI DIVIDIDO: o card em foco É o painel; a fila ao lado dele começa no
   // PRÓXIMO título (o do foco sai dela, atrás do painel).
   if (fileiras[r].tipo == FILEIRA_HEROI_DIVIDIDO) return esq + passo;
@@ -4021,7 +4080,8 @@ static void home_atualizar_(float dt, Uint32 agora) {
       animFoco[r][c] = motionReduzido
                      ? alvo
                      : anim_mola(animFoco[r][c], alvo, dt,
-                                 alvo > animFoco[r][c] ? NV_MOLA_FOCO : NV_MOLA_DESFOCO);
+                                 homeFocoFixo(r) ? homeW1()   // 2.0.41: acompanha o deslize (~350 ms)
+                                 : alvo > animFoco[r][c] ? NV_MOLA_FOCO : NV_MOLA_DESFOCO);
     }
     { float alvoFil = (!focoHero && foco.fileira == r) ? 1.0f : 0.0f;
       animFocoFil[r] = motionReduzido ? alvoFil
@@ -4049,7 +4109,8 @@ static void home_atualizar_(float dt, Uint32 agora) {
       float alvo = alvoScrollFil(r, col, scrollX[r], abre);
       if (fileiras[r].tipo != FILEIRA_PALCO)
         scrollX[r] = anim_mola2_reduzida(&velX[r], scrollX[r], alvo, dt,
-                                       (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()), motionReduzido);
+                                       homeFocoFixo(r) ? homeW2()
+                                       : (NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes()), motionReduzido);
     }
   }
 
@@ -8025,6 +8086,8 @@ static void home_desenhar_(Uint32 agora) {
       }
 
       if (tipo == FILEIRA_PALCO) palcoPasso(r, agora);
+      const int focoFixoFil = homeFocoFixo(r);
+      if (focoFixoFil) homeFocoFixoFade(r);   // desligado logo depois do laco dos cartazes
       // CARD "VER TUDO" no fim da fileira. Desenhado antes do laco dos cartazes
       // para nao herdar as variaveis dele; ele nao e um titulo e nao usa arte.
       //
@@ -8382,6 +8445,7 @@ static void home_desenhar_(Uint32 agora) {
       }
       if (tipo == FILEIRA_HEROI_DIVIDIDO)
         gfx_recorte(0.0f, corte, NV_TELA_W, NV_TELA_H - corte);
+      if (focoFixoFil) gfx_sem_esvanecer_x();
       tex_pedido_fora(0);
       // EM MOVIMENTO: pede a arte do proximo card que vai entrar na borda,
       // antes de a rolagem chegar nele. Parado, o lookahead de repouso cobre.
@@ -8542,6 +8606,11 @@ void home_perf_style_menu(void) {
   if (!perftv_enabled || focoHero || foco.fileira < 0 || foco.fileira >= nFileiras) return;
   const Fileira *f = &fileiras[foco.fileira];
   ctx_abrir_fileira(f->chave, f->titulo);
+}
+// 2.0.41: o foco esta numa fileira de foco fixo (NORMAL/POSTER, TV)? main.c usa
+// para dar a elas o mesmo ritmo de segurar a seta das Collections (navritmo.h).
+int home_foco_fixo_ativo(void) {
+  return !focoHero && homeFocoFixo(foco.fileira);
 }
 // Rastro de desempenho (main.c, [qd]): onde o foco esta neste quadro.
 const char *home_rastro_foco(void) {

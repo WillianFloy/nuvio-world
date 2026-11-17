@@ -17,7 +17,7 @@ python3 - <<'P'
 m = open('src/main.c').read(); v = open('src/vertudo.c').read(); l = open('src/layout.h').read()
 def ok(c, msg):
     if not c: raise SystemExit("FAIL: " + msg)
-ok("vertudo_aberta() ? navritmo_baixou_vitrine(" in m and ": navritmo_baixou(&navRitmo" in m, "main.c: Vitrine usa o passo novo, Home o antigo")
+ok("!((vertudo_aberta() ||" in m and "? navritmo_baixou_vitrine(&navRitmo" in m and ": navritmo_baixou(&navRitmo" in m, "main.c: Vitrine (e fileiras de foco fixo da Home, so na horizontal) usam o passo novo, o resto o antigo")
 ok("NV_MOTION_W2 * ajustes_navegacao_velocidade()" in v and "anim_mola2_tempo(&vitSv[r], vitSx[r], alvoX, dtV, vitW2())" in v, "fileira da Vitrine no tempo-base")
 ok("vitFocoF = anim_mola(vitFocoF, r >= 0 ? 1.0f : 0.0f, dt, vitW1());" in v, "foco da Vitrine no tempo-base")
 ok("#define VIT_HERO_DUR (NV_MOTION_MS / 1000.0f)" in v, "destaque da Vitrine no tempo-base")
