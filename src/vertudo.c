@@ -1,3 +1,4 @@
+#include "herotexto.h"
 #include "imdbnota.h"
 #include "vertudo_pag.h"
 #include "vertudo.h"
@@ -4041,17 +4042,24 @@ static void vitDesenhar(float a, float x0) {
     // estava a meio caminho segue de onde estava, sem voltar a 100%.
     for (int i = 0; i < camN; i++) {
       float p = fminf(1.0f, camP[i]);
-      // Primeiro destaque (abrir ou trocar de Collection, sem camada abaixo): so entra, sem o atraso.
-      float pe = camN == 1 ? p : fmaxf(0.0f, (p - 0.30f) / 0.70f), ent = pe * pe * (3.0f - 2.0f * pe);
+      // Primeiro destaque (abrir ou trocar de Collection, sem camada abaixo): so entra, sem o atraso
+      // (os elementos ainda escalonam: logo -> meta -> sinopse, herotexto.h; 2.0.42).
+      float entEl[HT_N];
+      for (int k = 0; k < HT_N; k++) entEl[k] = ht_vit_entra_de(k, p, camN == 1 ? 0.0f : HT_VIT_INI);
       float sai = 0.0f;
       if (i + 1 < camN) {
         float q = fminf(1.0f, fminf(1.0f, camP[i + 1]) / 0.45f);
         sai = q * q * (3.0f - 2.0f * q);
       }
       if (sai >= 1.0f) continue;
-      float al = a * (1.0f - sai) * fmaxf(ent, i == camN - 1 ? 0.005f : 0.0f);
-      float ty = topo + 18.0f * (1.0f - ent) - 14.0f * sai;
-      float topoBloco = home_vitrine_texto(camIt[i], ty, teto, al);
+      // Piso so na camada de cima: ela rasteriza as linhas ja no quadro da troca (sem textura nova
+      // no meio da animacao), como antes. O alfa e por elemento; a posicao Y tambem.
+      float pisoA = i == camN - 1 ? 0.005f : 0.0f, fa = a * (1.0f - sai);
+      float al0 = fa * fmaxf(entEl[0], pisoA), al1 = fa * fmaxf(entEl[1], pisoA), al2 = fa * fmaxf(entEl[2], pisoA);
+      float ty = topo - 14.0f * sai;
+      float topoBloco = home_vitrine_texto_el(camIt[i], ty, teto, al0, al1, al2,
+                                              18.0f * (1.0f - entEl[0]), 18.0f * (1.0f - entEl[1]),
+                                              18.0f * (1.0f - entEl[2]));
       if (i == camN - 1) vitHeroTopo = topoBloco;
     }
   }

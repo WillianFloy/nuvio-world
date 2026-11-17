@@ -518,6 +518,10 @@ int layout_modo_mobile(void);
 // Nao ha crossfade em momento nenhum: a arte velha e a nova nunca aparecem
 // juntas. Eram 900 ms de mistura, quase o triplo do tempo e a forma errada.
 #define NV_HERO_FADE_MS       220.0f
+// 2.0.42: o crossfade da ARTE do destaque da Home passa ao tempo-base (350 ms, o das
+// Collections). Constante PROPRIA: NV_HERO_FADE_MS continua sendo a do fundo do palco
+// (e do teste que a fixa em 180-250 ms) e nao muda.
+#define NV_HERO_ARTE_FADE_MS  NV_MOTION_MS
 // REPOUSO ANTES DE TROCAR O HEROI. O fundo so acompanha o foco depois que ele
 // PARA por este tempo.
 //

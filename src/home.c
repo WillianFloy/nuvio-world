@@ -49,6 +49,7 @@ static void heroTempoInicio(int indice) {
 #include "revela.h"
 #include "layout.h"
 #include "vitgeom.h"
+#include "herotexto.h"
 #include "telefoneui.h"
 #include "ajustes.h"
 #include "cwordem.h"
@@ -536,6 +537,12 @@ static Uint32 heroTrocaEm = 0;
 //             quadro em que a textura fica pronta E o esvanecimento acabou.
 static float heroSai   = 0.0f;
 static float heroEntra = 1.0f;
+// 2.0.42: TEXTO ESCALONADO (herotexto.h), so na troca por esmaecimento. `heroTextoT` = ms desde
+// a troca; `heroTextoIni` = como estava o bloco que SAI no instante da troca (o novo, se a troca
+// anterior foi interrompida no meio; assentado, se nao). Inativo = o texto e o de sempre.
+static int        heroTextoAtivo = 0;
+static float      heroTextoT = 0.0f;
+static HtInstante heroTextoIni;
 // Stage switches fade through the base background, never stack fullscreen passes.
 static int palcoFundoModo = 1, palcoFundoAlvo = 1, palcoFundoItem = -1;
 static float palcoFundoT = 1.0f, palcoFundoInicio = 1.0f;
@@ -2110,7 +2117,7 @@ static void toqueHeroAtualizar(float dt, Uint32 agora, int oculto, int reduzido)
     heroPendenteEm = agora;
     heroDesejado = -1; heroDirDesejado = 0;
     heroDesliza = 1.0f; heroDeslizaDir = 0;
-    heroSai = 0.0f; heroEntra = 1.0f;
+    heroSai = 0.0f; heroEntra = 1.0f; heroTextoAtivo = 0;
     heroTardeItem = heroAtual; heroTardeEm = toqueHero.desde;
   }
   toqueHeroCancelar();
@@ -2143,7 +2150,7 @@ static int toqueHeroRolar(const PonteiroRolagem *e) {
     toqueHeroPaginaMin = -empurraHero(); toqueHeroPaginaMax = toqueHomeMaxY();
     heroDesejado = -1; heroDirDesejado = 0;
     heroPendente = heroAtual; heroPendenteEm = toqueHero.desde;
-    heroSai = 0; heroEntra = 1; heroDesliza = 1;
+    heroSai = 0; heroEntra = 1; heroDesliza = 1; heroTextoAtivo = 0;
     heroTrailerFade = 0;
     return 1;
   }
@@ -4051,8 +4058,12 @@ static void home_atualizar_(float dt, Uint32 agora) {
     palcoItemA = fminf(1.0f, palcoItemA + k);
   }
 
+  if (heroTextoAtivo) {
+    heroTextoT += dt * 1000.0f;
+    if (motionReduzido || ht_acabou(heroTextoT)) heroTextoAtivo = 0;
+  }
   if (heroSai > 0.0f) {
-    heroSai -= dt * (1000.0f / NV_HERO_FADE_MS);
+    heroSai -= dt * (1000.0f / NV_HERO_ARTE_FADE_MS);
     if (heroSai < 0.0f) heroSai = 0.0f;
     heroEntra = motionReduzido ? 1.0f : 1.0f - heroSai;
   } else {
@@ -4599,11 +4610,20 @@ void hero_meta_linha(const CatItem *ci, char *dst, size_t n) {
 
 // Teto e topo do bloco da Vitrine da colecao (home_vitrine_texto); 0 = Home.
 static float vitTeto, vitTopoBloco;
+// 2.0.42: alfa e deslocamento Y POR ELEMENTO do bloco (logo/titulo, meta, sinopse) para a
+// transicao escalonada (herotexto.h). NULL em desenhaCopiaHero = o de sempre (logo pelo
+// heroEntra; meta e sinopse pelo aCopy; sem deslocamento): as chamadas antigas nao mudam.
+typedef struct { float aLogo, aMeta, aSin, dyLogo, dyMeta, dySin; } HeroEl;
 static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
                              float base, int lay, int cheio, float logoH,
                              float sinW, int sinLinhas, float aTexto,
                              float aCopy, float cin, float btnH, float btnGap,
-                             float slot) {
+                             float slot, const HeroEl *el) {
+  // Alfa de cada grupo: o legado (el == NULL) e EXATAMENTE o que havia antes.
+  const float aLogoImg = el ? el->aLogo : aTexto * heroEntra;
+  const float aLogoTxt = el ? el->aLogo : aTexto;
+  const float aMeta = el ? el->aMeta : aCopy, aSin = el ? el->aSin : aCopy;
+  const float dyL = el ? el->dyLogo : 0.0f, dyM = el ? el->dyMeta : 0.0f, dyS = el ? el->dySin : 0.0f;
   int contHero = (ci && ci->progresso > 0 && ci->restanteMin > 0);
   int seguirHero = (ci && ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || cwo_conta_a_seguir(ci->imdb)));
 
@@ -4672,8 +4692,8 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   if (principal && ci) {
     if (!heroTempo.id[0]) heroTempoInicio(heroAtual);
     if (!strcmp(heroTempo.id, ci->imdb)) {
-      titulo_tempo_logo(&heroTempo, "hero", urlLogo, tlogo, aTexto * heroEntra > 0.05f);
-      if (aCopy > 0.05f) titulo_tempo_info(&heroTempo, "hero", ci, 0);
+      titulo_tempo_logo(&heroTempo, "hero", urlLogo, tlogo, aLogoImg > 0.05f);
+      if (aMeta > 0.05f) titulo_tempo_info(&heroTempo, "hero", ci, 0);
     }
   }
   // COR VIVA: o logo do mesmo titulo do destaque ("Cor da logo").
@@ -4738,7 +4758,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     caption = captionH > 0.0f;
   }
   logoH = copy.logoHeight;
-  float ySin = copy.synopsis, ySec = copy.secondary, yMeta = copy.meta;
+  float ySin = copy.synopsis, ySecBase = copy.secondary, yMeta = copy.meta;
   float logoY = copy.logo - cin * NV_CINEMA_DESCE;
   if (tlogo) {
     float ap = tex_aspecto(urlLogo);
@@ -4759,6 +4779,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
       rl.h = anim_mistura(hTit, hc, cin);
       rl.y = anim_mistura(logoY + logoH, fim, cin) - rl.h;
     }
+    rl.y += dyL;
     gfx_tex_aspect_atual = 0.0f;
     // Logo escuro vira branco. Mesma regra da tela de detalhe: o TMDB nao marca
     // claro/escuro, entao a decisao sai da luminancia MEDIDA (tex_luminancia).
@@ -4770,7 +4791,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
       // OLED: com a opcao ligada o logo some enquanto o trailer toca (cin = 1) em vez
       // de ficar parado no canto; volta quando o trailer para.
       gfx_rect(rl, tlogo, m, 0, 0, 0, 0.0f, 1, 1, 1,
-               aTexto * heroEntra * (ajustes_esconder_logo_trailer() ? 1.0f - cin : 1.0f)); }
+               aLogoImg * (ajustes_esconder_logo_trailer() ? 1.0f - cin : 1.0f)); }
   } else if (mostraNomeLogo && !caption) {
     // .legacy-webos .home-hero-title-text: 76px (components.css:19164), nao os
     // 56 do tema padrao.
@@ -4783,35 +4804,35 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     if (ci && ci->titulo[0]) {
       TxtLinha tit = heroCompactoTelefone() ? tituloTelefone
                    : txt_linha_corta(TXT_TITULO1, ci->titulo, 255, 255, 255, 255, maxWLogo);
-      txt_desenhar_alpha(tit, x, logoY + logoH - (float)tit.h,
-                         aTexto * (1.0f - cin));
+      txt_desenhar_alpha(tit, x, logoY + logoH - (float)tit.h + dyL,
+                         aLogoTxt * (1.0f - cin));
       // Sem logo, o nome pequeno entra embaixo (o mesmo do detalhe).
       if (cin > 0.005f) {
         TxtLinha t2 = txt_linha_corta(TXT_TITULO2, ci->titulo, 255, 255, 255, 255,
                                       NV_DETW_LOGO_MAXW * 0.5f);
-        txt_desenhar_alpha(t2, x, trailercinema_base() - t2.h, ajustes_esconder_logo_trailer() ? 0.0f : aTexto * cin);
+        txt_desenhar_alpha(t2, x, trailercinema_base() - t2.h, ajustes_esconder_logo_trailer() ? 0.0f : aLogoTxt * cin);
       }
     }
   }
 
-  if (caption && aCopy > 0.004f)
-    txt_bloco_corta(TXT_HERO_META, ci->titulo, 255, 255, 255, x, copy.caption,
-                    sinW, NV_LD_HERO_META, aCopy, 1);
+  if (caption && aMeta > 0.004f)
+    txt_bloco_corta(TXT_HERO_META, ci->titulo, 255, 255, 255, x, copy.caption + dyM,
+                    sinW, NV_LD_HERO_META, aMeta, 1);
 
-  if (temAmigos && aCopy > 0.004f) {
+  if (temAmigos && aMeta > 0.004f) {
     static const float ANEL[3] = { 0.04f, 0.045f, 0.055f };
     char linha[200];
     float d = NV_AMIGOS_HERO_H, lx;
-    lx = x + svd_amigos_pilha(x, copy.friends, d, &amigos, amigos.n < 3 ? amigos.n : 3, 1, ANEL, aCopy) + 14.0f;
+    lx = x + svd_amigos_pilha(x, copy.friends + dyM, d, &amigos, amigos.n < 3 ? amigos.n : 3, 1, ANEL, aMeta) + 14.0f;
     amigostitulo_linha_destaque(&amigos, linha, sizeof linha);
     if (linha[0]) {
       TxtLinha lf = txt_linha_corta(TXT_HERO_META, linha, 214, 217, 224, 255, sinW - (lx - x));
-      txt_desenhar_alpha(lf, lx, copy.friends + (d - lf.h) * 0.5f, aCopy);
+      txt_desenhar_alpha(lf, lx, copy.friends + dyM + (d - lf.h) * 0.5f, aMeta);
     }
   }
 
-  if (metaLinha[0] && aCopy > 0.004f) {
-    float badgeW=ci?badges_desenhar(badges_provedor(ci->provNome),x,yMeta,150,24,aCopy):0;
+  if (metaLinha[0] && aMeta > 0.004f) {
+    float badgeW=ci?badges_desenhar(badges_provedor(ci->provNome),x,yMeta+dyM,150,24,aMeta):0;
     TxtLinha lm = txt_linha_corta(TXT_HERO_META, metaLinha, 179, 179, 179, 255,
                                   sinW-badgeW);
     // META E SINOPSE TROCAM NA HORA, sem esvanecer com a arte. MEDIDO: no
@@ -4820,12 +4841,13 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     // alfa de troca aqui era invencao nossa — e, com o rasterizador fazendo 2
     // linhas por quadro (text.c:40), esvanecer texto que ainda esta assentando
     // e o pior caso possivel.
-    txt_desenhar_alpha(lm, x+badgeW, yMeta, aCopy);
+    txt_desenhar_alpha(lm, x+badgeW, yMeta + dyM, aMeta);
   }
 
-  if (temSec && aCopy > 0.004f) {
+  if (temSec && aMeta > 0.004f) {
     float cx = x;
-    float a = aCopy;
+    float a = aMeta;
+    const float ySec = ySecBase + dyM;
     if (destaque[0]) {
       // .home-modern-hero-highlight: branco cheio, peso 600, tracking 0.04em.
       cx += txt_tracking(TXT_HERO_SEC, destaque, 255, 255, 255, cx, ySec, a,
@@ -4848,9 +4870,9 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     }
   }
 
-  if (sinopse[0] && (!(heroCompactoTelefone() || vitTeto > 0.0f) || hSin > 0.0f) && aCopy > 0.004f)
-    txt_bloco_corta(heroSinEstilo(), sinopse, 255, 255, 255, x, ySin, sinW,
-                    heroSinEntrelinha(), aCopy, sinLinhas);
+  if (sinopse[0] && (!(heroCompactoTelefone() || vitTeto > 0.0f) || hSin > 0.0f) && aSin > 0.004f)
+    txt_bloco_corta(heroSinEstilo(), sinopse, 255, 255, 255, x, ySin + dyS, sinW,
+                    heroSinEntrelinha(), aSin, sinLinhas);
   return copy.action;
 }
 
@@ -5440,10 +5462,20 @@ static void desenhaHero(Uint32 agora, float saida) {
         heroEntra = 1.0f;
         heroDesliza = 0.0f;
         heroDeslizaDir = heroDirDesejado;
+        heroTextoAtivo = 0;
       } else {
         heroDesliza = 1.0f;
         heroSai = (motionReduzido || !arteD) ? 0.0f : 1.0f;
         heroEntra = (motionReduzido || !arteD) ? 1.0f : 0.0f;
+        // 2.0.42: o texto troca escalonado. Se a troca anterior ainda estava acendendo, o
+        // bloco que sai comeca de onde ela estava (sem salto). Efeitos minimos / reduzidas:
+        // como antes.
+        if (!motionReduzido && !gfx_efeitos_minimos() && !telefoneui_ativo() && !homeRetratoTelefone() &&
+            cat_item_exato(heroAnterior)) {
+          heroTextoIni = ht_instante(heroTextoAtivo ? heroTextoT : HT_TOTAL_MS);
+          heroTextoT = 0.0f;
+          heroTextoAtivo = 1;
+        } else heroTextoAtivo = 0;
       }
       heroDirDesejado = 0;
       heroTrocaEm = SDL_GetTicks() + NV_HERO_INTERVALO_MS;
@@ -5648,7 +5680,31 @@ static void desenhaHero(Uint32 agora, float saida) {
 #endif
                            ))
     desenhaCopiaHero(cAnt, 0, xAnterior, base, lay, cheio, logoH, sinW,
-                     sinLinhas, aTexto, aCopy, cin, btnH, btnGap, slotBtn);
+                     sinLinhas, aTexto, aCopy, cin, btnH, btnGap, slotBtn, NULL);
+  // 2.0.42 — TROCA POR ESMAECIMENTO, TEXTO ESCALONADO (herotexto.h): o bloco ANTIGO sai
+  // (150 ms) enquanto os elementos do NOVO entram um depois do outro (logo -> meta -> sinopse).
+  // Fora disso (deslizar, reduzidas, efeitos minimos) nada muda.
+  HeroEl elAtu, elAnt;
+  const HeroEl *pElAtu = NULL;
+  if (heroTextoAtivo && !deslizando && cAnt && cAnt != ci) {
+    for (int i = 0; i < HT_N; i++) {
+      float aA = ht_entra_alfa(i, heroTextoT), dA = ht_entra_dy(i, heroTextoT);
+      float aO = ht_saida_alfa(&heroTextoIni, i, heroTextoT), dO = ht_saida_dy(&heroTextoIni, i, heroTextoT);
+      // O novo nunca some do pipeline: o piso mantem as linhas rasterizadas (cache) desde o
+      // quadro da troca, entao nada e criado no meio da animacao.
+      if (aA < HT_PISO) aA = HT_PISO;
+      float *fa = i == 0 ? &elAtu.aLogo : i == 1 ? &elAtu.aMeta : &elAtu.aSin;
+      float *fy = i == 0 ? &elAtu.dyLogo : i == 1 ? &elAtu.dyMeta : &elAtu.dySin;
+      float *oa = i == 0 ? &elAnt.aLogo : i == 1 ? &elAnt.aMeta : &elAnt.aSin;
+      float *oy = i == 0 ? &elAnt.dyLogo : i == 1 ? &elAnt.dyMeta : &elAnt.dySin;
+      *fa = (i == 0 ? aTexto : aCopy) * aA; *fy = dA;
+      *oa = (i == 0 ? aTexto : aCopy) * aO; *oy = dO;
+    }
+    if (elAnt.aLogo > 0.004f || elAnt.aMeta > 0.004f || elAnt.aSin > 0.004f)
+      desenhaCopiaHero(cAnt, 0, x, base, lay, cheio, logoH, sinW,
+                       sinLinhas, aTexto, aCopy, cin, btnH, btnGap, slotBtn, &elAnt);
+    pElAtu = &elAtu;
+  }
   float actionY = 0;
 #ifdef NV_TOUCH_UI
   if (!(toqueHero.estado && toqueHero.alvo < 0))
@@ -5660,7 +5716,7 @@ static void desenhaHero(Uint32 agora, float saida) {
                     1,
 #endif
                     xAtual, base, lay, cheio, logoH, sinW,
-                    sinLinhas, aTexto, aCopy, cin, btnH, btnGap, slotBtn);
+                    sinLinhas, aTexto, aCopy, cin, btnH, btnGap, slotBtn, pElAtu);
 #ifdef NV_TOUCH_UI
   // During a drag/snap the copy moves but its stationary buttons cannot be
   // used. The original FINGERUP belongs to the gesture, never to a title.
@@ -7251,15 +7307,23 @@ int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *en
 // sobe alem de `teto` (o fim do cabecalho da colecao). Devolve o topo do bloco.
 // Sem botao na Vitrine: o logo nao reserva a vaga dele.
 float home_vitrine_texto(const CatItem *ci, float topo, float teto, float alfa) {
+  return home_vitrine_texto_el(ci, topo, teto, alfa, alfa, alfa, 0.0f, 0.0f, 0.0f);
+}
+// 2.0.42: o mesmo bloco com alfa e deslocamento Y POR ELEMENTO (logo, meta, sinopse), para a
+// entrada escalonada da Vitrine (herotexto.h). Com alfas iguais e dy = 0 e o de sempre.
+float home_vitrine_texto_el(const CatItem *ci, float topo, float teto, float aLogo, float aMeta,
+                            float aSin, float dyLogo, float dyMeta, float dySin) {
   int lay = home_vitrine_layout();
+  float alfa = fmaxf(aLogo, fmaxf(aMeta, aSin));
   float base = topo - NV_HERO_COPY_GAP - 24.0f;
   float logoH = lay == HOME_LAYOUT_PADRAO ? NV_PAD_LOGO_H : lay == HOME_LAYOUT_DINAMICA ? NV_DIN_LOGO_H : 150.0f;
   float sinW = lay == HOME_LAYOUT_PADRAO ? NV_PAD_SIN_W : lay == HOME_LAYOUT_DINAMICA ? 760.0f : NV_HERO_SIN_W;
   if (!ci || alfa <= 0.004f) return teto;
   vitTeto = teto; vitTopoBloco = teto;
+  HeroEl el = { aLogo, aMeta, aSin, dyLogo, dyMeta, dySin };
   (void)desenhaCopiaHero(ci, 0, ajustes_conteudo_x(), base, lay, lay == HOME_LAYOUT_MODERNA,
                          logoH, homeTextoLargura(sinW), 3, alfa, alfa, 0.0f,
-                         0.0f, NV_HOME_HERO_BOTAO_GAP, 0.0f);
+                         0.0f, NV_HOME_HERO_BOTAO_GAP, 0.0f, &el);
   vitTeto = 0.0f;
   return vitTopoBloco;
 }
@@ -8793,7 +8857,7 @@ void home_abrir_sessao(void) {
   heroDesejado = heroTardeItem = heroPreItem = heroPreLogado = heroInfoItem = -1;
   heroPendenteEm = heroUltTecla = agora;
   heroDesejadoEm = heroTardeEm = heroPreDiagEm = 0;
-  heroSai = 0.0f; heroEntra = heroDesliza = 1.0f;
+  heroSai = 0.0f; heroEntra = heroDesliza = 1.0f; heroTextoAtivo = 0;
   heroDeslizaDir = heroDirDesejado = heroAutoDesligado = heroOcultoAntes = 0;
   heroTrocaEm = agora + NV_HERO_INTERVALO_MS;
   heroSetN = heroSetCat = heroSetNFil = 0;

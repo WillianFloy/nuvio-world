@@ -148,6 +148,8 @@ int  home_vitrine_arte(const CatItem *ci, float alfa);
 int  home_vitrine_layout(void);
 float home_vitrine_topo(float filH);
 float home_vitrine_texto(const CatItem *ci, float topo, float teto, float alfa);
+float home_vitrine_texto_el(const CatItem *ci, float topo, float teto, float aLogo, float aMeta,
+                            float aSin, float dyLogo, float dyMeta, float dySin);   // 2.0.42
 void home_vitrine_cartao(const CatItem *ci, GfxRect base, GfxRect card, float alfa);
 // A Vitrine com o cartaz vertical aberto (0..1), arte deitada e logo como na Home.
 int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *entra, float alfaEntra);
