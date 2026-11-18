@@ -100,6 +100,9 @@ GR=(android/gradlew -p android --console=plain -Pnuvio.sdlSrc="$CACHE/src" -Pnuv
 # ou a pasta padrao); configurada e incompleta = erro, nunca pacote sem motor calado.
 . tools/p2p-motor/pasta.sh
 LITE="${NUVIO_APK_LITE:-0}"
+# APK DE TESTE (NUVIO_APK_VARIANTE=teste): pacote space.nuvio.world.test, nome
+# "Nuvio World Teste", convive com o oficial e nao se auto-atualiza.
+[ "${NUVIO_APK_VARIANTE:-}" != teste ] || GR+=(-Pnuvio.variante=teste)
 NV_P2P_DIR=""
 if [ "$LITE" = 1 ]; then
   GR+=(-Pnuvio.apkLite=1)

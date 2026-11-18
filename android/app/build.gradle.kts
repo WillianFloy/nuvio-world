@@ -6,6 +6,9 @@ plugins {
 // Tudo que vem de fora do projeto entra por propriedade (-P) que o
 // tools/android.sh passa; os padroes servem para abrir no Android Studio.
 val lite = (findProperty("nuvio.apkLite") as String?) == "1"
+// APK DE TESTE (-Pnuvio.variante=teste): outro applicationId, outro nome, mesma
+// compilacao de release (otimizada). Convive com o oficial instalado.
+val varianteTeste = (findProperty("nuvio.variante") as String?) == "teste"
 if (lite) layout.buildDirectory.set(file("build-lite"))
 val raiz = rootProject.projectDir.parentFile                         // raiz do repo
 val cache = file(System.getProperty("user.home") + "/.cache/nuvio-android")
@@ -27,11 +30,12 @@ android {
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "space.nuvio.world"
+        applicationId = if (varianteTeste) "space.nuvio.world.test" else "space.nuvio.world"
+        manifestPlaceholders["appLabel"] = if (varianteTeste) "Nuvio World Teste" else "@string/app_name"
         minSdk = 24
         targetSdk = 35
         versionCode = vx * 10000 + vy * 100 + vz
-        versionName = versao
+        versionName = if (varianteTeste) "$versao-teste" else versao
         ndk { if (!lite) abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         externalNativeBuild {
             cmake {

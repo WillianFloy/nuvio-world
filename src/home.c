@@ -4455,7 +4455,7 @@ static int heroNomeLogo(const CatItem *ci, const char *url, int loaded,
 }
 
 static float heroSinEntrelinha(void) {
-  return ajustes_hero_sinopse_grande() ? 32.0f : NV_LD_HERO_SIN;
+  return ajustes_hero_sinopse_grande() ? 39.0f : NV_LD_HERO_SIN;   // 29 px x 1,35
 }
 static TxtEstilo heroSinEstilo(void) {
   return ajustes_hero_sinopse_grande() ? TXT_HERO_SIN_GRANDE : TXT_HERO_SIN;
@@ -4591,6 +4591,19 @@ static void desenhaPontosHero(float xDir, float yc, int n, int atual, float a) {
 // A largura do logo do titulo no destaque, por layout. Partilhada pelo
 // desenho e pelos pedidos antecipados (heroPedirLogo): o MESMO teto cai no
 // MESMO item do cache, sem promocao nem segundo decode.
+// VISUAL WORLD (18/11): O NOME SEM LOGO nao cabe na caixa do LOGO. Ela e
+// estreita (Padrao/Dinamica ~300-420 px) e o nome saia cortado em "O Ultimo..."
+// com a largura da tela sobrando. O nome usa a largura do bloco de texto; nao
+// cabendo no corpo grande, desce um corpo; so entao corta.
+static TxtLinha heroTituloTexto(const char *t, float maxWLogo) {
+  float w = fmaxf(maxWLogo, homeTextoLargura(820.0f));
+  TxtLinha l = txt_linha(TXT_TITULO1, t, 255, 255, 255, 255);
+  if (l.w <= w) return l;
+  l = txt_linha(TXT_TITULO2, t, 255, 255, 255, 255);
+  if (l.w <= w) return l;
+  return txt_linha_corta(TXT_TITULO2, t, 255, 255, 255, 255, w);
+}
+
 static float heroLogoMaxW(int lay, int cheio) {
   if (lay == HOME_LAYOUT_PADRAO) return homeTextoLargura(NV_PAD_LOGO_MAX_W);
   if (lay == HOME_LAYOUT_DINAMICA) return homeTextoLargura(NV_DIN_LOGO_MAX_W);
@@ -4793,7 +4806,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     // sinopse perde linhas, depois a linha de amigos.
     float minLogo = 88.0f;
     if (!tlogo && mostraNomeLogo && ci && ci->titulo[0])
-      minLogo = (float)txt_linha_corta(TXT_TITULO1, ci->titulo, 255, 255, 255, 255, maxWLogo).h;
+      minLogo = (float)heroTituloTexto(ci->titulo, maxWLogo).h;
     while (copy.logo + copy.logoHeight - minTop < minLogo && (hSin > 0.0f || friendsH > 0.0f)) {
       if (hSin > 0.0f) hSin = fmaxf(0.0f, hSin - heroSinEntrelinha());
       else friendsH = 0.0f, temAmigos = 0;
@@ -4868,7 +4881,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     // basta, e o texto aparece quando o dado chegar.
     if (ci && ci->titulo[0]) {
       TxtLinha tit = heroCompactoTelefone() ? tituloTelefone
-                   : txt_linha_corta(TXT_TITULO1, ci->titulo, 255, 255, 255, 255, maxWLogo);
+                   : heroTituloTexto(ci->titulo, maxWLogo);
       txt_desenhar_alpha(tit, x, logoY + logoH - (float)tit.h + dyL,
                          aLogoTxt * (1.0f - cin));
       // Sem logo, o nome pequeno entra embaixo (o mesmo do detalhe).

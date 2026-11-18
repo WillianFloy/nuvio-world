@@ -238,18 +238,13 @@ static void afConvite(float x0, float y, int focada) {
     gfx_luz_canto(c, afRaio(c), c.w * .6f, c.h * .38f, c.w * .65f,
                   .85f, .60f, .32f, .55f);
     gfx_veu_base(c, afRaio(c), .6f, .85f);
-    svd_avatar((GfxRect){c.x + 16, c.y + 16, 48, 48}, "", i ? "Teo" : "Ana", i ? "example-teo" : "example-ana", .5f);
-    GfxRect chip = {c.x + c.w - 168, c.y + 16, 152, 28};
-    gfx_cor(chip, .5f, .08f, .07f, .07f, .7f);
-    char label[128]; snprintf(label, sizeof label, "%s", i18n("Exemplo"));
-    for (char *p = label; *p; p++) if (*p >= 'a' && *p <= 'z') *p -= 'a' - 'A';
-    afTexto(label, chip.x + 10, chip.y + 2, chip.w - 20, TXT_CAPTION2, .55f);
-    afTexto(i ? "TERRA" : "AMBER", c.x + 16, c.y + c.h - 42, c.w - 32, TXT_CALLOUT, .45f);
-    if (!i) svd_barra((GfxRect){c.x + 16, c.y + c.h - 10, c.w - 32, 4}, 58, .4f);
-    snprintf(label, sizeof label, "%s %s", i ? "Teo" : "Ana", i ? i18n("assistiu") : i18n("assistindo agora"));
-    afTexto(label, c.x, c.y + c.h + 12, c.w, TXT_CAPTION, .5f);
-    snprintf(label, sizeof label, i18n("T%dE%d"), 1, i ? 2 : 4);
-    afTexto(label, c.x, c.y + c.h + 42, c.w, TXT_CAPTION2, .35f);
+    // VISUAL WORLD (18/11): ilustracao, nao dado. Sem o selo EXEMPLO, sem nomes e
+    // titulos inventados (liam como app inacabado): so a silhueta do cartao de um
+    // amigo — disco do avatar, faixa do titulo e a barra de progresso —, apagada.
+    gfx_cor((GfxRect){c.x + 16, c.y + 16, 48, 48}, 24.0f, 1, 1, 1, .10f);
+    gfx_cor((GfxRect){c.x + 16, c.y + c.h - 44, c.w * .46f, 18}, 9.0f, 1, 1, 1, .10f);
+    if (!i) svd_barra((GfxRect){c.x + 16, c.y + c.h - 10, c.w - 32, 4}, 58, .25f);
+    gfx_cor((GfxRect){c.x, c.y + c.h + 16, c.w * .5f, 16}, 8.0f, 1, 1, 1, .07f);
   }
 }
 static void afAtualizar(float dt, int focada, int *colunaP) {

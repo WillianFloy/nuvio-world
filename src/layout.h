@@ -235,10 +235,11 @@ int layout_modo_mobile(void);
 #define NV_COLLECTION_HERO_LOGO_MAX_W   520.0f
 #define NV_COLLECTION_HERO_LOGO_MAX_H   150.0f
 #define NV_COLLECTION_HERO_CAPTION_Y    448.0f
-// line-height do CSS: sinopse 22*1.35, meta 21*1.25, secundaria 18*1.35.
-#define NV_LD_HERO_SIN   30
-#define NV_LD_HERO_META  26
-#define NV_LD_HERO_SEC   24
+// line-height do CSS: sinopse 22*1.35, meta 21*1.25, secundaria 18*1.35 — com
+// os corpos da VISUAL WORLD (26, 25, 21) e as mesmas razoes: 35, 31, 28.
+#define NV_LD_HERO_SIN   35
+#define NV_LD_HERO_META  31
+#define NV_LD_HERO_SEC   28
 // MEDIDO no app web: o titulo da primeira fileira fica em y=518 e os cards em
 // y=564. A regra dos "2/3 da tela" que estava aqui e do productTemplate do
 // tvOS, e nao e a nossa: no web as fileiras sobem por cima da parte de baixo da
@@ -584,8 +585,10 @@ int layout_modo_mobile(void);
 // valores oficiais, onde a medida bateu (cap 40 contra 41).
 #define NV_FT_BODY       25
 #define NV_FT_CALLOUT    28
-#define NV_FT_CAPTION    22
-#define NV_FT_CAPTION2   21
+// VISUAL WORLD (18/11): legenda e rotulos sobem para o piso de leitura a 2-3 m
+// (tvOS: 23 px para texto). Eram 22 e 21.
+#define NV_FT_CAPTION    24
+#define NV_FT_CAPTION2   23
 #define NV_FT_MINI       15   // selo de classificacao (icone, nao texto)
 // Corpos do PLAYER. Nao saem da escala do tvOS: saem do app web, que e a
 // referencia desta variante. Os valores estao resolvidos para 1920x1080, que e
@@ -602,15 +605,17 @@ int layout_modo_mobile(void);
 // TCL manda, por ser o aparelho.
 #define NV_FT_ROW_TITULO 33
 // .home-modern-hero-secondary: 18/600 na sessao logada.
-#define NV_FT_HERO_SEC   18   // --modern-hero-secondary-size (212*0.085)
-#define NV_FT_HERO_META  21   // --modern-hero-meta-size (212*0.1), peso 500
-#define NV_FT_HERO_SIN   22   // original hero synopsis, peso 400
+// VISUAL WORLD (18/11): a linha de meta e a sinopse do destaque sobem (eram 18,
+// 21 e 22): o titulo e enorme e todo o resto lia pequeno demais a 2-3 m.
+#define NV_FT_HERO_SEC   21   // era 18 (--modern-hero-secondary-size)
+#define NV_FT_HERO_META  25   // era 21 (--modern-hero-meta-size), peso 500
+#define NV_FT_HERO_SIN   26   // era 22, peso 400
 // Tela de DETALHE, medidos no app web rodando (getBoundingClientRect e
 // getComputedStyle sobre .series-detail-shell), nao lidos da folha.
 #define NV_FT_DET_BOTAO  25   // .series-primary-btn (peso 600)
 #define NV_FT_DET_META   25   // .series-detail-support e .detail-meta-row
 #define NV_FT_DET_SIN    28   // era 26 (#477, sinopse pequena na TV)
-#define NV_FT_DET_META2  23   // .detail-meta-row.secondary
+#define NV_FT_DET_META2  24   // .detail-meta-row.secondary (era 23)
 #define NV_FT_PLR_TITULO 56   // .player-title
 #define NV_FT_PLR_CORPO  32   // .player-subtitle e .player-time-label
 // Canto superior do player. O relogio e o "Termina as" vem do bloco ATV

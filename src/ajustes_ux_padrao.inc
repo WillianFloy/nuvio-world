@@ -359,3 +359,5 @@
   0, /* Collections: expand focused vertical poster: On, profile-local */
   3, /* Collections: expansion delay 3 s (same as Posters and trailers) */
   0, /* Collections: entry animation on open: On, profile-local (2.0.43) */
+  0, /* Interface tone: Grafite (Preto puro = 1), local */
+  0, /* Android opening video: On, local */

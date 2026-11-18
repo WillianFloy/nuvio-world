@@ -982,6 +982,13 @@ static void disparar(void) {
 
 // NAO RECONSULTA com o cartao aberto, instalando ou com a .so ja encenada: a
 // consulta reescreveria a URL/hash que o instalador esta usando.
+// APK DE TESTE (NUVIO_VARIANTE=teste, posto pelo NuvioActivity para o pacote
+// .test): nao consulta nem instala Releases — o canal oficial e do app oficial.
+static int atualizacaoDesligada(void) {
+  const char *v = getenv("NUVIO_VARIANTE");
+  return v && !strcmp(v, "teste");
+}
+
 static int podeReconsultar(void) {
   return !aberto && estado != AT_INSTALANDO && estado != AT_PRONTO && !soEncenada;
 }
@@ -990,6 +997,7 @@ void atualizacao_verificar(void) {
 #ifdef NV_DTS_DEBUG
   return; /* Debug IPKs are installed explicitly, outside production updates. */
 #endif
+  if (atualizacaoDesligada()) return;
   static long ultChamada;
   long rel = (long)time(NULL);
   int vence;
@@ -1014,6 +1022,7 @@ void atualizacao_procurar_agora(void) {
 #ifdef NV_DTS_DEBUG
   return;
 #endif
+  if (atualizacaoDesligada()) return;
   if (!mtx) mtx = SDL_CreateMutex();
   if (!mtx || !podeReconsultar()) return;
   SDL_LockMutex(mtx);

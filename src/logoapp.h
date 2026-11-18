@@ -2,7 +2,9 @@
 //
 // Duas escolhas, ambas em Ajustes > Aparencia > "Logo e abertura", para todo mundo
 // (sem a trava de apoiador do icone) e LOCAIS desta TV (logoAppLocal):
-//   Novo     = o play arredondado em degrade (art/marcas/logo-novo-*.png), padrao;
+//   World    = a identidade Nuvio World (art/marcas/logo-world-*.png, gerados dos
+//              SVGs em marca/world/original), padrao. O valor salvo 0 e o mesmo do
+//              antigo "Novo" (logo-novo-*.png, so fixture de teste agora);
 //   Classico = a TV retro de sempre (art/marcas/abertura.jpg na abertura,
 //              logo-classico.png nas miniaturas, nuvio_wordmark.png no Sobre).
 //

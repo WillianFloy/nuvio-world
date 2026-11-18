@@ -18,10 +18,10 @@ cc -Isrc -I"$work" -x c -o "$work/teste" - <<'C'
 #include "sinopse_tamanho_impl.h"
 int main(void) {
   int corpo, peso;
-  assert(NV_FT_HERO_SIN == 22);
-  assert(NV_LD_HERO_SIN == 30);
+  assert(NV_FT_HERO_SIN == 26);
+  assert(NV_LD_HERO_SIN == 35);
   txt_estilo_medidas(TXT_HERO_SIN_GRANDE, &corpo, &peso);
-  assert(corpo == 24 && peso == PESO_REGULAR);
+  assert(corpo == 29 && peso == PESO_REGULAR);
   return 0;
 }
 C

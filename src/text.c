@@ -445,7 +445,7 @@ static const struct { int corpo, peso; } ESTILOS[TXT_NFONTES] = {
   { 26, PESO_MEDIUM },   // TXT_DET_META_GEN
   { 25, PESO_MEDIUM },   // TXT_TV_ROTULO: item da barra Apple TV (25/500)
   { 24, PESO_BOLD   },   // TXT_TV_SECAO: "STREAMING" em caixa alta (24/700)
-  { 24, PESO_REGULAR },  // TXT_HERO_SIN_GRANDE
+  { 29, PESO_REGULAR },  // TXT_HERO_SIN_GRANDE (era 24; acima dos 26 da sinopse)
   { 19, PESO_REGULAR }, { 21, PESO_REGULAR }, { 22, PESO_REGULAR }, { 23, PESO_REGULAR },
   { 24, PESO_REGULAR }, { 25, PESO_REGULAR }, { 26, PESO_REGULAR }, { 27, PESO_REGULAR },
   { 28, PESO_REGULAR }, { 29, PESO_REGULAR }, { 30, PESO_REGULAR }, { 31, PESO_REGULAR },

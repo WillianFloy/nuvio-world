@@ -1765,8 +1765,11 @@ static void desenhaVazio(void) {
     TxtLinha t2 = txt_linha_corta(TXT_CALLOUT, l2, 150, 153, 162, 255, bibW());
     float cx = bibX() + bibW() * 0.5f;
     float y = gradeY() + 190.0f;
-    gfx_icone((GfxRect){cx - 32.0f, y - 100.0f, 64.0f, 64.0f},
-               "menu_library", 0.70f, 0.70f, 0.72f, 1.0f);
+    // VISUAL WORLD (18/11): o icone ganha um disco e corpo de 2-3 m (era 64 px
+    // solto, lia como resto de tela).
+    gfx_cor((GfxRect){cx - 72.0f, y - 176.0f, 144.0f, 144.0f}, 0.5f, 1, 1, 1, 0.06f);
+    gfx_icone((GfxRect){cx - 44.0f, y - 148.0f, 88.0f, 88.0f},
+               "menu_library", 0.78f, 0.78f, 0.80f, 1.0f);
     txt_desenhar_alpha(t1, cx - t1.w * 0.5f, y, 0.96f);
     txt_desenhar_alpha(t2, cx - t2.w * 0.5f, y + t1.h + 18.0f, 0.85f);
     { TxtLinha d = txt_linha(TXT_CAPTION2, dica, 150, 153, 162, 255);

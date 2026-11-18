@@ -546,6 +546,8 @@ float ajustes_tamanho_ajustes(void);
 // #339: 1 = Settings as a single stacked list (Ajustes › Aparência › Layout dos Ajustes). LOCAL.
 int   ajustes_layout_lista(void);
 int   ajustes_col_entrada(void);   // 2.0.43: 1 = animacao de entrada ao abrir uma Collection
+int   ajustes_tema_preto(void);    // 1 = tom Preto puro (#000) em vez do Grafite
+int   ajustes_abertura_video(void); // Android: 1 = video de abertura Nuvio World
 int   ajustes_esconder_logo_trailer(void);   // 1 = hide the corner title logo while a trailer plays
 // R4: second subtitle placement and own style (local). junto: 1 = stacked right above the
 // primary at the bottom, 0 = top band. tamanho: percent (50..300), 0 = automatic (90% of the

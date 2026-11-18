@@ -656,6 +656,16 @@ void android_etapa(const char *nome) {
   if (nome) __atomic_store_n(&etapaAtual, nome, __ATOMIC_RELEASE);
 }
 void android_quadro(void) { __atomic_add_fetch(&quadrosFeitos, 1, __ATOMIC_RELAXED); }
+// VIDEO DE ABERTURA (SplashVideo.kt): o Kotlin cobre a tela com o video enquanto
+// o C compila os shaders e monta a home; quando a abertura nativa acaba (a home
+// tem as artes do primeiro quadro, ou o teto), o video toca a saida e some.
+static volatile int aberturaPronta;
+void android_abertura_pronta(void) { __atomic_store_n(&aberturaPronta, 1, __ATOMIC_RELEASE); }
+JNIEXPORT jboolean JNICALL
+Java_space_nuvio_nativelegacy_NuvioActivity_nativeAberturaPronta(JNIEnv *env, jobject act) {
+  (void)env; (void)act;
+  return __atomic_load_n(&aberturaPronta, __ATOMIC_ACQUIRE) ? JNI_TRUE : JNI_FALSE;
+}
 
 JNIEXPORT jstring JNICALL
 Java_space_nuvio_nativelegacy_NuvioActivity_nativeEtapa(JNIEnv *env, jobject act) {

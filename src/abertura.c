@@ -5,6 +5,9 @@
 #include "layout.h"
 #include "ajustes.h"
 #include "logoapp.h"
+#ifdef NV_ANDROID
+#include "android.h"
+#endif
 #include "tex_cache.h"
 #include <SDL2/SDL_image.h>
 #include <math.h>
@@ -17,8 +20,9 @@
 #define AB_FUNDO_G (15.0f / 255.0f)
 #define AB_FUNDO_B (18.0f / 255.0f)
 #define AB_MARCA_W 780.0f
-// A marca do logo Novo (play + nome empilhados, 1200x895) em 1920x1080.
-#define AB_NOVO_W 720.0f
+// A marca do logo World (simbolo + "World" empilhados, 826x908, vertical) em
+// 1920x1080: 400 px de largura = ~440 de altura, o mesmo peso do simbolo do video.
+#define AB_NOVO_W 400.0f
 #define AB_CENTRO_Y 540.0f
 // Nunca segura a home alem disto, com arte chegando ou nao.
 #define ABERTURA_TETO_MS 1500u
@@ -112,6 +116,9 @@ int abertura_ativa(void) { return estado < 3; }
 
 static void acabar(void) {
   estado = 3;
+#ifdef NV_ANDROID
+  android_abertura_pronta();   // SplashVideo.kt: o video de abertura pode sair
+#endif
   if (marca) { gfx_tex_esquecer(marca); glDeleteTextures(1, &marca); marca = 0; }
   printf("[abertura] fim em %u ms\n", (unsigned)(SDL_GetTicks() - inicio));
   fflush(stdout);
@@ -209,7 +216,7 @@ void abertura_previa(GfxRect r, float raio, int estilo, int logo, Uint32 agora, 
     float asp = tex_aspecto(c), w, h;
     tx = tex_obter_larg(c, r.w * (AB_NOVO_W / NV_TELA_W));
     if (!tx) return;
-    if (asp <= 0.0f) asp = 1.34f;
+    if (asp <= 0.0f) asp = 0.91f;
     w = r.w * (AB_NOVO_W / NV_TELA_W) * k; h = w / asp;
     gfx_tex_aspect_atual = 0.0f;
     gfx_rect((GfxRect){ r.x + (r.w - w) * 0.5f, r.y + r.h * 0.5f - h * 0.5f, w, h },

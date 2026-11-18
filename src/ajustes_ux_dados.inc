@@ -200,7 +200,9 @@ static const char *uxSinonimos(int op) {
       return "legenda secundaria segunda dupla dual posicao topo junto empilhada tamanho cor fundo borda contorno estilo second subtitle position size color";
     case AJ_FONTE_IDIOMA_AUDIO: return "fonte automatica idioma audio dublado dublagem dual multi anime ingles japones preferir dub language";
     case AJ_FONTE_PRIORIDADE: case AJ_FONTE_HDR: return "fonte automatica prioridade qualidade equilibrio fluidez hdr dolby vision dv hdr10 sdr cor escolha melhor resolucao addon aiostreams ordem primeira order first";
-    case AJ_LOGO_APP: return "logo marca simbolo novo classico icone identidade nuvio tv retro play gradiente splash";
+    case AJ_LOGO_APP: return "logo marca simbolo world novo classico icone identidade nuvio tv retro play splash";
+    case AJ_TEMA_FUNDO: return "tema tom fundo preto puro amoled oled grafite escuro dark black background";
+    case AJ_ABERTURA_VIDEO: return "abertura video splash inicio animacao logo world intro boot arranque";
     case AJ_ABERTURA: return "abertura splash inicio animacao zoom esmaecer fade direto rapido logo entrada boot arranque";
     case AJ_ESMAECER: return "esmaecer escurecer apagar tela parado ocioso inatividade protecao oled burn-in screensaver descanso tempo minutos dim";
     case AJ_MANTER_PRAZO: return "tempo video pronto sem limite pausa retencao ilimitado minutos memoria";

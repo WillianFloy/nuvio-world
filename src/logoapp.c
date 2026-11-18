@@ -20,12 +20,12 @@ int logoapp_atual(void) {
 }
 
 const char *logoapp_nome(int logo) {
-  return logo == LOGO_NOVO ? "Novo" : logo == LOGO_CLASSICO ? "Clássico" : "";
+  return logo == LOGO_NOVO ? "World" : logo == LOGO_CLASSICO ? "Clássico" : "";
 }
 
 const char *logoapp_caminho(int logo, int forma) {
   static const char *ARQ[LOGO_N][3] = {
-    { "logo-novo-simbolo.png", "logo-novo-marca.png", "logo-novo-horizontal.png" },
+    { "logo-world-simbolo.png", "logo-world-marca.png", "logo-world-horizontal.png" },
     { "logo-classico.png",     "abertura.jpg",        "nuvio_wordmark.png" },
   };
   if (logo < 0 || logo >= LOGO_N || forma < 0 || forma > 2) return "";
@@ -66,7 +66,7 @@ int logoapp_marca(GfxRect r, float alpha) {
   t = tex_obter_larg(c, r.w);
   if (!t) return 0;
   asp = tex_aspecto(c);
-  if (asp <= 0.0f) asp = 0.91f;
+  if (asp <= 0.0f) asp = 1.12f;
   h = r.h; w = h * asp;
   if (w > r.w) { w = r.w; h = w / asp; }
   gfx_tex_aspect_atual = 0.0f;

@@ -164,6 +164,9 @@ class NuvioActivity : SDLActivity() {
     external fun nativeEtapa(): String
     external fun nativeQuadros(): Long
     external fun nativeRecUrl(): String
+    // Video de abertura Nuvio World (SplashVideo.kt): a abertura nativa acabou.
+    external fun nativeAberturaPronta(): Boolean
+    private var splash: SplashVideo? = null
     fun estadoSdl() = "thread=${if (mSDLThread != null) "sim" else "nao"} foco=$mHasFocus " +
         "retomada=$mIsResumedCalled superficie=${mSurface?.mIsSurfaceReady == true}"
 
@@ -223,6 +226,14 @@ class NuvioActivity : SDLActivity() {
         mSurface.holder.setFormat(PixelFormat.TRANSLUCENT)
         NvPlayer.iniciar(this, camada)
         NvPlayer.interfaceModo(interfaceMobile)
+        // VIDEO DE ABERTURA: so no arranque frio (nao na recriacao da Activity),
+        // com a biblioteca carregada e o ajuste ligado. Falhou = abertura nativa.
+        if (!mBrokenLibraries && savedInstanceState == null &&
+            SplashVideo.ligado(File(filesDir, "dados"))) {
+            val raiz = findViewById<ViewGroup>(android.R.id.content)
+            if (raiz != null) splash = SplashVideo(this, { nativeAberturaPronta() }, { splash = null })
+                .also { it.iniciar(raiz) }
+        }
     }
 
     // SDL and video fill the window, including the camera cutout edges. Keeping
@@ -522,6 +533,7 @@ class NuvioActivity : SDLActivity() {
     // 1 = instalador aberto, 2 = falta a permissao "instalar apps desta fonte"
     // (abre a tela dela), 0 = falhou. Nao bloqueia: o resultado e do sistema.
     fun instalarApk(caminho: String): Int {
+        if (packageName.endsWith(".test")) return 0   // variante de teste: sem auto-atualizacao
         return try {
             val arq = File(caminho)
             if (!arq.isFile) return 0
@@ -737,6 +749,7 @@ class NuvioActivity : SDLActivity() {
     }
 
     override fun onDestroy() {
+        splash?.encerrar()
         registroDownload.fechar()
         configTransferencia.fechar()
         vigia?.parar()
@@ -778,6 +791,9 @@ class NuvioActivity : SDLActivity() {
         } catch (e: Exception) { "" }
         fun env(k: String, v: String) = Os.setenv(k, v, true)
         env("NUVIO_INTERFACE_AUTO", if (automaticMobile) "1" else "0")
+        // APK DE TESTE (applicationId .test): convive com o oficial e NUNCA se
+        // atualiza pelo canal de Releases (atualizacao.c le isto).
+        if (packageName.endsWith(".test")) env("NUVIO_VARIANTE", "teste")
         env("NUVIO_DADOS", dados.path)
         val regenerable = File(cacheDir, "regenerable").apply { mkdirs() }
         ApkCache.prune(File(regenerable, "atualizacao"), installedVersion(), null, ::apkVersion)
@@ -1301,6 +1317,8 @@ class NuvioActivity : SDLActivity() {
 
     // Controle remoto: troca a tecla ANTES do SDL, para cair no SDLK que o app espera.
     override fun dispatchKeyEvent(ev: KeyEvent): Boolean {
+        // Durante o video de abertura toda tecla e dele: pula para o fim.
+        splash?.let { if (it.ativo) { if (ev.action == KeyEvent.ACTION_DOWN) it.pular(); return true } }
         if (ev.action == KeyEvent.ACTION_DOWN && !campoAberto && mSurface?.isFocused == false) {
             Log.w("Nuvio", "foco fora da SDLSurface: devolvendo antes da tecla ${ev.keyCode}")
             devolverFoco()

@@ -232,6 +232,9 @@ static void cartaz(const MapaObra *obra, GfxRect r, float f, float a) {
     gfx_tex_aspect_atual = tex_aspecto(url);
     gfx_rect(r, t, GFX_CARD, f, 0, 0, raio, 1, 1, 1, a);
     gfx_tex_aspect_atual = 0.0f;
+  } else if (url && url[0] && !tex_falhou(url)) {
+    // Chegando: a onda do esqueleto (como na Busca); falhou: superficie parada.
+    gfx_esqueleto(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, a);
   } else {
     gfx_cor(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, a);
   }

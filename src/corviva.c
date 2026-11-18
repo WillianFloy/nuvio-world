@@ -595,6 +595,10 @@ void corviva_definir_logo(const char *chave, int prioridade) {
 static const float BRANCO[3] = { 0xf4 / 255.0f, 0xf2 / 255.0f, 0xee / 255.0f };
 static const float FUNDO[3]  = { 0.051f, 0.051f, 0.051f };   // NV_COR_FUNDO
 float nv_cor_fundo_viva[3] = { 0.051f, 0.051f, 0.051f };
+// Tom Preto puro (gfx.h). Mora aqui porque todo binario que tem gfx.c tem este
+// arquivo; ajustes_tema_preto e fraco para os testes que nao linkam ajustes.c.
+int gfx_tema_preto;
+extern int ajustes_tema_preto(void) __attribute__((weak));
 float nv_acento_viva[3] = { 0xf4 / 255.0f, 0xf2 / 255.0f, 0xee / 255.0f };
 float nv_grad_viva[3][3] = { { 1, 1, 1 }, { 1, 1, 1 }, { 1, 1, 1 } };
 float nv_luz_viva[3] = { 0.30f, 0.30f, 0.29f };
@@ -636,6 +640,12 @@ void corviva_quadro(float dt, int modo, int usarLogo, int reduzido) {
   float novo[CV_NCOR][3], forca;
   int k, grad, fonteOk;
   const CorvivaPaleta *fonte;
+  // TOM DA INTERFACE (Ajustes > Aparencia): Preto puro zera o fundo — o glClear,
+  // os gfx_cor de tela cheia e, pelo uFundo, as rampas do destaque e do detalhe
+  // leem este vetor — e gfx_rect desce as superficies neutras (gfx_tema_cor).
+  // Aqui porque roda uma vez por quadro ANTES do clear no app e nas capturas.
+  gfx_tema_preto = ajustes_tema_preto ? ajustes_tema_preto() : 0;
+  for (k = 0; k < 3; k++) nv_cor_fundo_viva[k] = gfx_tema_preto ? 0.0f : FUNDO[k];
   if (dt < 0.0f) dt = 0.0f;
   relogio += (double)dt * 1000.0;
   nv_tempo_viva = reduzido ? 0.0f : (float)(relogio / 1000.0);

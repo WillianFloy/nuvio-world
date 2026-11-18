@@ -72,6 +72,8 @@ char *android_http(const char *verbo, const char *url, const char *cabs,
                    const char *corpo, int prazoMs, int *status, int *retryAfter, long *n,
                    char *erro, size_t nErro);
 void android_quadro(void);
+// A abertura nativa acabou (abertura.c): o video de abertura pode sair.
+void android_abertura_pronta(void);
 #endif
 #endif
 

@@ -527,8 +527,13 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   // cresce no foco e o cartao inteiro (moldura + arte, home.c), nunca a arte
   // por dentro. uPar segue so na luz, que nao corta nada.
   "  vec2 uv = uv0;\n"
-  "  vec3 cor = (contem > 0.5 && (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0))\n"
-  "    ? vec3(0.173)\n"
+  // VISUAL WORLD (18/11): as faixas do contain deixam de ser o cinza chapado do
+  // esqueleto (lia como imagem quebrada, ex.: arte deitada num poster de pe na
+  // grade da Collection) e viram a MESMA arte em cover, escurecida a 30% — um
+  // ambiente da propria imagem. Continua uma amostra por pixel.
+  "  bool faixa = contem > 0.5 && (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0);\n"
+  "  vec3 cor = faixa\n"
+  "    ? texture2D(uTex, clamp(cover(vUv), 0.0, 1.0)).rgb * 0.30\n"
   "    : texture2D(uTex, clamp(uv, 0.0, 1.0)).rgb;\n"
   "#endif\n"
   "  if (uFoco > 0.004) {\n"
@@ -2476,6 +2481,20 @@ void gfx_rect_furos(GfxRect r, GLuint tex, GfxModo modo, float foco,
   memcpy(subAtual, saved, sizeof saved);
 }
 
+static float temaV(float v) {
+  const float F = 0.051f, T = 0.20f;   // fundo do Grafite; teto do que muda
+  if (v >= T) return v;
+  if (v <= F) return 0.0f;
+  return (v - F) * (T / (T - F));
+}
+void gfx_tema_cor(float *r, float *g, float *b) {
+  float mx = *r > *g ? *r : *g, mn = *r < *g ? *r : *g;
+  if (*b > mx) mx = *b;
+  if (*b < mn) mn = *b;
+  if (mx > 0.20f || mx - mn > 0.025f) return;   // cor de verdade ou clara: nao e superficie
+  *r = temaV(*r); *g = temaV(*g); *b = temaV(*b);
+}
+
 void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco,
               float parx, float pary, float raio,
               float cr, float cg, float cb, float ca) {
@@ -2499,6 +2518,9 @@ void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco,
       (modo == GFX_COR || modo == GFX_TEXTO || modo == GFX_ANEL || modo == GFX_MARCA)) {
     cr *= gfx_osd_mult; cg *= gfx_osd_mult; cb *= gfx_osd_mult;
   }
+  // PRETO PURO: so superficie lisa (GFX_COR sem textura); arte, texto e vidro
+  // ficam como estao.
+  if (gfx_tema_preto && modo == GFX_COR && !tex) gfx_tema_cor(&cr, &cg, &cb);
   // UI EM HDR (esmaecer.h): o texto pelo uFoco do proprio shader (o RGB dele
   // vem da textura); retangulos de cor e logos pela cor. Arte nao muda.
   if (modo == GFX_TEXTO) foco = 1.0f - gfx_hdr_ui;
@@ -4085,6 +4107,7 @@ void gfx_vidro(GfxRect r, float raio, int tipo, float cinza, float dens, float a
     }
   } else {
     float c = vidroTom(cinza);
+    if (gfx_tema_preto) c = temaV(c);   // Preto puro: o miolo do vidro tambem desce
     if (d > 1.0f) d = 1.0f;
     if (video) d = vidroVideoAlfa();   // over video: light tint, the video shows through
     else if (fumaca) d = d < 0.50f ? 0.50f : d > 0.86f ? 0.86f : d;   // smoked glass: tinted, see-through

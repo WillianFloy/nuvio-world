@@ -624,6 +624,13 @@ void gfx_cor(GfxRect r, float raio, float cr, float cg, float cb, float ca);
 // Multiplicador de COR (nao de alfa) aplicado a GFX_COR/TEXTO/ANEL/MARCA: o brilho
 // da interface do player (esmaecer.h). 1 = sem efeito; quem muda restaura.
 extern float gfx_osd_mult;
+// TOM PRETO PURO (Ajustes > Aparencia > Tom da interface): 1 = os fundos e as
+// superficies neutras escuras pintadas com GFX_COR descem para o preto, com a
+// mesma ordem entre si (ver gfx_tema_cor). main.c assenta a cada quadro.
+extern int gfx_tema_preto;
+// A conta, exposta para os testes: so cor NEUTRA (r~g~b) ate 0,20 muda; o fundo
+// do Grafite (0,051) vira 0; 0,20 fica 0,20; o meio estica em linha reta.
+void gfx_tema_cor(float *r, float *g, float *b);
 // UI em HDR (esmaecer.h): HDR_UI_BRILHO enquanto o video do player esta em
 // HDR/DV, 1 fora. Vale para texto, cor e logos; quem muda restaura.
 extern float gfx_hdr_ui;

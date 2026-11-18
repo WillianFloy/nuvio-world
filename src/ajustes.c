@@ -724,6 +724,9 @@ typedef enum {
   AJ_COL_EXPANDIR,         // expandir poster vertical ao focar (0 = ligado)
   AJ_COL_EXPANDIR_ATRASO,  // segundos parado antes de expandir
   AJ_COL_ENTRADA,          // 2.0.43: animacao de entrada ao abrir uma Collection (0 = ligado)
+  // VISUAL WORLD (18/11), LOCAIS, append-only:
+  AJ_TEMA_FUNDO,           // 0 Grafite (o de sempre) | 1 Preto puro (#000, estilo AMOLED)
+  AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -821,7 +824,8 @@ static const char *V_DTS_SAIDA[] = { "Estéreo (AAC)", "5.1 (Dolby Digital)" };
 #define N_DTS_SAIDA 2
 #endif
 static const char *V_PROPORCAO[] = { "Último usado", "Original", "Recortar", "Esticar", "Zoom leve", "Zoom cinema", "Zoom ultra", "Ajustar altura", "Ajustar largura" };
-static const char *V_LOGO_APP[] = { "Novo", "Clássico" };
+static const char *V_LOGO_APP[] = { "World", "Clássico" };
+static const char *V_TEMA_FUNDO[] = { "Grafite", "Preto puro" };
 static const char *V_BUSCA_NUVIO[] = { "Primeiro", "Por último", "Desligado" };
 static const char *V_ABERTURA[] = { "Padrão", "Só esmaece", "Direto" };
 // #202: "Instantâneo" e 15/30 s, como o "Stream Selection Timeout" do
@@ -1869,6 +1873,8 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Expandir posters verticais das Collections ao focar", V_LIGA, 2),
   NUM("Atraso da expansão", 0, 10, 1, " s"),
   ESC("Animação de entrada das Collections", V_LIGA, 2),   // colEntradaLocal (2.0.43)
+  ESC("Tom da interface",                V_TEMA_FUNDO, 2),       // temaFundoLocal
+  ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2208,6 +2214,8 @@ static const char *CHAVE[] = {
   "colExpandirLocal",
   "colExpandirAtrasoLocal",
   "colEntradaLocal",
+  "temaFundoLocal",
+  "aberturaVideoLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3842,6 +3850,14 @@ int   ajustes_col_itens_fileira(void) {
 }
 int   ajustes_col_expandir(void) { return lig(AJ_COL_EXPANDIR); }
 int   ajustes_col_entrada(void) { return lig(AJ_COL_ENTRADA); }   // 2.0.43
+int   ajustes_tema_preto(void) {
+  // NUVIO_TEMA_PRETO=0/1 forca o tom nas capturas (tests/*_shot.sh).
+  static int env = -1;
+  if (env < 0) { const char *e = getenv("NUVIO_TEMA_PRETO"); env = e && e[0] ? (atoi(e) ? 2 : 1) : 0; }
+  if (env) return env == 2;
+  return valor[AJ_TEMA_FUNDO] == 1;
+}
+int   ajustes_abertura_video(void) { return lig(AJ_ABERTURA_VIDEO); }
 float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
@@ -7609,7 +7625,9 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_FONTE_PRIORIDADE:
       if (ajustes_fonte_prioridade() == 3) return "Do addon: toca a primeira fonte permitida, sem priorizar qualidade nem reutilizar escolhas anteriores.";
       return "Equilíbrio: HDR e Dolby Vision ganham de SDR na mesma resolução ou numa abaixo, e uma fonte que a sua conexão claramente não sustenta desce. Qualidade máxima: a maior resolução permitida, depois Dolby Vision, HDR10+, HDR10 e SDR, sem rebaixar por velocidade. Começar rápido: prefere fontes em cache e arquivos menores, que abrem mais depressa. Sempre rebaixa uma fonte que a conexão medida não sustenta.";
-    case AJ_LOGO_APP: return "O símbolo que o Nuvio mostra na abertura e nas telas de entrada. Novo é o play em degradê; Clássico é a TV retrô de sempre. Vale só nesta TV.";
+    case AJ_LOGO_APP: return "O símbolo que o Nuvio mostra na abertura e nas telas de entrada. World é a identidade do Nuvio World; Clássico é a TV retrô de sempre. Vale só nesta TV.";
+    case AJ_TEMA_FUNDO: return "Grafite (padrão): fundos e painéis em cinza bem escuro. Preto puro: fundos em preto absoluto, bom para TVs OLED; textos, foco e imagens continuam iguais. Vale só nesta TV.";
+    case AJ_ABERTURA_VIDEO: return "Ligado (padrão): o app abre com o vídeo do Nuvio World enquanto se prepara. Se o vídeo falhar, a abertura de sempre aparece. Vale só nesta TV.";
     case AJ_ABERTURA: return "Como o logo some quando o app abre. Padrão para um instante, aproxima e esmaece; Só esmaece não aproxima; Direto abre a Home sem parar. Vale só nesta TV.";
     case AJ_FONTE_HDR: return "Preferir: fontes com HDR ou Dolby Vision vêm na frente. Indiferente: o formato não conta. Evitar: prefere SDR na mesma resolução. O Dolby Vision só entra se estiver ligado em Imagem e som; perfil 5 sem HDR10 fica atrás do HDR10, porque sai com cores erradas fora de TV Dolby Vision. Só vale para a escolha automática.";
     case AJ_FONTE_ORDEM_ADDON: return "Por qualidade: as fontes vêm agrupadas por resolução, da maior para a menor, e do maior arquivo para o menor. Do addon: cada addon na ordem em que você o instalou, e as fontes de cada um na ordem em que ele mandou — para quem já ordena no AIOStreams. A escolha automática não muda.";
@@ -10695,7 +10713,7 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_COR_LOGO: case AJ_FONTE_UI: case AJ_VIDRO: case AJ_VIDRO_CONTORNO: case AJ_FOCO_ACENTO:
     case AJ_RELOGIO: case AJ_RELOGIO_POS: case AJ_SAIDA_PLAYER: case AJ_RELOGIO_12H:
     case AJ_TAMANHO_UI: case AJ_ESCALA_TEXTO: case AJ_DET_ESPACO: case AJ_TAMANHO_AJUSTES: case AJ_LAYOUT_AJUSTES: case AJ_INTERFACE_MODO: case AJ_TECLADO_ANDROID: case AJ_FUNDO: case AJ_VIDRO_OPAC: case AJ_VIDRO_FOSCO: case AJ_VIDRO_QUALIDADE:
-    case AJ_AVANCADAS: case AJ_LOGO_APP: case AJ_ABERTURA:
+    case AJ_AVANCADAS: case AJ_LOGO_APP: case AJ_ABERTURA: case AJ_TEMA_FUNDO: case AJ_ABERTURA_VIDEO:
     case AJ_ESMAECER: case AJ_BRILHO_PLAYER: case AJ_HDR_UI: case AJ_MANTER_VIDEO:
     case AJ_DESCANSO_ESTILO: case AJ_DESCANSO_FONTE:
       return AJPV_INTERFACE;
