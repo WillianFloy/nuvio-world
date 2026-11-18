@@ -103,6 +103,7 @@ static void captura(const char *nome, SDL_Window *win) {
     tex_novo_quadro();
     tex_bombear(6);
     ajustes_atualizar(1.0f / 60.0f, SDL_GetTicks());
+    gfx_tema_preto = ajustes_tema_preto();   // Tom da interface (o app assenta em corviva_quadro)
     if (getenv("NUVIO_SHOT_UPSCALE")) gpun_quadro_inicio();   // 720p target, as on the C9
     glClearColor(0.025f, 0.025f, 0.03f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);

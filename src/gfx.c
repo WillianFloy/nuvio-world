@@ -3438,11 +3438,14 @@ void gfx_cor_painel(GfxRect r, float raio, float cr, float cg, float cb, float c
   dinDescarregar();
   if (ambPendente) gfx_ambiente_descarregar();   // o clear do miolo cobriria o fundo
   // o interior: clear na cor do painel
-  { float cc[4];
+  { float cc[4], pr = cr, pg = cg, pb = cb;
+    // O miolo e um clear (fora do gfx_rect): o Preto puro entra aqui; as faixas
+    // da borda passam pelo gfx_rect, que ja faz a mesma conta.
+    if (gfx_tema_preto) gfx_tema_cor(&pr, &pg, &pb);
     glGetFloatv(GL_COLOR_CLEAR_VALUE, cc);
     glEnable(GL_SCISSOR_TEST);
     glScissor(sx0, sy0, sx1 - sx0, sy1 - sy0);
-    glClearColor(cr, cg, cb, 1.0f);
+    glClearColor(pr, pg, pb, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glClearColor(cc[0], cc[1], cc[2], cc[3]);
     glDisable(GL_SCISSOR_TEST); }
@@ -4107,12 +4110,16 @@ void gfx_vidro(GfxRect r, float raio, int tipo, float cinza, float dens, float a
     }
   } else {
     float c = vidroTom(cinza);
-    if (gfx_tema_preto) c = temaV(c);   // Preto puro: o miolo do vidro tambem desce
     if (d > 1.0f) d = 1.0f;
     if (video) d = vidroVideoAlfa();   // over video: light tint, the video shows through
     else if (fumaca) d = d < 0.50f ? 0.50f : d > 0.86f ? 0.86f : d;   // smoked glass: tinted, see-through
     vidPend.scrT[0] = vidPend.scrT[1] = vidPend.scrT[2] = c; vidPend.scrT[3] = vidPend.fonte ? d * 0.85f : d;
     vidPend.scrB[0] = vidPend.scrB[1] = vidPend.scrB[2] = c; vidPend.scrB[3] = d;
+  }
+  // PRETO PURO: a tinta do vidro (miolo e barra) desce com as superficies.
+  if (gfx_tema_preto) {
+    gfx_tema_cor(&vidPend.scrT[0], &vidPend.scrT[1], &vidPend.scrT[2]);
+    gfx_tema_cor(&vidPend.scrB[0], &vidPend.scrB[1], &vidPend.scrB[2]);
   }
   // A densidade resolvida pelo fundo: o texto #cdd3dd com contraste 4 pede
   // luminancia <= 0,125 atras dele; tetos de 0,72 em cima e 0,82 embaixo.

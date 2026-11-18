@@ -241,10 +241,10 @@ static void afConvite(float x0, float y, int focada) {
     // VISUAL WORLD (18/11): ilustracao, nao dado. Sem o selo EXEMPLO, sem nomes e
     // titulos inventados (liam como app inacabado): so a silhueta do cartao de um
     // amigo — disco do avatar, faixa do titulo e a barra de progresso —, apagada.
-    gfx_cor((GfxRect){c.x + 16, c.y + 16, 48, 48}, 24.0f, 1, 1, 1, .10f);
-    gfx_cor((GfxRect){c.x + 16, c.y + c.h - 44, c.w * .46f, 18}, 9.0f, 1, 1, 1, .10f);
+    gfx_cor((GfxRect){c.x + 16, c.y + 16, 48, 48}, .5f, 1, 1, 1, .12f);
+    gfx_cor((GfxRect){c.x + 16, c.y + c.h - 44, c.w * .46f, 18}, .5f, 1, 1, 1, .12f);
     if (!i) svd_barra((GfxRect){c.x + 16, c.y + c.h - 10, c.w - 32, 4}, 58, .25f);
-    gfx_cor((GfxRect){c.x, c.y + c.h + 16, c.w * .5f, 16}, 8.0f, 1, 1, 1, .07f);
+    gfx_cor((GfxRect){c.x, c.y + c.h + 16, c.w * .5f, 16}, .5f, 1, 1, 1, .08f);
   }
 }
 static void afAtualizar(float dt, int focada, int *colunaP) {
