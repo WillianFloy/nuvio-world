@@ -50,6 +50,7 @@ static void heroTempoInicio(int indice) {
 #include "layout.h"
 #include "vitgeom.h"
 #include "herotexto.h"
+#include "transicao.h"
 #include "telefoneui.h"
 #include "ajustes.h"
 #include "cwordem.h"
@@ -347,7 +348,12 @@ static int  temItemFoco = 0;
 // O cartao focado de QUALQUER fileira (pilha e pasta inclusas, que nao tem
 // itemFoco): onde o menu contextual da fileira (ctxmenu.c) nasce ao lado.
 static GfxRect ancoraFoco; static int temAncoraFoco = 0;
-static float homeUnidade(void);   // 2.0.44: definida mais abaixo (o OK da pasta converte o raio para a tela)
+static float homeUnidade(void);
+static int home_ancora_foco_(GfxRect *out);
+// 2.0.45: centro do cartao da pasta no clique (unidade da Home): a Home recua em torno dele.
+static float homeRecuoOx = NV_TELA_BASE_W * 0.5f, homeRecuoOy = NV_TELA_BASE_H * 0.5f;
+static int homeOcultaOrigem;
+   // 2.0.44: definida mais abaixo (o OK da pasta converte o raio para a tela)
 static uint64_t itemFocoSessao;
 static unsigned itemFocoCatalogo;
 static void publicarItemFoco(void) {
@@ -2699,8 +2705,12 @@ static void home_evento_(const SDL_Event *e) {
           const ColFolder *fo = col_folder(fileiras[foco.fileira].folders[foco.coluna]);
           GfxRect orig;
           // `home_ancora_foco` ja devolve em coordenadas da TELA (a Home desenha na unidade dela: homeUnidade).
-          if (!focoHero && home_ancora_foco(&orig) && orig.w > 8.0f && orig.h > 8.0f)
+          if (!focoHero && home_ancora_foco(&orig) && orig.w > 8.0f && orig.h > 8.0f) {
+            // 2.0.45: a Home recua em torno do cartao (escala + opacidade), na unidade dela.
+            GfxRect oi;
+            if (home_ancora_foco_(&oi)) { homeRecuoOx = oi.x + oi.w * 0.5f; homeRecuoOy = oi.y + oi.h * 0.5f; }
             vertudo_colecao_voo(fo, orig, raioDe(orig.w / homeUnidade(), orig.h / homeUnidade()) * orig.h);
+          }
           else vertudo_colecao(fo);
         }
       } else if (noVerTudo) {
@@ -3763,7 +3773,21 @@ static void heroAquecerVizinhos(Uint32 agora) {
   }
 }
 
+// 2.0.45 (D2): PRE-CARGA POR PERMANENCIA. Foco parado >= 250 ms no cartao de uma pasta: a Collection le as
+// listas do colcache (sem rede) e pede os cartazes visiveis com o cache ocioso (vertudo_prever). Uma vez por pasta.
+static void pastaPrever(Uint32 agora) {
+  static int id = -2, feito; static Uint32 desde;
+  int atual = -1;
+  if (!focoHero && foco.fileira >= 0 && foco.fileira < nFileiras && fileiras[foco.fileira].tipo == FILEIRA_CATALOGOS &&
+      foco.coluna >= 0 && foco.coluna < fileiras[foco.fileira].n)
+    atual = fileiras[foco.fileira].folders[foco.coluna];
+  if (atual != id) { id = atual; desde = agora; feito = 0; return; }
+  if (atual < 0 || feito || agora - desde < 250u) return;
+  feito = 1;
+  vertudo_prever(col_folder(atual));
+}
 static void home_atualizar_(float dt, Uint32 agora) {
+  pastaPrever(agora);
   curadoria_passo();   // a curadoria da fileira Herói, no seu tempo (curadoria.h)
 #ifdef NV_TOUCH_UI
   if (!telefoneui_ativo()) { toqueHomeLimpar(); toqueHeroCancelar(); }
@@ -5122,6 +5146,9 @@ static void desenhaPalcoArte(void) {
 // momentos diferentes — e, enquanto esperam, o destaque anterior continua inteiro na tela.
 // Contador so para os testes: quadros em que o NOME da pasta foi desenhado no lugar da logo.
 static unsigned long homeTesteNomePasta;
+static unsigned long homeTesteCartaoVazio;
+// 2.0.45: a logo da pasta desenhada no hero NESTE quadro (a Collection a leva ate o cabecalho).
+static const ColFolder *pastaLogoFolder; static GfxRect pastaLogoR; static char pastaLogoTex[NV_TEX_URL_MAX];
 // 2.0.44: `logoT` = linha do tempo da LOGO configurada da pasta (ms desde que ela chegou). -1 = a camada
 // ainda nao foi desenhada; -2 = logo carregando (nada aparece, o espaco fica reservado); >= 0 = a logo
 // chegou e entra com fade; 1e6 = ja estava pronta na 1a vez (assentada). Nunca o nome no lugar dela.
@@ -5292,6 +5319,10 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
       gfx_rect((GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h}, logo,
                tex_marca_escura(urlFl) ? GFX_MARCA : GFX_TEXTO,
                0, 0, 0, 0, .96f, .97f, .98f, a0 * logoF);
+      if (a0 * logoF > 0.5f) {   // 2.0.45: a Collection leva esta logo ao cabecalho (home_pasta_logo)
+        pastaLogoFolder = folder; pastaLogoR = (GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h};
+        snprintf(pastaLogoTex, sizeof pastaLogoTex, "%s", urlFl);
+      }
     }
   } else {   // sem logo configurada, ou ela FALHOU de vez (tex_falhou): o nome em texto
     homeTesteNomePasta++;
@@ -6048,6 +6079,9 @@ static void desenhaAtalhos(int r, float y) {
     float raio = raioDe(cw, ch);
     GfxRect card = {x, cy, cw, ch};
     alvoCard(x, cy, cw, ch, r, c);
+    // 2.0.45: o cartao da pasta que abriu SAIU da fileira (e o cartao da transformacao, desenhado pela
+    // Collection por cima): a vaga fica vazia, sem uma segunda copia dele recuando junto com a Home.
+    if (homeOcultaOrigem && foco.fileira == r && foco.coluna == c && !focoHero) continue;
     // O ANEL E OPCIONAL (Ajustes > Foco no cartaz). Sem ele o foco continua
     // dito pelo tamanho e pela animacao do cartaz — o que sai e so a borda.
     if (f > .01f && ajustes_borda_foco()) {
@@ -7420,9 +7454,52 @@ int home_vitrine_cartao_aquecer(const CatItem *ci, float w) {
   const char *cam = arte_por_formato(ci, ajustes_posteres_deitados());
   return cam && cam[0] ? tex_obter_larg(cam, w) != 0 : 0;
 }
+// 2.0.45: a arte do destaque do item esta NA TELA de verdade (decodificada, nao falhou): so entao o banner da
+// pasta pode sair de baixo dela sem a tela escurecer de uma vez.
+int home_vitrine_arte_ok(const CatItem *ci) {
+  const char *a = ci ? arte_hero_do_item(ci) : NULL;
+  return a && a[0] && tex_obter_hero(a) != 0;
+}
 int home_vitrine_arte_pronta(const CatItem *ci) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;
   return !a || !a[0] || tex_obter_hero(a) != 0 || tex_falhou(a);
+}
+// 2.0.45: o retangulo em que a arte do destaque da Vitrine repousa (o destino do cartao da pasta).
+void home_vitrine_arte_rect(GfxRect *out) {
+  int lay = home_vitrine_layout();
+  GfxRect r = { 0, 0, NV_TELA_W, ANC(NV_HERO_CHEIO_H) };
+  if (lay == HOME_LAYOUT_PADRAO) r = (GfxRect){ 0, ANC(NV_PAD_BANNER_Y), NV_TELA_W, ANC(NV_PAD_BANNER_H) };
+  else if (lay != HOME_LAYOUT_MODERNA) r.h = ANC(NV_DIN_ARTE_H);
+  *out = r;
+}
+// 2.0.45 (D1): o BANNER DA PASTA como primeira camada de destaque da Vitrine, no mesmo retangulo, modo e veu
+// da arte de um titulo, escalado em torno do centro (1,02 -> 1,00 enquanto assenta). 1 se desenhou.
+int home_vitrine_arte_banner(const char *url, float alfa, float escala) {
+  int lay = home_vitrine_layout();
+  GfxRect r; home_vitrine_arte_rect(&r);
+  if (!url || !url[0] || alfa <= 0.004f) return 0;
+  if (escala != 1.0f) { float cx = r.x + r.w * 0.5f, cy = r.y + r.h * 0.5f; r.w *= escala; r.h *= escala; r.x = cx - r.w * 0.5f; r.y = cy - r.h * 0.5f; }
+  if (lay == HOME_LAYOUT_MODERNA) return desenhaArteHero(r, GFX_HERO_CHEIO, NULL, url, alfa, 0.0f) && tex_obter_hero(url) != 0;
+  heroVeuLayout(lay, r.h);
+  return desenhaArteHero(r, GFX_VITRINE, NULL, url, alfa, 0.0f) && tex_obter_hero(url) != 0;
+}
+// 2.0.45: o caminho do cartaz que home_vitrine_cartao desenharia (pre-carga por permanencia).
+const char *home_vitrine_cartao_caminho(const CatItem *ci) {
+  return ci ? arte_por_formato(ci, ajustes_posteres_deitados()) : NULL;
+}
+// 2.0.45: o cartaz do item ja resolveu (chegou, falhou ou nao existe)? Pede, como o desenho pediria.
+int home_vitrine_cartao_pronto(const CatItem *ci, float w) {
+  if (!ci || w <= 0.0f) return 1;
+  const char *cam = arte_por_formato(ci, ajustes_posteres_deitados());
+  return !cam || !cam[0] || tex_obter_larg(cam, w) != 0 || tex_falhou(cam);
+}
+// 2.0.45: a logo da pasta `f` desenhada no hero no ultimo quadro (coordenadas da TELA) e a URL da textura.
+int home_pasta_logo(const ColFolder *f, GfxRect *r, const char **texUrl) {
+  float u = homeUnidade();
+  if (!f || f != pastaLogoFolder || !pastaLogoTex[0]) return 0;
+  r->x = pastaLogoR.x * u; r->y = pastaLogoR.y * u; r->w = pastaLogoR.w * u; r->h = pastaLogoR.h * u;
+  *texUrl = pastaLogoTex;
+  return 1;
 }
 // A arte do destaque em tela cheia (a mesma camada da Home Moderna com o fundo
 // cheio). 1 se desenhou.
@@ -7487,6 +7564,7 @@ void home_vitrine_cartao(const CatItem *ci, GfxRect base, GfxRect card, float al
   const char *cam = arte_por_formato(ci, deitado);
   float raio = raioDe(card.w, card.h), og = gfx_opacidade_grupo;
   GLuint t = cam ? tex_obter_larg(cam, card.w) : 0;
+  if (!t && alfa > 0.01f && cam && cam[0] && !tex_falhou(cam)) homeTesteCartaoVazio++;   // 2.0.45 (testes): cartao "carregando" na tela
   gfx_opacidade_grupo = alfa;
   gfx_veu_card_limpar();
   if (t) veusDoCard(ci, FILEIRA_NORMAL, deitado, 0.0f, 0);
@@ -8093,11 +8171,16 @@ static void home_desenhar_(Uint32 agora) {
   gfx_borda_foco_atual = ajustes_borda_foco() ? 1.0f : 0.0f;
   desenhaFundo(agora);
   float pd = detail_progresso();
+  // 2.0.45: TRANSFORMACAO HOME -> COLLECTION. As fileiras recuam (escala + opacidade, sem descer) e o texto
+  // do hero apaga; a arte do hero fica (e o mesmo banner em que o cartao da pasta se transforma).
+  float recTexto = 1.0f, recuo = vertudo_home_recuo(&recTexto);
+  homeOcultaOrigem = vertudo_home_oculta_origem();
+  pastaLogoFolder = NULL;
   const int vazioQr = homevazio_ativo(nFileiras);   // sem add-ons: o cartao com o QR no lugar da Home
   if ((ajustes_hero_ligado() || dinPalcoSplit() || palcoFundoModo != PALCO_ATUAL) &&
       !vazioQr && palcoFundoAlpha > 0.004f) {
     gfx_opacidade_grupo = palcoFundoModo == PALCO_ATUAL ? palcoFundoAlpha : 1.0f;
-    desenhaHero(agora, pd);
+    desenhaHero(agora, fmaxf(pd, 1.0f - recTexto));
     gfx_opacidade_grupo = 1.0f;
   }
   if (ajustes_hero_ligado() && !vazioQr && heroVisivelToque() > 0.25f) {
@@ -8145,6 +8228,7 @@ static void home_desenhar_(Uint32 agora) {
   const float corte = corteFileiras();
   // Sem prateleira nem contorno na Dinamica (dono, 30/09): as fileiras ficam
   // direto sobre o fundo e o cartao rola ate a beira da tela, como nos outros.
+  if (recuo > 0.0005f) gfx_transformar(homeRecuoOx, homeRecuoOy, 1.0f - TR_HOME_ESCALA * recuo, 0.0f, 0.0f);
   gfx_recorte(0.0f, corte, NV_TELA_W, NV_TELA_H - corte);
   const float topoFil = topoFileiras();
   float y = topoFil - scrollY + descida + bordaPag.x;
@@ -8183,7 +8267,7 @@ static void home_desenhar_(Uint32 agora) {
     // No retrato a visibilidade acompanha o recorte real, inclusive antes
     // do primeiro gesto; a memoria do foco nao esconde fileiras acessiveis.
     float fade=alfaFileiraHome(r, y, topoFil, corte);
-    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema);
+    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema)*(1.0f-recuo);
     const float grupoFil = gfx_opacidade_grupo;
     { int n = fileiras[r].n;
       int visivel = y < NV_TELA_H && y + NV_LEGACY_ROW_HEAD_H + alturaFil(r) > corte;
@@ -8735,6 +8819,7 @@ static void home_desenhar_(Uint32 agora) {
   }
 
   gfx_opacidade_grupo=1;
+  gfx_sem_transformar();   // 2.0.45: fim do recuo das fileiras
   // The top mask belongs to the row viewport and follows its transitions.
   if (!fileirasOcultas && !vazioQr && corte < 96.0f &&
       !focoHero && foco.fileira >= 0 && foco.fileira < nFileiras &&

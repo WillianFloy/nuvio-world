@@ -142,6 +142,11 @@ int  home_pediu_guia(char *id, int tam);
 void home_vitrine_medida(float *w, float *h, float *passo, float *rotH);
 int  home_vitrine_arte_pronta(const CatItem *ci);
 int  home_vitrine_cartao_aquecer(const CatItem *ci, float w);   /* 2.0.44: pede o cartaz (voo do cartao) */
+void home_vitrine_arte_rect(GfxRect *out);                       /* 2.0.45: onde o destaque repousa (destino do cartao) */
+int  home_vitrine_arte_banner(const char *url, float alfa, float escala);   /* 2.0.45 (D1): banner da pasta como destaque */
+int  home_vitrine_cartao_pronto(const CatItem *ci, float w);     /* 2.0.45: cartaz chegou/falhou (pede) */
+int  home_vitrine_arte_ok(const CatItem *ci);                   /* 2.0.45: arte do destaque decodificada */
+const char *home_vitrine_cartao_caminho(const CatItem *ci);  /* 2.0.45: caminho do cartaz (pre-carga) */
 int  home_vitrine_cartao_prebuscar(const CatItem *ci);   /* 2.0.36: pede o cartaz antes de aparecer (1 = pedido novo) */
 int  home_vitrine_diag_arte(void);   /* 2.0.35: codigo do ultimo desenho de arte (ver home.c) */
 unsigned long home_vitrine_diag_arte_info(const CatItem *ci, int *ehPoster);

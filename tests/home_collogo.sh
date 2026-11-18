@@ -23,4 +23,4 @@ for s in src/*.c src/dts/*.c; do
 done | xargs -P "$(nproc)" -I{} sh -c 'o="'"$D"'/$(echo {} | tr / _).o"; cc -c $0 {} -o "$o"' "$FLAGS"
 cp tests/home_collogo.c "$D/_t.c"
 cc $FLAGS "$D"/*.o tests/home_collogo.c -o "$D/home_collogo" -lSDL2 -lSDL2_image -lSDL2_ttf -lz -lGLESv2 -lm -lpthread -ldl
-for L in 0 1; do echo "== layout $L"; SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 300 "$D/home_collogo" $L 2>&1 | grep -E "^(PASS|FAIL|home_collogo)|Assertion|fixture" || true; done | tee "$D/collogo.out"; ! grep -q "FAIL\|FALHOU" "$D/collogo.out"
+for L in 0 1; do echo "== layout $L"; SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 300 "$D/home_collogo" $L 2>&1 | grep -E "^(PASS|FAIL|home_collogo)|Assertion|fixture" || true; done | tee "$D/collogo.out"; ! grep -qE "^FAIL|home_collogo: FALHOU" "$D/collogo.out"

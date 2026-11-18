@@ -18,6 +18,7 @@
 #include "layout.h"
 #include "anim.h"
 #include "revela.h"
+#include "transicao.h"
 #include "ajustes.h"
 #include "diretor.h"
 #include "addons.h"
@@ -100,15 +101,47 @@ static float anim, scrollY, velY;
 // (ajuste desligado, animacoes reduzidas, efeitos minimos e telefone entram assentados).
 static float vitEntradaT = 1.0e6f;
 float vertudo_entrada_ms(void) { return vitEntradaT; }
-// 2.0.44: VOO DO CARTAO. O mesmo relogio (vitEntradaT, ms desde o clique) conduz o cartao, o fundo e a revelacao.
-static int vooTem;               // 1 enquanto o cartao esta em cena (0 .. HT_VOO_FIM_MS)
+// 2.0.45: TRANSFORMACAO HOME -> COLLECTION (transicao.h). Com cartao de origem, um relogio adaptativo (vitTr)
+// conduz tudo: o cartao cresce ate o retangulo do destaque da Vitrine e vira o fundo dela (o banner da pasta,
+// a mesma textura do hero da Home), a Home recua, o cabecalho se forma durante o movimento e as fileiras entram
+// quando o conteudo esta pronto (portao vitTrPronto, teto de 1000 ms). Sem cartao: a revelacao da 2.0.43.
+static int vooTem;               // 1 enquanto a transformacao esta em cena
+static int vooSaindo;            // Voltar no meio: tudo apaga com a Vitrine (sem voo inverso, decisao B da 2.0.44)
 static int vooPedido;            // vertudo_colecao_voo -> vertudo_colecao
-static GfxRect vooOrigem;        // onde o cartao estava na Home
+static GfxRect vooOrigem;        // onde o cartao estava na Home (espaco da Vitrine)
 static float vooRaioPx;          // raio dos cantos dele (px)
-static float vooP(void) { return ht_voo_p(vitEntradaT); }
+static TrRelogio vitTr;
+static GfxRect vooDestino;       // onde o destaque da Vitrine repousa (home_vitrine_arte_rect)
+static int vooDestCobre;         // o destaque cobre a tela inteira (Moderna/Dinamica com banner)
+static int vooDesenhado;         // o cartao ja foi desenhado neste quadro (dentro da Vitrine, sob os textos)
+static int vooLogoTem;           // a logo da pasta sai do hero da Home e vai ao cabecalho (mesma imagem)
+static GfxRect vooLogoDe;
+static char vooLogoTex[NV_TEX_URL_MAX];
+static int vitBannerAtivo;       // D1: o banner da pasta e a camada de destaque ate o titulo entrar
+static Uint32 vitBannerSolta;    // quando a transformacao acabou (o titulo entra quando a arte dele chega)
+static Uint32 vitRevelaEm;       // quando a revelacao comecou (cartaz que chega depois entra com fade)
+// Cartazes das 3 primeiras fileiras revelados pela transformacao: o que ainda nao chegou fica FORA (nunca um
+// cartao vazio) e entra sozinho com fade quando chega; passado VIT_CART_SEGURA_MS volta o esqueleto de sempre.
+#define VIT_CART_FIL 3
+#define VIT_CART_COL 42
+#define VIT_CART_SEGURA_MS 3000u
+static unsigned char vitCartEsc[VIT_CART_FIL][VIT_CART_COL];
+static Uint32 vitCartChegou[VIT_CART_FIL][VIT_CART_COL];
+static Uint32 vitAgora;          // relogio do quadro (vertudoCorpo)
+// D2: pre-carga por permanencia (vertudo_prever): caminhos dos cartazes a pedir, um por quadro com o cache ocioso.
+#define VIT_PREVER_MAX 30
+static char vitPrever[VIT_PREVER_MAX][NV_TEX_URL_MAX];
+static unsigned char vitPreverTent[VIT_PREVER_MAX];
+static int vitPreverN, vitPreverI;
+static float vitPreverW;
+int home_pasta_logo(const ColFolder *f, GfxRect *r, const char **texUrl);   // home.c (2.0.45)
+static float vooP(void) { return tr_cartao(vitTr.p); }
 static GfxRect vooRect(void) {
-  float p = vooP(), q = 1.0f - p;
-  return (GfxRect){ vooOrigem.x * q, vooOrigem.y * q, vooOrigem.w * q + NV_TELA_W * p, vooOrigem.h * q + NV_TELA_H * p };
+  float g = vooP(), q = 1.0f - g, e = tr_escala(vitTr.p);
+  GfxRect d = vooDestino;
+  float cx = d.x + d.w * 0.5f, cy = d.y + d.h * 0.5f;
+  d.w *= e; d.h *= e; d.x = cx - d.w * 0.5f; d.y = cy - d.h * 0.5f;
+  return (GfxRect){ vooOrigem.x * q + d.x * g, vooOrigem.y * q + d.y * g, vooOrigem.w * q + d.w * g, vooOrigem.h * q + d.h * g };
 }
 int vertudo_voo_ativo(float *p, GfxRect *rect) {
   if (!vooTem) return 0;
@@ -116,7 +149,34 @@ int vertudo_voo_ativo(float *p, GfxRect *rect) {
   if (rect) *rect = vooRect();
   return 1;
 }
-int vertudo_cobre_tela(void) { return aberta && (!vooTem || vooP() >= HT_VOO_COBRE); }
+int vertudo_tr_estado(float *p, float *r, float *msRevela, float *ms) {
+  if (p) *p = vitTr.p;
+  if (r) *r = vitTr.r;
+  if (msRevela) *msRevela = vitTr.msRevela;
+  if (ms) *ms = vitTr.ms;
+  return vooTem ? vitTr.fase : TR_PARADO;
+}
+// A Home por baixo deixa de ser desenhada quando nada dela aparece: o cartao cobre a tela (Moderna/Dinamica)
+// ou, com o destaque em faixa (Padrao), o fundo da Vitrine ja esta opaco e o cartao chegou a faixa.
+int vertudo_cobre_tela(void) {
+  if (!aberta) return 0;
+  if (!vooTem) return 1;
+  if (vooSaindo) return 0;
+  if (vitTr.p >= TR_P_SAIDA) return 1;
+  if (!vooDestCobre) return 0;
+  GfxRect r = vooRect();
+  return r.x <= 0.5f && r.y <= 0.5f && r.x + r.w >= NV_TELA_W - 0.5f && r.y + r.h >= NV_TELA_H - 0.5f;
+}
+int vertudo_home_oculta_origem(void) { return vooTem && !vooSaindo; }
+float vertudo_home_recuo(float *textoVisivel) {
+  float rec = 0.0f, tx = 1.0f;
+  if (vooTem) {
+    rec = tr_home_recuo(vitTr.p); tx = tr_home_texto(vitTr.p);
+    if (vooSaindo) { rec *= anim; tx = 1.0f - (1.0f - tx) * anim; }
+  }
+  if (textoVisivel) *textoVisivel = tx;
+  return rec;
+}
 #ifdef NV_TOUCH_UI
 static int toqueLivre;
 static ToqueRolagem toqueAbas;
@@ -721,8 +781,25 @@ void vertudo_colecao(const ColFolder *folder) {
   tabCursor = cursorInicial();
   if(lay==VT_LAY_VITRINE)tabFocus=0;   // sem barra de abas: o foco nasce nas fileiras
   { const int anima = ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone();
-    vooTem = anima && vooPedido;   // sem cartao de origem: so a revelacao (o relogio comeca onde o cabecalho entra)
-    vitEntradaT = !anima ? 1.0e6f : vooTem ? 0.0f : HT_VOO_SEM_CARTAO_MS; }
+    vooTem = anima && vooPedido;   // sem cartao de origem: so a revelacao da 2.0.43 (relogio vitEntradaT)
+    vooSaindo = 0; vitBannerAtivo = 0; vitRevelaEm = 0; vooLogoTem = 0;
+    memset(vitCartEsc, 0, sizeof vitCartEsc); memset(vitCartChegou, 0, sizeof vitCartChegou);
+    if (vooTem) {
+      const float k = 1.0f / vtEscala();   // a origem chega em coordenadas da TELA; a Vitrine desenha na escala dela
+      float esc = gfx_escala();
+      GfxRect lg; const char *lgTex = NULL;
+      tr_iniciar(&vitTr);
+      vitEntradaT = 1.0e6f;   // a revelacao da 2.0.43 fica de fora: quem manda e vitTr
+      vitBannerAtivo = 1; vitBannerSolta = 0;
+      vooOrigem.x *= k; vooOrigem.y *= k; vooOrigem.w *= k; vooOrigem.h *= k; vooRaioPx *= k;
+      gfx_escala_sair(vtEscala()); home_vitrine_arte_rect(&vooDestino); gfx_escala_sair(esc);
+      if (home_pasta_logo(folder, &lg, &lgTex) && lgTex) {
+        vooLogoTem = 1; vooLogoDe = (GfxRect){ lg.x * k, lg.y * k, lg.w * k, lg.h * k };
+        snprintf(vooLogoTex, sizeof vooLogoTex, "%s", lgTex);
+      }
+      vitPreverN = 0;   // a pre-carga por permanencia acabou: daqui em diante e demanda
+    } else { tr_parar(&vitTr); vitEntradaT = !anima ? 1.0e6f : HT_VOO_SEM_CARTAO_MS; }
+  }
   vooPedido = 0;
 }
 void vertudo_colecao_voo(const ColFolder *folder, GfxRect origem, float raioPx) {
@@ -766,7 +843,7 @@ void vertudo_abrir(const char *base, const char *tipo, const char *catId,
 
 int vertudo_aberta(void) { return aberta; }
 int vertudo_foco(void) { return foco; }
-void vertudo_fechar_seco(void) { vooTem = 0; vitTrocaPend = NULL; vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
+void vertudo_fechar_seco(void) { vooTem = 0; vooSaindo = 0; vitBannerAtivo = 0; tr_parar(&vitTr); vitTrocaPend = NULL; vitTudo = 0; vitTudoTecla = 0; vitCancelar(); aberta = 0; anim = 0.0f; pedRelogio = 0; }
 int vertudo_pediu_abrir(void) { int v = pedAbrir; pedAbrir = -1; return v; }
 // ESQUERDA na coluna 0 da grade (ou na primeira aba da colecao): a barra
 // lateral abre POR CIMA da lista (dono, 03/10). Antes a coluna 0 voltava para
@@ -2371,18 +2448,84 @@ static void vitAtualizarCorpo(float dt, Uint32 agora);
 // pedido, para o conteudo ja estar pronto quando aparecer. Nada e desenhado aqui; so pedidos ao cache (os
 // mesmos arquivos e larguras que o desenho pede, sem especular alem das 3 primeiras fileiras visiveis).
 static void vooAquecer(void) {
+  if (collection) {   // 2.0.45: o banner (fundo de toda a transformacao) e a logo do cabecalho ficam quentes
+    const char *ban = col_banner(collection), *wm = wordmarkServico();
+    if (ban && ban[0]) (void)tex_obter_hero(ban);
+    if (wm && wm[0]) (void)tex_obter_logo_larg(wm, 420.0f);
+  }
   if (lay != VT_LAY_VITRINE || vtTelefone() || vitN <= 0) return;
   float esc = gfx_escala();
   gfx_escala_sair(vtEscala());
   float w, h, passo, rot;
   home_vitrine_medida(&w, &h, &passo, &rot);
-  CatItem *it0 = vitItem(vitFR >= 0 ? vitFR : 0, vitFC >= 0 ? vitFC : 0);
-  if (it0) (void)home_vitrine_arte_pronta(it0);   // pede a arte do destaque
+  // D1 (2.0.45): a arte do TITULO focado nao entra na transformacao (o banner da pasta e o destaque); ela e
+  // pedida so na revelacao (vitAtualizarCorpo). Os cartazes, em ordem de revelacao: 1a fileira, 2a, 3a.
   for (int r = 0; r < vitN && r < 3; r++) {
     int cols = (int)ceilf((NV_TELA_W - vitAncora(w, passo)) / passo) + 1;
     for (int c = 0; c < vitLin[r].n && c < cols; c++) (void)home_vitrine_cartao_aquecer(vitItem(r, c), w);
   }
   gfx_escala_sair(esc);
+}
+// 2.0.45: O PORTAO DA REVELACAO. Barato (so consultas ao cache, que tambem pedem): as listas das 3 primeiras
+// fileiras resolvidas; na 1a todos os cartazes visiveis chegaram (ou falharam); na 2a e 3a, metade; a logo
+// do cabecalho chegou (ou falhou). Fora da Vitrine de TV nao ha o que esperar.
+static int vitTrPronto(void) {
+  if (lay != VT_LAY_VITRINE || vtTelefone()) return 1;
+  const char *wm = wordmarkServico();
+  if (wm && wm[0] && !tex_obter_logo_larg(wm, 420.0f) && !tex_falhou(wm)) return 0;
+  if (vitN <= 0) return 0;
+  float esc = gfx_escala();
+  gfx_escala_sair(vtEscala());
+  float w, h, passo, rot;
+  int ok = 1;
+  home_vitrine_medida(&w, &h, &passo, &rot);
+  for (int r = 0; ok && r < vitN && r < 3; r++) {
+    const VitLin *l = &vitLin[r];
+    if (!l->n) { if (l->estado == VIT_PEND || l->estado == VIT_CARREGANDO) ok = 0; continue; }
+    int cols = (int)ceilf((NV_TELA_W - vitAncora(w, passo)) / passo) + 1, vis = 0, prontos = 0;
+    for (int c = 0; c < l->n && c < cols; c++) { vis++; prontos += home_vitrine_cartao_pronto(vitItem(r, c), w); }
+    if (r == 0 ? prontos < vis : prontos * 2 < vis) ok = 0;
+  }
+  gfx_escala_sair(esc);
+  return ok;
+}
+// D2 (2.0.45): PRE-CARGA POR PERMANENCIA. So o que o colcache ja tem (memoria ou disco, sem rede) das 3
+// primeiras fontes; os cartazes visiveis vao para uma lista que vitPreverPasso pede um por quadro, so com o
+// cache ocioso (tex_lookahead_pedir: nunca atrasa o que esta na tela). Nada fica alocado alem da lista.
+void vertudo_prever(const ColFolder *f) {
+  vitPreverN = vitPreverI = 0;
+  if (!f || f->nSources <= 1 || aberta || vtTelefone()) return;
+  int cap = ajustes_col_itens_fileira();
+  if (cap > VIT_ITENS) cap = VIT_ITENS;
+  CatItem *tmp = malloc(sizeof(CatItem) * (size_t)cap * 2);
+  if (!tmp) return;
+  float esc = gfx_escala();
+  gfx_escala_sair(vtEscala());
+  float w, h, passo, rot;
+  home_vitrine_medida(&w, &h, &passo, &rot);
+  int cols = (int)(NV_TELA_W / passo) + 2;
+  vitPreverW = w;
+  for (int r = 0; r < f->nSources && r < 3; r++) {
+    const ColSource *src = &f->sources[r];
+    char base[NV_ADDON_URL_MAX];
+    ColCacheMeta m; long idade;
+    snprintf(base, sizeof base, "%s", baseDaFonte(src));
+    if (!fonteDisponivel(src, base)) continue;
+    if (!colcache_ler(colcache_chave(src, base, cap), tmp, cap * 2, &m, &idade)) continue;
+    for (int c = 0; c < m.n && c < cap && c < cols && vitPreverN < VIT_PREVER_MAX; c++) {
+      const char *cam = home_vitrine_cartao_caminho(&tmp[c]);
+      if (!cam || !cam[0]) continue;
+      snprintf(vitPrever[vitPreverN], sizeof vitPrever[0], "%s", cam);
+      vitPreverTent[vitPreverN++] = 0;
+    }
+  }
+  gfx_escala_sair(esc);
+  free(tmp);
+}
+int vertudo_prever_pendentes(void) { return vitPreverN - vitPreverI; }
+static void vitPreverPasso(void) {
+  if (vitPreverI >= vitPreverN || aberta) return;
+  if (tex_lookahead_pedir(vitPrever[vitPreverI], vitPreverW) || ++vitPreverTent[vitPreverI] > 30) vitPreverI++;
 }
 // AS MEDIDAS DA ATUALIZACAO NA MESMA ESCALA DO DESENHO. vertudo_desenhar desenha a
 // Vitrine com gfx_escala_sair(vtEscala()), e o tamanho do cartaz (gfx_poster_k) e o
@@ -2452,7 +2595,18 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     // Foco no "Ver tudo" ou numa fileira ainda sem titulo: o destaque que esta
     // na tela FICA (2.0.34). Zerar escurecia a tela inteira e o destaque
     // seguinte entrava animado de novo — a piscada ao subir/descer.
-    if (vitHeroEntra < 1.0f) {
+    // D1 (2.0.45): enquanto o BANNER DA PASTA e o destaque, o titulo focado nao entra: so depois da
+    // transformacao, quando a arte dele chegou (pedida a partir da revelacao), pelo crossfade de sempre.
+    int seguraTitulo = 0;
+    if (vitBannerAtivo) {
+      CatItem *h0 = vitChave(vitHeroAtual);
+      if (vooTem) { seguraTitulo = 1; if (h0 && vitTr.fase >= TR_REVELA) (void)home_vitrine_arte_pronta(h0); }
+      // Sem teto aqui de proposito: com o banner por baixo nada fica vazio, e soltar o titulo antes da arte
+      // faria a arte dele aparecer de uma vez quando chegasse (tela cheia). Falha conta como resolvida.
+      else if (h0 && !home_vitrine_arte_pronta(h0)) seguraTitulo = 1;
+    }
+    if (seguraTitulo) vitHeroEntra = 0.0f;
+    else if (vitHeroEntra < 1.0f) {
       vitHeroEntra += dt / VIT_HERO_DUR;   // troca do destaque: arte e texto juntos, sem salto
       if (vitHeroEntra >= 1.0f) { vitHeroEntra = 1.0f; vitHeroAnt = vitHeroAnt2 = -1; vitHeroEntraAnt = vitHeroEntraAnt2 = 1.0f; }
     }
@@ -2462,6 +2616,9 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     }
     if (vitHeroAnt2 >= 0 && vitHeroEntraAnt2 < 1.0f)
       vitHeroEntraAnt2 = fminf(1.0f, vitHeroEntraAnt2 + dt / VIT_HERO_DUR);
+    // O banner sai de cena quando o titulo ja entrou inteiro por cima dele.
+    // Arte do titulo que FALHOU: o banner fica (melhor que a tela escura de uma vez); sai quando uma arte cobrir.
+    if (vitBannerAtivo && !vooTem && vitHeroEntra >= 1.0f) { CatItem *h0 = vitChave(vitHeroAtual); if (h0 && home_vitrine_arte_ok(h0)) vitBannerAtivo = 0; }
   }
   home_vitrine_medida(&w, &h, &passo, &rot);
   vitPrebuscar(w, passo, agora);
@@ -2787,10 +2944,24 @@ void vertudo_atualizar(float dt, Uint32 agora) {
   int n = nItens();
   anim = anim_mola(anim, aberta ? 1.0f : 0.0f, dt, NV_MOLA_TELA);
   if (vitEntradaT < HT_ENT_TOTAL_MS) vitEntradaT += dt * 1000.0f; else vitEntradaT = 1.0e6f;
-  if (!aberta || vitEntradaT >= HT_VOO_FIM_MS) vooTem = 0;   // Voltar durante o voo: sai pelo caminho de sempre
+  vitPreverPasso();
+  if (vooTem && !aberta) vooSaindo = 1;   // Voltar no meio: o relogio para e tudo apaga com a Vitrine
   if (vooTem) {
-    if (vitEntradaT < HT_VOO_MS) anim = ht_voo_fundo(vitEntradaT);   // o fundo acompanha o voo (nao a mola)
-    vooAquecer();
+    if (vooSaindo) { if (anim < 0.01f) { vooTem = 0; vooSaindo = 0; tr_parar(&vitTr); } }
+    else {
+      const char *ban = collection ? col_banner(collection) : NULL;
+      GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+      // O destaque cobre a tela (Moderna/Dinamica) e o banner existe: nada da Vitrine por baixo do cartao.
+      vooDestCobre = vooDestino.x <= 0.5f && vooDestino.y <= 0.5f && vooDestino.w >= tela.w - 0.5f &&
+                     vooDestino.h >= tela.h - 0.5f && ban && ban[0] && !tex_falhou(ban);
+      vooAquecer();
+      tr_passo(&vitTr, dt * 1000.0f, vitTrPronto());
+      if (vitTr.fase >= TR_REVELA && !vitRevelaEm) vitRevelaEm = agora ? agora : 1u;
+      if (!tr_ativo(&vitTr)) { vooTem = 0; vitBannerSolta = agora ? agora : 1u; }
+      // Vitrine: cada parte tem a propria curva (anim = 1). Grade/outras exibicoes da pasta: o fundo opaco delas
+      // acende com o relogio por baixo do cartao, como na 2.0.44 (nunca uma tela escura de uma vez sobre a Home).
+      anim = lay == VT_LAY_VITRINE ? 1.0f : tr_fundo(vitTr.p);
+    }
   }
   if (!aberta) { vitTrocaPend = NULL; ctxhold_cancelar(&hold); return; }
   if (vitTrocaPend) {   // saida da Collection atual (~250 ms), depois a troca
@@ -3974,6 +4145,7 @@ static void botaoMaisVistos(float a, float x0, float y, int linha) {
                 ponteiroMaisVistos, carregarMaisVistos, linha, 0);
 }
 
+static void vooDesenhar(void);
 static void vitDesenhar(float a, float x0) {
   vitProjetar();
   float w, h, passo, rot, pas = vitPasso(), topo = vitTopo();
@@ -4008,10 +4180,21 @@ static void vitDesenhar(float a, float x0) {
   // destaques a arte que sai ja cobre tudo (2.0.34: era uma tela cheia a mais
   // em toda troca).
   int fundoPintado = a < 0.99f || sai > 0.0f || !hero || (camN > 0 && camP[0] < 1.0f);
-  if (fundoPintado) {
+  // 2.0.45: na transformacao o fundo escuro so existe onde o destaque nao cobre (Padrao) e acende com o
+  // relogio; com o banner cobrindo a tela (Moderna/Dinamica) nada e pintado por baixo dele.
+  const int trVivo = vooTem && !vooSaindo;
+  if (trVivo) { fundoPintado = !vooDestCobre; base = tr_fundo(vitTr.p); }
+  else if (vitBannerAtivo && vooDestCobre && a >= 0.99f && sai <= 0.0f) fundoPintado = 0;
+  if (fundoPintado && base > 0.004f) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
+  // D1 (2.0.45): o BANNER DA PASTA e a primeira camada de destaque (o mesmo do hero da Home e do cartao):
+  // aparece quando o cartao chega ao destino e assenta de 1,02 para 1,00; o titulo entra depois por cima.
+  if (vitBannerAtivo && collection) {
+    float ab = trVivo ? (vitTr.p >= TR_P_SAIDA && tr_cartao_alfa(vitTr.r) < 0.999f ? 1.0f : 0.0f) : 1.0f;
+    if (home_vitrine_arte_banner(col_banner(collection), a * ab, vooTem ? tr_escala(vitTr.p) : 1.0f) && ab > 0.0f) arte = 1;
+  }
   int dTroca = 0, dAnt = 0, dHero = 0;   // DIAGNOSTICO 2.0.35: codigos de home_vitrine_diag_arte
   if (hero) {
     // Composicao "por cima" camada a camada: mix(mix(c0, c1, e1), c2, e2). A
@@ -4033,7 +4216,9 @@ static void vitDesenhar(float a, float x0) {
   // fundo e o ESCURO do app, nunca o banner borrado da Collection (opaco, da cor
   // da marca: o "bloco vermelho" de ate 951 ms medido na TV). O banner fica so
   // para a Collection sem titulo nenhum.
-  int semArte = !arte;
+  // 2.0.45: na transformacao quem cobre e o cartao/banner (e, no Padrao, o fundo que acende com o relogio):
+  // nada de pintar a tela de escuro por cima da Home so porque o titulo ainda nao tem arte.
+  int semArte = !arte && !trVivo;
   int fundoUsado = 0;
   if (semArte) {
     if (hero || vitItem(vitFR, vitFC)) {
@@ -4084,6 +4269,9 @@ static void vitDesenhar(float a, float x0) {
     ruimAntes = ruim; ultSig = sig;
   }
   degradeMarca(a, home_vitrine_layout() == HOME_LAYOUT_DINAMICA ? NV_TELA_H : NV_SHELF_TOP);
+  // 2.0.45: o cartao da transformacao, por cima das artes e por baixo de todo texto (cabecalho e fileiras se
+  // formam POR CIMA dele enquanto ele cede o lugar ao destaque).
+  if (vooTem) { vooDesenhar(); vooDesenhado = 1; }
   // O bloco do destaque comeca abaixo do cabecalho (anel e legenda descem ate
   // ~34 px do centro da linha), com folga: logo largo, alto ou nome em texto.
   cabCy = NV_ILHA_Y + NV_ILHA_H + 14.0f + NV_CTRL_H * 0.5f;
@@ -4125,7 +4313,8 @@ static void vitDesenhar(float a, float x0) {
     // TV: a fileira entra subindo 28 px e acendendo quando os cartazes chegam;
     // a saida da troca de Collection desce 20 px.
     float ent = vtTelefone() || !vitLin[r].n ? 1.0f : fmaxf(0.0f, fminf(1.0f, vitLinEntra[r]));
-    float ee = vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_lin(r, vitEntradaT);   // 2.0.43: entrada da Collection
+    float ee = vooTem ? (vooSaindo ? 1.0f : tr_fileira(r, vitTr.r))   // 2.0.45: so quando o conteudo esta pronto
+             : vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_lin(r, vitEntradaT);   // 2.0.43: entrada da Collection
     float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai + HT_ENT_LIN_PX * (1.0f - ee), cy = y + VIT_TITULO_H;
     float ac = a * ee * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);
     if (vooTem && r < 3 && ac < 0.006f && a > 0.01f && vitLin[r].n) ac = 0.006f;   // 2.0.44: rasteriza o texto e pede os cartazes antes de aparecer
@@ -4163,9 +4352,26 @@ static void vitDesenhar(float a, float x0) {
                  : sel ? vitFocoF : (r == vitFocoAntR && c == vitFocoAntC ? vitFocoAntF : 0.0f);
         if (cx + w < 0.0f) continue;
         if (cx > NV_TELA_W) break;
+        // 2.0.45: fileira ainda invisivel (antes da revelacao): nada desenhado, so o pedido do cartaz.
+        if (acc < 0.01f) { if (c < l->n) (void)home_vitrine_cartao_aquecer(vitItem(r, c), w); continue; }
+        // 2.0.45: CARTAZ QUE AINDA NAO CHEGOU NAO APARECE VAZIO. Nas 3 primeiras fileiras de uma abertura pela
+        // transformacao ele fica fora ate chegar e entra sozinho com fade (revela_saida, 220 ms); passados
+        // VIT_CART_SEGURA_MS da revelacao, um cartaz ainda a caminho volta ao esqueleto de sempre.
+        if (c < l->n && r < VIT_CART_FIL && c < VIT_CART_COL && vitRevelaEm && !vtTelefone()) {
+          int segura = vooTem || vitAgora - vitRevelaEm < VIT_CART_SEGURA_MS;
+          if (segura || vitCartEsc[r][c]) {
+            if (!home_vitrine_cartao_pronto(vitItem(r, c), w)) { if (segura) { vitCartEsc[r][c] = 1; continue; } }
+            else if (vitCartEsc[r][c]) {
+              if (!vitCartChegou[r][c]) vitCartChegou[r][c] = vitAgora ? vitAgora : 1u;
+              float f = revela_saida((float)(vitAgora - vitCartChegou[r][c]) / NV_REVELA_MS);
+              if (f >= 1.0f) { vitCartEsc[r][c] = 0; vitCartChegou[r][c] = 0; }
+              acc *= f;
+            }
+          }
+        }
         if (ff > 0.01f) {
           if (ajustes_borda_foco())
-            foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), ff, a);
+            foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), ff, acc);   // 2.0.45: o anel entra com o cartaz (era `a`)
           else card = foco_zoom(base, ff);
         }
         if (c == l->n) {
@@ -4237,14 +4443,31 @@ static void vitDesenhar(float a, float x0) {
   gfx_sem_recorte();
 
   // 2.0.43: o cabecalho entra primeiro na abertura da Collection (aCab = a * ht_ent_cab).
-  float aCab = a * (vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
-  if (vooTem && vitEntradaT < HT_ENT_CAB_INI && aCab < 0.006f && a > 0.01f) aCab = 0.006f;   // o texto rasteriza antes de aparecer
+  float aCab = a * (vooTem ? (vooSaindo ? 1.0f : fmaxf(tr_cabecalho(vitTr.p), vitTr.r))   // 2.0.45: durante o movimento
+                           : vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
+  if (vooTem && !vooSaindo && aCab < 0.006f && a > 0.01f) aCab = 0.006f;   // o texto rasteriza antes de aparecer
   // A faixa de cima: a colecao a que isto pertence e o botao "Exibição".
   { TxtLinha eb = txt_linha(TXT_HERO_META, rotuloGrupo(), 214, 219, 227, 255);
     const char *wm = wordmarkServico();
     GLuint tl = wm[0] ? tex_obter_logo_larg(wm, 420.0f) : 0;
     float ap = tl ? tex_aspecto(wm) : 0.0f;
-    if (tl && ap > 0.0f) {   // o wordmark cabe na linha da ilha
+    // 2.0.45: A LOGO DA PASTA VAI DO HERO DA HOME AO CABECALHO (mesma imagem): sai do retangulo em que a
+    // Home a desenhou e chega ao lugar dela na ilha em p = 0,60, inteira (sem apagar e reacender).
+    int logoMove = vooTem && !vooSaindo && vooLogoTem && wm[0] && grupo("Streaming") && collection && collection->logo[0];
+    GLuint tm = tl;
+    float apm = ap;
+    if (logoMove && !tm) { tm = tex_obter_logo_larg(vooLogoTex, NV_COLLECTION_HERO_LOGO_MAX_W + 40.0f); apm = tm ? tex_aspecto(vooLogoTex) : 0.0f; }
+    if (logoMove && tm && apm > 0.0f) {
+      float wl = 420.0f, hl = wl / apm, k = tr_saida(vitTr.p / 0.60f);
+      if (hl > NV_ILHA_H) { hl = NV_ILHA_H; wl = hl * apm; }
+      GfxRect de = vooLogoDe, rr = { de.x + (x0 - de.x) * k, de.y + (NV_ILHA_Y - de.y) * k,
+                                     de.w + (wl - de.w) * k, de.h + (hl - de.h) * k };
+      gfx_rect(rr, tm, tex_marca_escura(tm == tl ? wm : vooLogoTex) ? GFX_MARCA : GFX_TEXTO,
+               0, 0, 0, 0, .96f, .97f, .98f, a);
+    } else if (wm[0] && !tl && !tex_falhou(wm)) {
+      // 2.0.45: logo do servico configurada e ainda a caminho: o lugar fica reservado (nunca o nome em texto
+      // como substituto, a mesma regra da 2.0.44 para a logo da pasta na Home).
+    } else if (tl && ap > 0.0f) {   // o wordmark cabe na linha da ilha
       float wl = 420.0f, hl = wl / ap;
       if (hl > NV_ILHA_H) { hl = NV_ILHA_H; wl = hl * ap; }
       gfx_rect((GfxRect){ x0, NV_ILHA_Y, wl, hl }, tl, tex_marca_escura(wm) ? GFX_MARCA : GFX_TEXTO,
@@ -4274,25 +4497,31 @@ static void vitDesenhar(float a, float x0) {
 // Duas camadas no maximo (capa e banner), so posicao/tamanho/opacidade: nada alem do que ja esta em cache.
 static void vooDesenhar(void) {
   if (!vooTem || !collection) return;
-  const float t = vitEntradaT, al = ht_voo_cartao(t);
+  // 2.0.45: o cartao cresce ate o destaque e, ja no lugar, CEDE a camada de destaque (mesma imagem, mesmo
+  // retangulo): nao apaga sobre outra coisa. Voltar no meio: apaga com a Vitrine, sem mudar de lugar.
+  const float al = tr_cartao_alfa(vitTr.r) * (vooSaindo ? anim : 1.0f);
   if (al <= 0.004f) return;
-  const float p = vooP(), mb = ht_voo_banner(t);
+  const float p = vooP(), mb = tr_banner(vitTr.p);
   GfxRect r = vooRect();
   const float raio = r.h > 0.0f ? (vooRaioPx * (1.0f - p)) / r.h : 0.0f;
   const char *capa = col_capa(collection), *ban = col_banner(collection);
   GLuint tc = capa && capa[0] ? tex_obter_larg_qualquer(capa, vooOrigem.w) : 0;
   GLuint tb = ban && ban[0] && mb > 0.004f ? tex_obter_hero(ban) : 0;
   const float foco = 1.0f - p;   // o brilho do foco do cartao vai embora ao crescer
-  if (tc) { gfx_tex_aspect_atual = tex_aspecto(capa); gfx_rect(r, tc, GFX_CARD, foco, 0, 0, raio, 0, 0, 0, al); gfx_tex_aspect_atual = 0; }
-  else gfx_cor(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, al);
+  // A capa so enquanto o banner nao a cobre inteira: depois disso o cartao e UMA camada (preenchimento da TV).
+  if (!(tb && mb >= 0.999f)) {
+    if (tc) { gfx_tex_aspect_atual = tex_aspecto(capa); gfx_rect(r, tc, GFX_CARD, foco, 0, 0, raio, 0, 0, 0, al); gfx_tex_aspect_atual = 0; }
+    else gfx_cor(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, al);
+  }
   if (tb) {   // o banner SEMPRE preenche (cover): a capa e cartaz retrato e nao cabe numa tela 16:9
     gfx_tex_aspect_atual = tex_aspecto(ban); gfx_card_forcar_cover_atual = 1.0f;
     gfx_rect(r, tb, GFX_CARD, foco, 0, 0, raio, 0, 0, 0, al * mb);
     gfx_card_forcar_cover_atual = 0.0f; gfx_tex_aspect_atual = 0; }
 }
 static void vertudoCorpo(Uint32 agora);
-void vertudo_desenhar(Uint32 agora) { vertudoCorpo(agora); vooDesenhar(); }
+void vertudo_desenhar(Uint32 agora) { vooDesenhado = 0; vertudoCorpo(agora); if (!vooDesenhado) vooDesenhar(); }
 static void vertudoCorpo(Uint32 agora) {
+  vitAgora = agora;
   float a = anim, x0 = vtInicio();
   int n = nItens(), i, lin0 = -1;
   float corteTopo = VT_TOPO - 12.0f;

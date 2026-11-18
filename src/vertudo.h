@@ -37,6 +37,15 @@ int  vertudo_voo_ativo(float *p, GfxRect *rect);
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,
                    const char *titulo);
 int  vertudo_aberta(void);
+// 2.0.45: TRANSFORMACAO HOME -> COLLECTION (transicao.h). A Home pergunta quanto recuar (0..1) e quanto do
+// texto do hero ainda aparece (1..0); 0 / 1 fora da transicao.
+float vertudo_home_recuo(float *textoVisivel);
+int   vertudo_home_oculta_origem(void);   // 2.0.45: o cartao de origem virou o cartao da transformacao (a Home nao o desenha)
+// 2.0.45 (D2): pre-carga por permanencia: listas do colcache (sem rede) e cartazes visiveis com o cache ocioso.
+void vertudo_prever(const ColFolder *folder);
+int  vertudo_prever_pendentes(void);   // testes: cartazes ainda na fila da pre-carga
+// 2.0.45 (testes): fase do relogio (transicao.h: TR_*), p, r e o ms em que a revelacao comecou (-1 = ainda nao).
+int  vertudo_tr_estado(float *p, float *r, float *msRevela, float *ms);
 float vertudo_entrada_ms(void);   // 2.0.43: ms desde a abertura da Collection (>= 570: assentado)
 const char *vertudo_perf_tag(void);
 // Perf-only navigation: first collection, then cycle without saving preferences.
