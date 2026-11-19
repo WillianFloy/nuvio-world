@@ -7,11 +7,11 @@ python3 - <<'P'
 h = open('src/home.c').read(); m = open('src/main.c').read(); v = open('src/vertudo.c').read()
 def ok(c, msg):
     if not c: raise SystemExit("FAIL: " + msg)
-ok("return t == FILEIRA_NORMAL || t == FILEIRA_POSTER || t == FILEIRA_CATALOGOS;" in h, "foco fixo em NORMAL/POSTER e (2.0.43) nas Collections da Home; telefone fora")
+ok("return t != FILEIRA_PALCO && t != FILEIRA_HEROI_DIVIDIDO;" in h, "foco fixo em TODO estilo de fileira (18/11), menos Palco e Heroi dividido; telefone fora")
 ok("if (telefoneui_ativo() || homeRetratoTelefone()) return 0;" in h, "foco fixo so na TV (telefone/retrato como antes)")
 ok("alvo = vitgeom_fixo_alvo(col, homeFixoTotal(r), homeFixoN(r), passo);" in h, "alvo da rolagem pelo modelo das Collections (vitgeom)")
 ok("if (fileiras[r].tipo == FILEIRA_HEROI_DIVIDIDO) return esq + passo;" in h, "heroi dividido segue o caminho antigo")
-ok("if (dir + folga - alvo > util) alvo = dir + folga - util;" in h and "if (esq - folga - alvo < 0.0f) alvo = esq - folga;" in h, "regra antiga (so na borda) mantida para os demais tipos")
+ok("if (dir + folga - alvo > util) alvo = dir + folga - util;" in h and "if (esq - folga - alvo < 0.0f) alvo = esq - folga;" in h, "regra antiga (so na borda) mantida no telefone e como piso #103")
 ok("homeFocoFixo(r) ? homeW2()" in h and "(NV_MOLA2_SCROLL * ajustes_navegacao_velocidade_cartazes())" in h, "mola da fileira: tempo-base so no foco fixo")
 ok("homeFocoFixo(r) ? homeW1()" in h and ": alvo > animFoco[r][c] ? NV_MOLA_FOCO : NV_MOLA_DESFOCO" in h, "anel de foco: tempo-base so no foco fixo")
 ok(h.count("homeFocoFixoFade(r);") == 2 and h.count("gfx_sem_esvanecer_x();") == 2, "o esvanecer das pontas liga e desliga em par (fileiras normais/cartaz e, 2.0.43, Collections da Home)")

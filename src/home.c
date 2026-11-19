@@ -1973,7 +1973,14 @@ static int homeFocoFixo(int r) {
   if (telefoneui_ativo() || homeRetratoTelefone()) return 0;
   t = fileiras[r].tipo;
   // 2.0.43: as COLLECTIONS DA HOME (grupos do perfil, FILEIRA_CATALOGOS) seguem o mesmo modelo.
-  return t == FILEIRA_NORMAL || t == FILEIRA_POSTER || t == FILEIRA_CATALOGOS;
+  // VISUAL WORLD (18/11, dono): "quando altero o estilo de uma fileira, o foco fixo
+  // desaparece". Causa: o foco fixo era uma LISTA de tipos (NORMAL/POSTER/CATALOGOS);
+  // escolher em Ajustes qualquer outro estilo (Destaque, Larga, Ranking, Pôster grande,
+  // Ficha...) troca o TipoFileira (tipoDaEscolha) e a fileira caia na regra antiga de
+  // rolar so na borda — o mesmo com a LARGA que a Dinamica alterna sozinha. Agora vale
+  // para TODA fileira de cartoes; ficam de fora so as duas formas cujo foco ja e parado
+  // por desenho: o Palco (foco grande no centro) e o Heroi dividido (o painel e o foco).
+  return t != FILEIRA_PALCO && t != FILEIRA_HEROI_DIVIDIDO;
 }
 static int homeFixoTotal(int r) {
   int n = fileiras[r].n + (fileiras[r].verTudo ? 1 : 0);

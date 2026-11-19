@@ -53,7 +53,7 @@ int main(void) {
   assert(rc >= 0);
   // 1. Quem tem foco fixo: so NORMAL/POSTER na TV.
   ok(homeFocoFixo(rc), "fileira de cartaz (NORMAL/POSTER) tem foco fixo");
-  ok(rd >= 0 && !homeFocoFixo(rd), "destaque (outro tipo) fica como antes");
+  ok(rd >= 0 && homeFocoFixo(rd), "destaque (estilo escolhido em Ajustes) tambem tem foco fixo (18/11)");
   ok(rp >= 0 && !homeFocoFixo(rp), "palco fica como antes");
   ok(rh >= 0 && !homeFocoFixo(rh), "heroi dividido fica como antes");
   ok(home_foco_fixo_ativo() == (foco.fileira == rc), "home_foco_fixo_ativo segue o foco");
@@ -95,10 +95,30 @@ int main(void) {
      "ao subir a fileira nao se mexe e o foco pousa dentro da janela, sem pedir rolagem");
   // 6. Outros tipos: rolagem so na borda como antes (os 2 primeiros passos nao rolam).
   { int bate = 1; TXT_INI();
-    for (int t = 0; t < 3; t++) { int r = t == 0 ? rd : t == 1 ? rp : rh; if (r < 0) continue;
+    for (int t = 1; t < 3; t++) { int r = t == 0 ? rd : t == 1 ? rp : rh; if (r < 0) continue;
       for (int c = 0; c < 12; c++) for (int a = 0; a < 2; a++)
         if (fabsf(alvoScrollFil(r, c, a ? 500.0f : 0.0f, 0.0f) - (fileiras[r].tipo == FILEIRA_HEROI_DIVIDIDO ? (float)c * passoFil(r) + passoFil(r)
               : fileiras[r].tipo == FILEIRA_PALCO ? alvoScrollFil(r, c, a ? 500.0f : 0.0f, 0.0f) : regraAntiga(r, c, a ? 500.0f : 0.0f))) > 0.01f) bate = 0; }
-    TXT_FIM(); ok(bate, "destaque, palco e heroi dividido: alvo da rolagem igual a regra antiga"); }
+    TXT_FIM(); ok(bate, "palco e heroi dividido: alvo da rolagem igual a regra antiga"); }
+  // 7. (18/11) TROCAR O ESTILO DA FILEIRA NAO TIRA O FOCO FIXO: cada estilo de Ajustes
+  // aplicado a fileira 0, a fileira republicada, e o foco fica no mesmo x navegando.
+  { int todos = 1; char falhou[256] = "";
+    for (int tp = FIL_TIPO_CARTAZ; tp < FIL_TIPO_N; tp++) {
+      if (tp == FIL_TIPO_PALCO || tp == FIL_TIPO_HEROI_DIVIDIDO) continue;
+      if (!fil_definir_tipo("fixo_0_movie", tp)) continue;   // estilo que esta fileira nao oferece
+      cat_definir_tudo(it, ROWS * ITEMS, rows, ROWS); frames(30);
+      int r = achar("fixo_0_movie"); if (r < 0) continue;
+      ir_para(r);
+      for (int k = 0; k < 8; k++) { key(SDLK_LEFT); frames(2); } frames(120);
+      TXT_INI(); int N = homeFixoN(r), total = homeFixoTotal(r); TXT_FIM();
+      float x0 = fx(r, foco.coluna);   // o x do cartaz em foco no comeco (alguns estilos tem recuo proprio)
+      int bom = homeFocoFixo(r);
+      int passos = total - N < 6 ? total - N : 6;
+      float dx = 0; int fk = -1;
+      for (int k = 1; k <= passos && bom; k++) { key(SDLK_RIGHT); frames(90); dx = fx(r, foco.coluna) - x0; if (foco.fileira != r || fabsf(dx) > 1.0f) { bom = 0; fk = k; } }
+      if (!bom) { todos = 0; snprintf(falhou + strlen(falhou), sizeof falhou - strlen(falhou), " %d(t%d fil=%d/%d col=%d k=%d dx=%.0f)", tp, (int)fileiras[r].tipo, foco.fileira, r, foco.coluna, fk, dx); }
+    }
+    if (!todos) printf("FAIL: (detalhe) estilos sem foco fixo:%s\n", falhou);
+    ok(todos, "todo estilo de fileira de Ajustes mantem o foco fixo (o cartaz em foco nao sai do lugar)"); }
   puts(falhas ? "home_focofixo: FALHOU" : "home_focofixo: ok");
   tex_encerrar(); SDL_Quit(); return falhas ? 1 : 0; }

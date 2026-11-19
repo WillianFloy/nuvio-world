@@ -598,6 +598,11 @@ float nv_cor_fundo_viva[3] = { 0.051f, 0.051f, 0.051f };
 // Tom Preto puro (gfx.h). Mora aqui porque todo binario que tem gfx.c tem este
 // arquivo; ajustes_tema_preto e fraco para os testes que nao linkam ajustes.c.
 int gfx_tema_preto;
+// O FUNDO DO TEMA: o alvo das transicoes de cor (fundo e luzes sem cena). Era o
+// FUNDO fixo (grafite): toda troca de titulo/pasta interpolava o fundo de
+// #000 ate 0,051 por CV_DURACAO_S e o quadro seguinte o devolvia a 0 — o
+// "grafite piscando" do Preto puro no video da TCL (18/11).
+static float fundoTema[3] = { 0.051f, 0.051f, 0.051f };
 extern int ajustes_tema_preto(void) __attribute__((weak));
 float nv_acento_viva[3] = { 0xf4 / 255.0f, 0xf2 / 255.0f, 0xee / 255.0f };
 float nv_grad_viva[3][3] = { { 1, 1, 1 }, { 1, 1, 1 }, { 1, 1, 1 } };
@@ -645,7 +650,7 @@ void corviva_quadro(float dt, int modo, int usarLogo, int reduzido) {
   // leem este vetor — e gfx_rect desce as superficies neutras (gfx_tema_cor).
   // Aqui porque roda uma vez por quadro ANTES do clear no app e nas capturas.
   gfx_tema_preto = ajustes_tema_preto ? ajustes_tema_preto() : 0;
-  for (k = 0; k < 3; k++) nv_cor_fundo_viva[k] = gfx_tema_preto ? 0.0f : FUNDO[k];
+  for (k = 0; k < 3; k++) fundoTema[k] = gfx_tema_preto ? 0.0f : FUNDO[k];
   if (dt < 0.0f) dt = 0.0f;
   relogio += (double)dt * 1000.0;
   nv_tempo_viva = reduzido ? 0.0f : (float)(relogio / 1000.0);
@@ -717,9 +722,9 @@ void corviva_quadro(float dt, int modo, int usarLogo, int reduzido) {
     // only lowers chroma further. Existing tokens select contrasting ink.
     lchParaSrgb(L + (1.0f - L) * 0.65f, C * 0.45f, h, novo[0]);
   }
-  memcpy(novo[1], FUNDO, sizeof novo[1]);   // o estilizado (base tingida) saiu
+  memcpy(novo[1], fundoTema, sizeof novo[1]);   // o estilizado (base tingida) saiu; fundo do tema
   for (k = 0; k < 3; k++) memcpy(novo[2 + k], fonteOk ? fonte->grad[k] : BRANCO, sizeof novo[0]);
-  for (k = 0; k < 4; k++) memcpy(novo[5 + k], temCena ? cena.regiao[k] : FUNDO, sizeof novo[0]);
+  for (k = 0; k < 4; k++) memcpy(novo[5 + k], temCena ? cena.regiao[k] : fundoTema, sizeof novo[0]);
   // "Cor da logo" tambem vale para a LUZ da Imersiva (dono, 05/10: "o imersivo
   // da logo nao ta pegando a cor da logo"): as quatro luzes saiam sempre das
   // regioes da ARTE, e so o destaque seguia o logo. Com logo de cor, sao o
@@ -915,9 +920,9 @@ void corviva_zerar(void) {
   pedidoPrio = pedidoLogoPrio = 0; temCena = temLogo = 0;
   relogio = 0; pendDesde = 0; ultGravacao = -1e9;
   memcpy(nv_acento_viva, BRANCO, sizeof nv_acento_viva);
-  memcpy(nv_cor_fundo_viva, FUNDO, sizeof nv_cor_fundo_viva);
+  memcpy(nv_cor_fundo_viva, fundoTema, sizeof nv_cor_fundo_viva);
   for (k = 0; k < 3; k++) memcpy(nv_grad_viva[k], BRANCO, sizeof BRANCO);
-  for (k = 0; k < 4; k++) memcpy(nv_ambiente_viva[k], FUNDO, sizeof FUNDO);
+  for (k = 0; k < 4; k++) memcpy(nv_ambiente_viva[k], fundoTema, sizeof fundoTema);
   memset(alvo, 0, sizeof alvo);
   nv_ambiente_forca = 0; alvoForca = -1.0f; nv_grad_ativo = 0; alvoGrad = 0;
   t = 1.0f; iniciado = 0; retargets = 0;
