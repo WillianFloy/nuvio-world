@@ -8880,7 +8880,38 @@ static void home_desenhar_(Uint32 agora) {
   int parado = tex_lookahead_parado(&adiante, scrollY);
   for (int r = 0; r < nFileiras; r++)
     if (fabsf(velX[r]) > 0.25f) parado = 0;
+  // PRE-CARGA NA DIRECAO DA NAVEGACAO (VISUAL WORLD, 18/11): o sentido do ultimo
+  // passo horizontal na fileira em foco (comeca para a direita).
+  static int laColAnt = -1, laFilAnt = -1, laDirH = 1;
+  if (!focoHero && foco.fileira == laFilAnt && laColAnt >= 0 && foco.coluna != laColAnt)
+    laDirH = foco.coluna > laColAnt ? 1 : -1;
+  laColAnt = focoHero ? -1 : foco.coluna; laFilAnt = focoHero ? -1 : foco.fileira;
   if (parado && pd <= 0.001f && cinema <= 0.001f) {
+    // 1o) ATE 5 CARTAZES ALEM DA JANELA na fileira em foco, no sentido em que a
+    // pessoa anda: o proximo foco provavel. tex_lookahead_pedir so pede com o
+    // cache ocioso e sem pressao de memoria, um por quadro; o que ja esta no cache
+    // nao conta (nao promove nem duplica). So depois, as fileiras de cima/baixo.
+    int pediuH = 0;
+    if (!focoHero && foco.fileira >= 0 && foco.fileira < nFileiras) {
+      int r = foco.fileira;
+      TipoFileira tipo = fileiras[r].tipo;
+      if (tipo != FILEIRA_SOCIAL && tipo != FILEIRA_CATALOGOS && !fileiraEhCanal(&fileiras[r])) {
+        float lw = larguraFil(r);
+        int deitado = editorial(tipo) || tipo == FILEIRA_LARGA || tipo == FILEIRA_HEROI ||
+                      (tipo != FILEIRA_TOP10_NUM && tipo != FILEIRA_TOP10 &&
+                       tipo != FILEIRA_CONTINUE && tipo != FILEIRA_POSTER_GRANDE && tipo != FILEIRA_HEROI_DIVIDIDO &&
+                       ajustes_posteres_deitados());
+        int janela = (int)(homeLarguraUtil() / fmaxf(passoFil(r), 1.0f)) + 1;
+        for (int k = 1; k <= janela + 5 && !pediuH; k++) {
+          int c = foco.coluna + laDirH * k;
+          if (c < 0 || c >= fileiras[r].n) break;
+          int idx = fileiraItemIndice(&fileiras[r], c);
+          pediuH = tex_lookahead_pedir(arte_por_identidade(idx,
+                     (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado), lw);
+        }
+      }
+    }
+    if (pediuH) goto laFim;
     int primeira = -1, ultima = -1;
     float fy = topoFil - scrollY + bordaPag.x;
     for (int r = 0; r < nFileiras; r++) {
@@ -8891,7 +8922,9 @@ static void home_desenhar_(Uint32 agora) {
       fy += NV_LEGACY_ROW_HEAD_H + alturaTotalFil(r) + fileiraGap();
     }
     int dir = adiante.direcao < 0 ? -1 : 1, pediu = 0;
-    for (int passo = 1; primeira >= 0 && passo <= 3 && !pediu; passo++) {
+    // 2o) Ate DUAS fileiras alem das visiveis no sentido da rolagem (eram 3: na
+    // TCL de 1 GB a terceira raramente chegava a ser vista antes de sair do cache).
+    for (int passo = 1; primeira >= 0 && passo <= 2 && !pediu; passo++) {
       int r = (dir > 0 ? ultima : primeira) + passo * dir;
       if (r < 0 || r >= nFileiras) break;
       TipoFileira tipo = fileiras[r].tipo;
@@ -8911,6 +8944,7 @@ static void home_desenhar_(Uint32 agora) {
         pediu = tex_lookahead_pedir(cam, lw);
       }
     }
+  laFim:;
   }
 }
 

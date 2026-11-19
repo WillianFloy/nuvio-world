@@ -145,11 +145,20 @@ static float pfDy(void);
 #define PF_ESC_COMUM  (29.0f / NV_FT_TITULO3)    // 28/700
 #define PF_ESC_QUEM   (22.0f / NV_FT_ROW_TITULO) // 21/600
 
+static float alturaCartoes(void);
+static int pfRetrato(void);
 static float pfDy(void) {
-  float px, py, pw, ph;
+  float px, py, pw, ph, dy = 0.0f;
   if (menu_pilula_rect(&px, &py, &pw, &ph) && py + ph + 20.0f > 56.0f)
-    return py + ph + 20.0f - 56.0f;
-  return 0.0f;
+    dy = py + ph + 20.0f - 56.0f;
+  // VISUAL WORLD (18/11, auditoria): o bloco (avatar, numeros, cartoes) ficava
+  // preso ao topo e sobrava ~1/3 da tela vazio em cima do aviso. Na TV ele
+  // centraliza na altura util; a pilula da Dinamica continua sendo o piso.
+  if (!pfRetrato()) {
+    float folga = (PF_CONTEUDO_H - 16.0f) - (356.0f + alturaCartoes()) - 56.0f;
+    if (folga * 0.5f > dy) dy = folga * 0.5f;
+  }
+  return dy;
 }
 
 static PerfilDados dados;

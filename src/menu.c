@@ -13,6 +13,7 @@
 // Icones derivados dos SVGs originais do sidebar, com alpha e recortes reais.
 #include "horafmt.h"
 #include "menu.h"
+#include "logoapp.h"
 #include "ilha.h"
 #include "iconeapp.h"
 #include "perfis.h"
@@ -273,8 +274,24 @@ static GfxRect linhaRect(const MenuGeo *g, float y, float h, float e) {
 // No SOLIDO o mockup ainda da a linha uma sombra curta (0 10 30 a 40 %) e um
 // fio claro de 1 px por dentro do topo (inset 0 1px 0 a 6 %): a pilula clara
 // por baixo e a opaca 1 px abaixo deixam so o fio, seguindo o arredondado.
+// MENU WORLD (18/11, dono: "o menu lateral do estilo Moderno ainda lembra o
+// Legacy"). Na Moderna a barra deixa de ser uma ILHA (pilula de vidro flutuando
+// no meio da tela) e vira uma COLUNA sobre a propria cena, como Prime Video e
+// Paramount+: um veu escuro da borda esquerda (estreito com a rail, largo com o
+// menu aberto) da o contraste sobre arte clara; o item em foco e uma pilula
+// BRANCA cheia com icone e rotulo escuros; a pagina atual e uma barra vertical no
+// acento. Mesma geometria, mesmas teclas, mesma mola de abrir/fechar.
+static int world(void) { return !padrao() && !topo(); }
 static void focoLinha(GfxRect r, float f, float alpha) {
   if (f <= 0.01f || alpha <= 0.01f) return;
+  if (world()) {
+    // A pilula nasce do proprio tamanho (sem deslocar a linha): 96 % de largura
+    // e altura indo a 100 % com o foco, opacidade junto.
+    float k = 0.96f + 0.04f * f;
+    GfxRect q = { r.x + r.w * (1.0f - k) * 0.5f, r.y + r.h * (1.0f - k) * 0.5f, r.w * k, r.h * k };
+    gfx_cor(q, 0.5f, 0.97f, 0.97f, 0.96f, f * alpha);
+    return;
+  }
   if (ajustes_vidro()) { if (!gfx_foco_placa(r, 0.5f, f, alpha)) gfx_cor(r, 0.5f, 1, 1, 1, .14f * f * alpha); return; }
   { GfxRect s = { r.x - MK(30.0f), r.y + MK(10.0f - 30.0f), r.w + MK(60.0f), r.h + MK(60.0f) };
     gfx_rect(s, 0, GFX_SOMBRA, 1.0f, MK(42.0f) * gfx_escala(), 0, (r.h * 0.5f + MK(30.0f)) / s.h,
@@ -323,6 +340,16 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
   GfxRect r = { g->x, g->y, g->w, g->h };
   float raio;
   if (a <= 0.01f) return;
+  if (world()) {
+    // Sem caixa: o veu da borda. Rail = 300 px a 62 %, aberto = 760 px a 92 %
+    // (com um chapado de 35 % por baixo para os rotulos lerem sobre qualquer
+    // arte). Uma passada (GFX_VEU_CSS), sem vidro nem sombra.
+    float ab = limita01((g->w - NV_MENU_W_RAIL) / (NV_MENU_W_ABERTO - NV_MENU_W_RAIL));
+    float w = anim_mistura(MK(300.0f), MK(760.0f), ab);
+    gfx_veu_css_base((GfxRect){ 0, 0, w, NV_TELA_H }, 2, 1.6f, 1.0f,
+                     anim_mistura(0.62f, 0.92f, ab) * a, 0.0f);
+    return;
+  }
   if (padrao() && !topo()) { r.x -= g->raio; r.w += g->raio; }
   raio = g->raio / r.h;
   // O box-shadow do CSS: o retangulo deslocado `dy` e alargado `b` (o blur)
@@ -367,6 +394,8 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
   int k = 0;
   ajustes_acento(&ar, &ag, &ab);
   desenhaMaterial(&g, a);
+  // World: o simbolo da marca no topo da coluna, centrado no eixo dos icones.
+  if (world()) logoapp_marca((GfxRect){ icx - MK(22.0f), g.y - MK(100.0f), MK(44.0f), MK(44.0f) }, 0.92f * a);
 
   // Tudo daqui para baixo fica preso ao painel. Sem o recorte, o rotulo — que
   // e desenhado no x fixo do texto — vaza para o conteudo enquanto o painel
@@ -384,7 +413,11 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
     // estado). Aberto, a 6 px da ponta esquerda da linha, no meio da altura
     // (.it.ativo::after); na rail, 8 px acima da base do circulo, centrado
     // (mockup 2). O ponto anda entre os dois lugares junto com a largura.
-    if (atual) {
+    if (atual && world()) {
+      // Pagina atual: barra vertical no acento, colada a esquerda da linha.
+      float bh = MK(26.0f);
+      gfx_cor((GfxRect){ linhaR.x - MK(12.0f), cy - bh * 0.5f, MK(4.0f), bh }, 0.5f, ar, ag, ab, a * (1.0f - 0.6f * f));
+    } else if (atual) {
       float px = anim_mistura(icx - MK(2.5f), linhaR.x + MK(6.0f), ec);
       float py = anim_mistura(y + NV_MENU_ITEM_H - MK(8.0f + 5.0f), cy - MK(2.5f), ec);
       gfx_cor((GfxRect){ px, py, MK(5.0f), MK(5.0f) }, 0.5f, ar, ag, ab, a);
@@ -402,13 +435,19 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
       float bw = br > f ? br : f;
       float tr = anim_mistura(NV_MENU_FG_R, 1.0f, bw), tg = anim_mistura(NV_MENU_FG_G, 1.0f, bw),
             tb = anim_mistura(NV_MENU_FG_B, 1.0f, bw);
+      // World: os inativos mais recolhidos (60 %) e, sob a pilula branca, icone escuro.
+      if (world()) {
+        if (!atual) op = anim_mistura(0.60f, 1.0f, f);
+        tr = anim_mistura(tr, 0.07f, f); tg = anim_mistura(tg, 0.07f, f); tb = anim_mistura(tb, 0.08f, f);
+      }
       iconeTraco(i, icx, cy, NV_MENU_ICONE, tr, tg, tb, op * a);
       if (aRot > 0.01f) {
         // Texto ja rasterizado nao muda de cor: troca no meio da mola, e a
         // opacidade anda com ela.
         int emFoco = f > 0.5f;
         TxtLinha l = emFoco
-          ? txt_linha_corta(TXT_BODY, ROTULOS[i], 255, 255, 255, 255, NV_MENU_ROTULO_MAX)
+          ? (world() ? txt_linha_corta(TXT_BODY, ROTULOS[i], 18, 18, 20, 255, NV_MENU_ROTULO_MAX)
+                     : txt_linha_corta(TXT_BODY, ROTULOS[i], 255, 255, 255, 255, NV_MENU_ROTULO_MAX))
           : txt_linha_corta(TXT_BODY, ROTULOS[i], 243, 242, 239, 255, NV_MENU_ROTULO_MAX);
         txt_desenhar_alpha(l, g.x + NV_MENU_ROTULO_X, cy - l.h * 0.5f, aRot * op);
       } }
@@ -417,7 +456,7 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
   // aberto vai de 14 a 14 da pilula da linha (a 8 %).
   { float fw = anim_mistura(MK(40.0f), g.w - 2.0f * (NV_MENU_PAD + MK(14.0f)), ec);
     float fx = anim_mistura(icx - MK(20.0f), g.x + NV_MENU_PAD + MK(14.0f), ec);
-    gfx_cor((GfxRect){ fx, g.fioY, fw, MK(1.0f) }, 0, 1, 1, 1, anim_mistura(.10f, .08f, ec) * a); }
+    if (!world()) gfx_cor((GfxRect){ fx, g.fioY, fw, MK(1.0f) }, 0, 1, 1, 1, anim_mistura(.10f, .08f, ec) * a); }
   desenhaRodape(&g, e, a, focos ? animFoco[MENU_RODAPE] : 0.0f, aRot);
   gfx_sem_recorte();
 }

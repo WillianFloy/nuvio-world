@@ -7,7 +7,7 @@ python3 - <<'P'
 h = open('src/home.c').read()
 def ok(c, msg):
     if not c: raise SystemExit("FAIL: " + msg)
-ok("return t == FILEIRA_NORMAL || t == FILEIRA_POSTER || t == FILEIRA_CATALOGOS;" in h, "foco fixo inclui as Collections da Home (CATALOGOS)")
+ok("return t != FILEIRA_PALCO && t != FILEIRA_HEROI_DIVIDIDO;" in h, "foco fixo inclui as Collections da Home (CATALOGOS) e todo estilo (18/11)")
 ok("if (telefoneui_ativo() || homeRetratoTelefone()) return 0;" in h, "so na TV")
 ok("const int focoFixoCol = homeFocoFixo(r);" in h and "if (focoFixoCol) gfx_sem_esvanecer_x();" in h, "esvanecer das pontas liga e desliga em par nas Collections")
 print("home_colfoco.sh: guardas ok")

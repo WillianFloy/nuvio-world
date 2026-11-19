@@ -115,4 +115,11 @@ grep -q 'android:label="${appLabel}"' android/app/src/main/AndroidManifest.xml |
 grep -q 'if (atualizacaoDesligada()) return;' src/atualizacao.c || falha "atualizacao sem a trava da variante de teste"
 grep -q 'packageName.endsWith(".test")) return 0' android/app/src/main/java/space/nuvio/nativelegacy/NuvioActivity.kt || falha "instalarApk sem a trava"
 echo "ok variante de teste: pacote .test, rotulo proprio, sem auto-atualizacao"
+# 6. Redesign World (18/11): menu-coluna, veu adaptativo, pre-carga direcional.
+grep -q 'static int world(void) { return !padrao() && !topo(); }' src/menu.c || falha "menu World ausente"
+grep -q 'gfx_veu_css_base((GfxRect){ 0, 0, w, NV_TELA_H }, 2' src/menu.c || falha "veu da borda do menu ausente"
+[ "$(grep -c 'nv_veu_luz(' src/gfx.c)" -ge 5 ] || falha "veu adaptativo do destaque incompleto (simples e camadas)"
+grep -q 'for (int k = 1; k <= janela + 5 && !pediuH; k++)' src/home.c || falha "pre-carga horizontal de 5 alem da janela ausente"
+grep -q 'passo <= 2 && !pediu' src/home.c || falha "pre-carga vertical deveria ser de 2 fileiras"
+echo "ok redesign: menu-coluna, veu adaptativo, pre-carga direcional"
 echo "tudo ok"

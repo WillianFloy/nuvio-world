@@ -426,6 +426,16 @@ static const char *FS_CABECA =
   "  float n = ((uLeve > 0.5 ? nv_ruido_leve() : nv_ruido()) - 0.5) * (1.0 / 255.0);\n"
   "  return vec4(clamp(c + n / max(a, 0.004), 0.0, 1.0), a);\n"
   "}\n"
+  // VEU ADAPTATIVO DO DESTAQUE (VISUAL WORLD, 18/11; auditoria: "veu fraco em
+  // arte clara"). Onde o veu ja existe (a rampa do texto), a propria luz do pixel
+  // da arte reforca a rampa: arte escura fica como estava, arte clara ganha ate
+  // +32 % do que faltava para o fundo, so onde a rampa ja passa de ~0,2 (a zona
+  // do texto), para a borda do veu continuar macia. Por pixel, sem textura nem conta na CPU:
+  // um ceu claro atras da sinopse escurece; um rosto escuro nao.
+  "float nv_veu_luz(float r, vec3 c){\n"
+  "  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));\n"
+  "  return clamp(r + (1.0 - r) * 0.32 * smoothstep(0.45, 0.90, l) * smoothstep(0.20, 0.70, r), 0.0, 1.0);\n"
+  "}\n"
   // uAlt = altura do rect em PIXELS DO ALVO. O SDF mede em fracao da altura,
   // entao 1 px la e 1/uAlt; e o que deixa a rampa da borda com 1 px em
   // qualquer tamanho (ver borda() em FS_SDF).
@@ -660,7 +670,7 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  if (uAmbOn > 0.5) { vec3 amb = texture2D(uAmb, vAmb).rgb;\n"
   "    gl_FragColor = nv_dither(mix(c, amb, clamp(ah + av - ah*av, 0.0, 1.0)), 1.0); return; }\n"
   "  if (uVaza > 0.5) { gl_FragColor = nv_dither(c, uCor.a * dentro * (1.0 - clamp(ah + av - ah*av, 0.0, 1.0))); return; }\n"
-  "  c = mix(c, bg, clamp(ah + av - ah*av, 0.0, 1.0));\n"
+  "  c = mix(c, bg, nv_veu_luz(clamp(ah + av - ah*av, 0.0, 1.0), c));\n"
   "  gl_FragColor = nv_dither(c, uCor.a * dentro);\n"
   "}\n",
 
@@ -867,7 +877,7 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  if (uAmbOn > 0.5) { vec3 amb = texture2D(uAmb, vAmb).rgb;\n"
   "    gl_FragColor = nv_dither(mix(c, amb, clamp(ah + av - ah*av, 0.0, 1.0)), 1.0); return; }\n"
   "  if (uVaza > 0.5) { gl_FragColor = nv_dither(c, uCor.a * dentro * (1.0 - clamp(ah + av - ah*av, 0.0, 1.0))); return; }\n"
-  "  c = mix(c, bg, clamp(ah + av - ah*av, 0.0, 1.0));\n"
+  "  c = mix(c, bg, nv_veu_luz(clamp(ah + av - ah*av, 0.0, 1.0), c));\n"
   "  gl_FragColor = nv_dither(c, uCor.a * dentro);\n"
   "}\n",
 
@@ -1380,8 +1390,8 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  float rampa = clamp(ah + av - ah*av, 0.0, 1.0);\n"
   "  vec3 dst = (uAmbOn > 0.5) ? texture2D(uAmb, vAmb).rgb : bg;\n"
   "  vec3 cB = texture2D(uTexB, clamp(coverAsp(vec2(xd, vUv.y), uTexAspB), 0.0, 1.0)).rgb;\n"
-  "  vec4 dB = (uVaza > 0.5) ? nv_dither(cB, uAlfaB * dentro * (1.0 - rampa)) : nv_dither(mix(cB, bg, rampa), uAlfaB * dentro);\n"
-  "  vec4 dA = (uVaza > 0.5) ? nv_dither(c, uCor.a * dentro * (1.0 - rampa)) : nv_dither(mix(c, bg, rampa), uCor.a * dentro);\n"
+  "  vec4 dB = (uVaza > 0.5) ? nv_dither(cB, uAlfaB * dentro * (1.0 - rampa)) : nv_dither(mix(cB, bg, nv_veu_luz(rampa, cB)), uAlfaB * dentro);\n"
+  "  vec4 dA = (uVaza > 0.5) ? nv_dither(c, uCor.a * dentro * (1.0 - rampa)) : nv_dither(mix(c, bg, nv_veu_luz(rampa, c)), uCor.a * dentro);\n"
   "  dst = mix(dst, dB.rgb, dB.a);\n"
   "  dst = mix(dst, dA.rgb, dA.a);\n"
   "  gl_FragColor = vec4(dst, 1.0);\n"
@@ -1405,8 +1415,8 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  float rampa = clamp(ah + av - ah*av, 0.0, 1.0);\n"
   "  vec3 dst = (uAmbOn > 0.5) ? texture2D(uAmb, vAmb).rgb : bg;\n"
   "  vec3 cB = texture2D(uTexB, clamp(coverAsp(vec2(xd, vUv.y), uTexAspB), 0.0, 1.0)).rgb;\n"
-  "  vec4 dB = (uVaza > 0.5) ? nv_dither(cB, uAlfaB * dentro * (1.0 - rampa)) : nv_dither(mix(cB, bg, rampa), uAlfaB * dentro);\n"
-  "  vec4 dA = (uVaza > 0.5) ? nv_dither(c, uCor.a * dentro * (1.0 - rampa)) : nv_dither(mix(c, bg, rampa), uCor.a * dentro);\n"
+  "  vec4 dB = (uVaza > 0.5) ? nv_dither(cB, uAlfaB * dentro * (1.0 - rampa)) : nv_dither(mix(cB, bg, nv_veu_luz(rampa, cB)), uAlfaB * dentro);\n"
+  "  vec4 dA = (uVaza > 0.5) ? nv_dither(c, uCor.a * dentro * (1.0 - rampa)) : nv_dither(mix(c, bg, nv_veu_luz(rampa, c)), uCor.a * dentro);\n"
   "  dst = mix(dst, dB.rgb, dB.a);\n"
   "  dst = mix(dst, dA.rgb, dA.a);\n"
   "  gl_FragColor = vec4(dst, 1.0);\n"

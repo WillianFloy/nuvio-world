@@ -34,7 +34,12 @@ android {
         manifestPlaceholders["appLabel"] = if (varianteTeste) "Nuvio World Teste" else "@string/app_name"
         minSdk = 24
         targetSdk = 35
-        versionCode = vx * 10000 + vy * 100 + vz
+        // APK DE TESTE: cada build do workflow sobe o versionCode (base x 1000 +
+        // numero da execucao), para o teste novo instalar POR CIMA do teste
+        // anterior sem desinstalar. O oficial nao muda (e outro pacote).
+        val execucao = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toIntOrNull() ?: 0
+        versionCode = if (varianteTeste) (vx * 10000 + vy * 100 + vz) * 1000 + (execucao % 1000)
+                      else vx * 10000 + vy * 100 + vz
         versionName = if (varianteTeste) "$versao-teste" else versao
         ndk { if (!lite) abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         externalNativeBuild {
