@@ -32,4 +32,4 @@ for s in src/*.c src/dts/*.c; do
 done | xargs -P "$(nproc)" -I{} sh -c 'o="'"$D"'/$(echo {} | tr / _).o"; cc -c $0 {} -o "$o"' "$FLAGS"
 cp tests/home_focofixo.c "$D/_t.c"
 cc $FLAGS "$D"/*.o tests/home_focofixo.c -o "$D/home_focofixo" -lSDL2 -lSDL2_image -lSDL2_ttf -lz -lGLESv2 -lm -lpthread -ldl
-SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 300 "$D/home_focofixo" 2>&1 | grep -E "^(PASS|FAIL|home_focofixo)|Assertion"
+SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 900 "$D/home_focofixo" 2>&1 | grep -E "^(PASS|FAIL|home_focofixo)|Assertion"

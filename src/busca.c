@@ -1963,7 +1963,16 @@ static void desenhaResultados(Uint32 agora) {
           const CatItem *ci = cat_item(fil[r].itens[c]);
           if (!ci) continue;
           float px = BU_RES_X + c * passo - scrollX[r];
-          if (px > BU_DIR + 30.0f || px + cw < BU_RES_X - passo) continue;
+          if (px > BU_DIR + 30.0f) {
+            // CARREGAMENTO PROGRESSIVO: os proximos cartazes fora da borda
+            // ganham a previa de 128 px (tex_previa_pedir), nao o esqueleto.
+            if (passe == 0 && px < BU_DIR + 30.0f + 4.0f * passo) {
+              const char *arte = posterprov_card_addon(ci->origem, ci->imdb, ci->tmdb, ci->tipo, ci->poster);
+              if (arte[0]) (void)tex_previa_pedir(arte, cw);
+            }
+            continue;
+          }
+          if (px + cw < BU_RES_X - passo) continue;
           if (passe == 0 || f > 0.01f) {
             if (buTelefone()) buAlvoResultado((GfxRect){px, cy - 6.0f, cw, ch + 40.0f}, ponteiroResultado, r, c);
             else {

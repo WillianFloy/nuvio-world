@@ -2546,6 +2546,9 @@ static void biblioteca_desenhar_(Uint32 agora) {
       }
     }
     int dir = adiante.direcao < 0 ? -1 : 1;
+    // Fileira seguinte no tamanho do cartao; as duas depois dela so em PREVIA
+    // (tex_previa_pedir, ~1/5 da memoria): a grade adiantada nao estoura o
+    // orcamento da TV de 1 GB e, se a pessoa descer, o cartaz ja tem imagem.
     for (int passo = 1; primeira >= 0 && passo <= 3 && !pediu; passo++) {
       r = (dir > 0 ? ultima : primeira) + passo * dir;
       if (r < 0 || r >= linhas) break;
@@ -2557,7 +2560,8 @@ static void biblioteca_desenhar_(Uint32 agora) {
           ? (lst_item(i, &tmp) ? &tmp : NULL) : itemFiltro(filtro[i], &tmp);
         const char *cam = ci ? posterprov_card_addon(ci->origem, ci->imdb,
                           ci->tmdb, ci->tipo, ci->poster) : NULL;
-        pediu = tex_lookahead_pedir(cam, exibicao == VIS_LISTA ? 96 : (int)(BIB_CARD_W * gfx_escala_txt()));
+        float lw = exibicao == VIS_LISTA ? 96 : (int)(BIB_CARD_W * gfx_escala_txt());
+        pediu = passo == 1 ? tex_lookahead_pedir(cam, lw) : tex_previa_pedir(cam, lw);
       }
     }
   } else if (!ondaEm && !teclado_aberto() && estado() != EST_LISTAS) {

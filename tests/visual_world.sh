@@ -119,7 +119,17 @@ echo "ok variante de teste: pacote .test, rotulo proprio, sem auto-atualizacao"
 grep -q 'static int world(void) { return !padrao() && !topo(); }' src/menu.c || falha "menu World ausente"
 grep -q 'gfx_veu_css_base((GfxRect){ 0, 0, w, NV_TELA_H }, 2' src/menu.c || falha "veu da borda do menu ausente"
 [ "$(grep -c 'nv_veu_luz(' src/gfx.c)" -ge 5 ] || falha "veu adaptativo do destaque incompleto (simples e camadas)"
-grep -q 'for (int k = 1; k <= janela + 5 && !pediuH; k++)' src/home.c || falha "pre-carga horizontal de 5 alem da janela ausente"
+grep -q 'for (int k = 1; k <= janela + alcance && !pediuH; k++)' src/home.c || falha "pre-carga horizontal alem da janela ausente"
+grep -q 'cheios = curta ? 1 : 2, alcance = curta ? 8 : 6' src/home.c || falha "pre-carga horizontal sem a adaptacao ao orcamento"
 grep -q 'passo <= 2 && !pediu' src/home.c || falha "pre-carga vertical deveria ser de 2 fileiras"
 echo "ok redesign: menu-coluna, veu adaptativo, pre-carga direcional"
+
+# 7. Carregamento progressivo (19/11): previa a 128 px do mesmo arquivo em
+# todas as telas de cartaz; a prova de comportamento e tests/previa_progressiva.sh.
+grep -q '#define NV_TEX_PREVIA_LARG 128' src/tex_cache.c || falha "teto da previa mudou"
+grep -q 'itens\[alvo\].previa = ' src/tex_cache.c || falha "marca da previa fora do upload (pisca na promocao)"
+for t in src/home.c src/vertudo.c src/explorar.c src/biblioteca.c src/busca.c; do
+  grep -q 'tex_previa_pedir(' "$t" || falha "$t sem previas"
+done
+echo "ok carregamento progressivo: Home, Collections, Explorar, Biblioteca, Busca"
 echo "tudo ok"

@@ -2492,8 +2492,13 @@ static int vitTrPronto(void) {
 // D2 (2.0.45): PRE-CARGA POR PERMANENCIA. So o que o colcache ja tem (memoria ou disco, sem rede) das 3
 // primeiras fontes; os cartazes visiveis vao para uma lista que vitPreverPasso pede um por quadro, so com o
 // cache ocioso (tex_lookahead_pedir: nunca atrasa o que esta na tela). Nada fica alocado alem da lista.
+// Carregamento progressivo (18/11): a 1a fileira vem no tamanho do cartao (e a
+// que aparece primeiro na transformacao); a 2a e a 3a como PREVIA (decode
+// reduzido do proprio arquivo), promovidas quando entram na tela.
+static int vitPreverCheios;
 void vertudo_prever(const ColFolder *f) {
   vitPreverN = vitPreverI = 0;
+  vitPreverCheios = VIT_PREVER_MAX;
   if (!f || f->nSources <= 1 || aberta || vtTelefone()) return;
   int cap = ajustes_col_itens_fileira();
   if (cap > VIT_ITENS) cap = VIT_ITENS;
@@ -2512,6 +2517,7 @@ void vertudo_prever(const ColFolder *f) {
     snprintf(base, sizeof base, "%s", baseDaFonte(src));
     if (!fonteDisponivel(src, base)) continue;
     if (!colcache_ler(colcache_chave(src, base, cap), tmp, cap * 2, &m, &idade)) continue;
+    if (r == 1) vitPreverCheios = vitPreverN;   // fim da 1a fileira: o resto vai como previa
     for (int c = 0; c < m.n && c < cap && c < cols && vitPreverN < VIT_PREVER_MAX; c++) {
       const char *cam = home_vitrine_cartao_caminho(&tmp[c]);
       if (!cam || !cam[0]) continue;
@@ -2525,7 +2531,9 @@ void vertudo_prever(const ColFolder *f) {
 int vertudo_prever_pendentes(void) { return vitPreverN - vitPreverI; }
 static void vitPreverPasso(void) {
   if (vitPreverI >= vitPreverN || aberta) return;
-  if (tex_lookahead_pedir(vitPrever[vitPreverI], vitPreverW) || ++vitPreverTent[vitPreverI] > 30) vitPreverI++;
+  int pediu = vitPreverI < vitPreverCheios ? tex_lookahead_pedir(vitPrever[vitPreverI], vitPreverW)
+                                           : tex_previa_pedir(vitPrever[vitPreverI], vitPreverW);
+  if (pediu || ++vitPreverTent[vitPreverI] > 30) vitPreverI++;
 }
 // AS MEDIDAS DA ATUALIZACAO NA MESMA ESCALA DO DESENHO. vertudo_desenhar desenha a
 // Vitrine com gfx_escala_sair(vtEscala()), e o tamanho do cartaz (gfx_poster_k) e o
@@ -4351,7 +4359,16 @@ static void vitDesenhar(float a, float x0) {
         float ff = vtTelefone() ? (sel ? 1.0f : 0.0f)
                  : sel ? vitFocoF : (r == vitFocoAntR && c == vitFocoAntC ? vitFocoAntF : 0.0f);
         if (cx + w < 0.0f) continue;
-        if (cx > NV_TELA_W) break;
+        if (cx > NV_TELA_W) {
+          // Carregamento progressivo (18/11): PREVIA dos ate 6 cartazes alem da borda
+          // na fileira em foco e na de baixo (um pedido por quadro, so com folga).
+          if (!vtTelefone() && (r == vitFR || r == vitFR + 1))
+            for (int k = c; k < vitColunas(r) && k < l->n && k < c + 6; k++) {
+              const char *cam = home_vitrine_cartao_caminho(vitItem(r, k));
+              if (cam && cam[0] && tex_previa_pedir(cam, w)) break;
+            }
+          break;
+        }
         // 2.0.45: fileira ainda invisivel (antes da revelacao): nada desenhado, so o pedido do cartaz.
         if (acc < 0.01f) { if (c < l->n) (void)home_vitrine_cartao_aquecer(vitItem(r, c), w); continue; }
         // 2.0.45: CARTAZ QUE AINDA NAO CHEGOU NAO APARECE VAZIO. Nas 3 primeiras fileiras de uma abertura pela

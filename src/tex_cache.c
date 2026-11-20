@@ -55,6 +55,22 @@ static int arqDiscoTem(const char *dst);
 #include <stdio.h>
 
 #define MAX_ITENS_ABS 512
+// CARREGAMENTO PROGRESSIVO DE POSTERES (18/11). Estagios, do mais longe ao foco:
+//   1. PREVIA: o cartaz distante e decodificado do PROPRIO arquivo com teto de
+//      128 px (scale_denom da libjpeg / use_scaling da libwebp): uma descarga so,
+//      ~1/7 dos pixels e da memoria de um cartaz de 352 px, decode varias vezes
+//      mais rapido. E a imagem de verdade, borrada, nao um retangulo.
+//   2. APROXIMACAO: o cartaz que entra na janela pede o tamanho do cartao; a
+//      promocao re-decodifica do disco/bruto (sem rede) e a previa fica na tela
+//      ate a nova textura subir (previaVale em tex_obter_limite).
+//   3. FOCO: tex_obter_foco_larg fura a fila de decode.
+// A textura nova SUBSTITUI a previa no mesmo item (mesma URL, mesmo aspecto):
+// nao ha duas versoes do mesmo cartaz na memoria nem troca de enquadramento.
+// Variantes menores de URL (TMDB w92/w154, metahub poster/small) nao sao usadas
+// de proposito: custariam um segundo pedido por cartaz no limite de 4 fios da
+// TV, e com o RTT dominando o tempo de um JPEG de 30-60 KB elas nao chegam
+// antes do original.
+#define NV_TEX_PREVIA_LARG 128
 #define MAX_FILA 128
 #define NV_TEX_STALE_FRAMES 8
 #define NV_TEX_STALE_MS 200
@@ -127,6 +143,11 @@ typedef struct {
   // novo sozinho, sem ninguem precisar notar.
   int tetoUsado;
   int fonteW;
+  // A TEXTURA PUBLICADA e uma previa (decodificada a NV_TEX_PREVIA_LARG).
+  // Gravado no UPLOAD, e nao lido de `tetoUsado`: o decode da promocao grava
+  // `tetoUsado` ja no teto novo, quadros antes de a textura nova subir, e
+  // nesse intervalo (DECODIFICADO) a previa ainda e o que esta na GPU.
+  int previa;
   // TETO COM QUE A VARIANTE MENOR FOI ESCOLHIDA (artetamanho.h), 0 quando o
   // download foi da URL do item. Escrito pelo fio de rede, lido pelo decode:
   // com ele o decode acha o arquivo da variante no disco, grava `tetoUsado`
@@ -3945,7 +3966,13 @@ static GLuint tex_obter_limite(const char *caminho, int limite, int urgente,
     // receberia essa miniatura esticada a 1920 — um borrao de tela cheia por
     // ~100 ms a cada troca — em vez de esperar a grande, que e o que o
     // crossfade dele ja sabe fazer.
-    saida = (itens[i].estado == PRONTO || itens[i].w * 2 >= limite || aceitaMenor)
+    // PREVIA PROGRESSIVA (18/11): um cartaz cuja textura atual e a PREVIA (decode
+    // reduzido do proprio arquivo, teto NV_TEX_PREVIA_LARG) continua visivel
+    // enquanto a versao do tamanho do cartao e decodificada por cima — antes o
+    // `w * 2 >= limite` devolvia 0 e o cartaz piscava vazio na promocao. So para
+    // pedidos de CARTAO (ate NV_TEX_LARG_MAX): o heroi segue sem aceitar menor.
+    int previaVale = itens[i].tex && itens[i].previa && limite <= NV_TEX_LARG_MAX;
+    saida = (itens[i].estado == PRONTO || itens[i].w * 2 >= limite || aceitaMenor || previaVale)
               ? itens[i].tex : 0;
     // A larger Current/Detail cache entry must finish resizing before Stage uses it.
     if (pedidoPalco && itens[i].w > limite) saida = 0;
@@ -4074,6 +4101,54 @@ int tex_lookahead_mover(TexLookahead *s) {
   if (s->quadro == quadroAtual) return 0;
   s->quadro = quadroAtual;
   return gradeRolDir > 0.0f ? 1 : gradeRolDir < 0.0f ? -1 : 0;
+}
+
+// Pede a PREVIA de um cartaz que ainda nao esta na tela (estagio 1). Mais
+// permissivo que tex_lookahead_pedir porque uma previa custa ~1/7 de um cartaz:
+// pode pedir com ate 2 em voo e com o cache ate 85 % do orcamento (cartaz cheio:
+// so ocioso e ate 75 %). Pressao de memoria ou reproducao em curso: nada. Na TV
+// de orcamento curto (<= 64 MB) o teto de previas adiantadas e menor.
+int tex_previa_pedir(const char *caminho, float largCartao) {
+  static unsigned long pedidoQuadro;
+  if (!mtx || !caminho || !*caminho ||
+      (pedidoQuadro && quadroAtual - pedidoQuadro < 1u)) return 0;
+  SDL_LockMutex(mtx);
+  int i = acharIndice(caminho, hashCaminho(caminho));
+  int livre = 0, adiante = 0;
+  for (int j = 0; j < nMax; j++) {
+    if (itens[j].estado == VAZIO) livre++;
+    if (itens[j].lookahead) adiante++;
+  }
+  int tetoAdiante = orcamento <= 64L * 1024 * 1024 ? 36 : 60;
+  int pode = i < 0 && livre > 2 && adiante < tetoAdiante &&
+             !pressaoAtiva() && !pressaoPlayLigada && bytesUsados < orcamento * 85 / 100 &&
+             emVoo() < 2 && (filaFim - filaIni + MAX_FILA) % MAX_FILA < 4;
+  SDL_UnlockMutex(mtx);
+  if (!pode) return 0;
+  pedidoQuadro = quadroAtual;
+  int foraAntes = pedidoFora; pedidoFora = 0;
+  // UMA DESCARGA SO: o ARQUIVO escolhido e o do tamanho do cartao (a escada de
+  // variantes de artetamanho.c usa limiteArquivo), e so o DECODE sai a 128 px.
+  // A promocao depois re-decodifica do disco, sem pedir a URL de novo.
+  pedidoArquivo = largCartao > 1.0f ? capDeLargura(largCartao) : 0;
+  (void)tex_obter_limite(caminho, NV_TEX_PREVIA_LARG, 0, 0);
+  pedidoArquivo = 0;
+  pedidoFora = foraAntes;
+  SDL_LockMutex(mtx);
+  i = acharIndice(caminho, hashCaminho(caminho));
+  if (i >= 0) { itens[i].lookahead = 1; itens[i].ultimoQuadro = 0; itens[i].card = 1; }
+  SDL_UnlockMutex(mtx);
+  return 1;
+}
+
+int tex_previa_em_uso(const char *caminho) {
+  int r = 0;
+  if (!mtx || !caminho || !*caminho) return 0;
+  SDL_LockMutex(mtx);
+  int i = acharIndice(caminho, hashCaminho(caminho));
+  if (i >= 0 && itens[i].tex && itens[i].previa) r = 1;
+  SDL_UnlockMutex(mtx);
+  return r;
 }
 
 int tex_lookahead_pedir(const char *caminho, float largura) {
@@ -4511,6 +4586,7 @@ static int publicarEnvio(int alvo, GLuint t, SDL_Surface *sup, Uint32 uploadEm,
   int logoPedido = itens[alvo].urgente == 2;
   itens[alvo].tex = t; itens[alvo].w = sup->w; itens[alvo].h = sup->h;
   itens[alvo].mip = comMip;
+  itens[alvo].previa = itens[alvo].tetoUsado > 0 && itens[alvo].tetoUsado <= NV_TEX_PREVIA_LARG;
   itens[alvo].estado = PRONTO;
   itens[alvo].urgente = 0;
   itens[alvo].falhas = 0;

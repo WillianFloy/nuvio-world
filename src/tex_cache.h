@@ -184,6 +184,11 @@ int tex_lookahead_parado(TexLookahead *s, float scroll);
 // por chamador, para aquecer o proximo cartao da borda que entra.
 int tex_lookahead_mover(TexLookahead *s);
 int tex_lookahead_pedir(const char *caminho, float largura);
+// CARREGAMENTO PROGRESSIVO (tex_cache.c, NV_TEX_PREVIA_LARG): pede a PREVIA
+// (decode reduzido do proprio arquivo) de um cartaz fora da tela. 1 = pediu.
+int tex_previa_pedir(const char *caminho, float largCartao);
+// 1 = a textura atual deste caminho e a previa (o tamanho do cartao ainda vem).
+int tex_previa_em_uso(const char *caminho);
 
 // RECUSA NO PONTO DO PEDIDO (item 4 da pesquisa plx). A grade declara uma vez
 // por quadro se esta em movimento (`tex_grade_movendo`), a direcao dela em

@@ -8902,12 +8902,19 @@ static void home_desenhar_(Uint32 agora) {
                        tipo != FILEIRA_CONTINUE && tipo != FILEIRA_POSTER_GRANDE && tipo != FILEIRA_HEROI_DIVIDIDO &&
                        ajustes_posteres_deitados());
         int janela = (int)(homeLarguraUtil() / fmaxf(passoFil(r), 1.0f)) + 1;
-        for (int k = 1; k <= janela + 5 && !pediuH; k++) {
+        // Carregamento progressivo: os 1-2 cartazes logo alem da janela ja no
+        // tamanho do cartao (o proximo foco); os seguintes so como PREVIA. Na TV
+        // de orcamento curto (<= 64 MB) menos cheios e mais previas.
+        int mbOrc = 0; tex_orcamento_info(&mbOrc, NULL, NULL, NULL);
+        int curta = mbOrc > 0 && mbOrc <= 64;
+        int cheios = curta ? 1 : 2, alcance = curta ? 8 : 6;
+        for (int k = 1; k <= janela + alcance && !pediuH; k++) {
           int c = foco.coluna + laDirH * k;
           if (c < 0 || c >= fileiras[r].n) break;
           int idx = fileiraItemIndice(&fileiras[r], c);
-          pediuH = tex_lookahead_pedir(arte_por_identidade(idx,
-                     (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado), lw);
+          const char *cam = arte_por_identidade(idx,
+                     (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado);
+          pediuH = k <= janela + cheios ? tex_lookahead_pedir(cam, lw) : tex_previa_pedir(cam, lw);
         }
       }
     }
@@ -8941,7 +8948,9 @@ static void home_desenhar_(Uint32 agora) {
         int idx = fileiraItemIndice(&fileiras[r], c);
         const char *cam = arte_por_identidade(idx,
           (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado);
-        pediu = tex_lookahead_pedir(cam, lw);
+        // Fileiras de cima/baixo entram como PREVIA: ao rolar ja ha imagem; o
+        // tamanho do cartao chega pela promocao quando a fileira aparece.
+        pediu = tex_previa_pedir(cam, lw);
       }
     }
   laFim:;

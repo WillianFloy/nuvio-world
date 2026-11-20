@@ -213,6 +213,17 @@ static GfxRect crescer(GfxRect r, float s) {
   return (GfxRect){ r.x - r.w * s * 0.5f, r.y - r.h * s * 0.5f, r.w * (1.0f + s), r.h * (1.0f + s) };
 }
 
+// CARREGAMENTO PROGRESSIVO (tex_previa_pedir): o cartaz que ainda esta FORA da
+// tela, logo depois da borda da fileira, ganha a previa de 128 px do proprio
+// arquivo. Quando a fileira anda, ele entra ja com a imagem real (borrada por
+// alguns quadros) em vez do esqueleto. O tex_cache limita a 1 pedido por
+// quadro, so com a fila ociosa, sem player e dentro do orcamento.
+static void previaAdiante(const MapaObra *obra) {
+  const char *url = posterprov_card(obra->imdb, obra->tmdb, obra->tipo, obra->poster);
+  if (url && url[0]) (void)tex_previa_pedir(url, EX_TEX_LARG);
+}
+#define EX_PREVIA_ALCANCE 5
+
 // Cartaz com esqueleto enquanto a arte nao chega; `f` e o foco (0..1).
 static void cartaz(const MapaObra *obra, GfxRect r, float f, float a) {
   const char *url = posterprov_card(obra->imdb, obra->tmdb, obra->tipo, obra->poster);
@@ -910,7 +921,11 @@ static void fileiraClima(int linha, float y, float w, float h, float a) {
     int sel = focada && i == caCol[linha];
     float f = sel ? focoT : 0.0f;
     GfxRect r = { x, y, w, h };
-    if (x + w < 0.0f || x > NV_TELA_W) continue;
+    if (x > NV_TELA_W) {
+      if (x < NV_TELA_W + EX_PREVIA_ALCANCE * (w + EX_CAR_GAP)) previaAdiante(o);
+      continue;
+    }
+    if (x + w < 0.0f) continue;
 #ifdef NV_TOUCH_UI
     explorarAlvoFileira(r.x, r.y, r.w, r.h, x0, EX_DIR, ponteiroClima, linha, i);
 #else
@@ -1147,7 +1162,10 @@ static void desenharGrupos(float a) {
       } else
 #endif
       {
-      if (x + EX_VZ_CARD > EX_DIR + 4.0f) break;
+      if (x + EX_VZ_CARD > EX_DIR + 4.0f) {
+        for (int k = i; k < gr->n && k < i + EX_PREVIA_ALCANCE; k++) previaAdiante(&gr->itens[k].obra);
+        break;
+      }
       ponteiro_alvo(x - 10.0f, p.y - 10.0f, EX_VZ_CARD + 14.0f, EX_VZ_PH + 20.0f, ponteiroViz, NULL, li, i);
       }
       if (sel) {
