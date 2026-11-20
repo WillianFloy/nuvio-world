@@ -21,6 +21,14 @@
 //   - histograma por quantas varreduras cada quadro ocupou (1, 2, 3, 4+): uma
 //     cadencia regular concentra tudo numa coluna; engasgo espalha.
 //
+// O PERIODO e o da VARREDURA DA TELA (swapint_referencia), nunca o ritmo
+// medido do proprio app. Ate a auditoria de 20/11 entrava aqui a EMA do
+// swapint, que converge para o periodo do quadro: a 36 fps em 60 Hz (cadencia
+// 1-2-2 varreduras) o relato dava 0 fora do prazo, 0 varreduras puladas e o
+// histograma todo na coluna 1 -- escondia exatamente o problema da Home
+// (tests/ritmo_gpu.sh reproduz). O ritmo medido continua no log, como
+// `ritmo-medio` (tempo total / quadros), ao lado da referencia.
+//
 // MEDIA HARMONICA (rq_media_harmonica): so para juntar GRUPOS COM O MESMO
 // NUMERO DE QUADROS (ex.: 60 quadros a 30 fps + 60 quadros a 60 fps = 40 fps,
 // porque o tempo e 2 s + 1 s = 3 s para 120 quadros). Para janelas de tempo
@@ -91,10 +99,11 @@ static inline float rq_percentil(const float *v, int n, float p) {
 
 typedef struct {
   int n, foraPrazo, pulados, hist[4], nLat;
-  double fps, p50, p95, p99, max, cpu50, cpu95, swp50, swp95, lat50, latMax, periodo;
+  double fps, p50, p95, p99, max, cpu50, cpu95, swp50, swp95, lat50, latMax, periodo, ritmoMedio;
 } RqRelato;
 
-// Fecha a janela (o que se mediu desde o ultimo relato) e zera.
+// Fecha a janela (o que se mediu desde o ultimo relato) e zera. `periodo` =
+// periodo de REFERENCIA da tela (swapint_referencia), em ms.
 static inline RqRelato rq_relato(RitmoQuadro *r, double periodo) {
   RqRelato o;
   int i;
@@ -103,6 +112,7 @@ static inline RqRelato rq_relato(RitmoQuadro *r, double periodo) {
   o.n = r->n;
   if (r->n > 0) {
     o.fps = r->total > 0.0 ? r->n * 1000.0 / r->total : 0.0;
+    o.ritmoMedio = r->total / r->n;
     o.p50 = rq_percentil(r->iv, r->n, 50); o.p95 = rq_percentil(r->iv, r->n, 95);
     o.p99 = rq_percentil(r->iv, r->n, 99); o.max = rq_percentil(r->iv, r->n, 100);
     o.cpu50 = rq_percentil(r->cpu, r->n, 50); o.cpu95 = rq_percentil(r->cpu, r->n, 95);
@@ -121,15 +131,22 @@ static inline RqRelato rq_relato(RitmoQuadro *r, double periodo) {
   return o;
 }
 
-static inline int rq_formatar(const RqRelato *o, double hzAnunciado, char *b, size_t nb) {
+// `fonteRef`: de onde veio o periodo de referencia ("tela" = frequencia ativa
+// informada; "piso" = menor ritmo sustentado medido, sem frequencia).
+static inline int rq_formatar(const RqRelato *o, double hzAnunciado, const char *fonteRef, char *b, size_t nb) {
   return snprintf(b, nb,
-    "[ritmo] tela=%.2fHz periodo-medido=%.2fms (%.1fHz) | apresentados=%d fps=%.1f | frame p50=%.1f p95=%.1f p99=%.1f max=%.1fms"
-    " | fora-do-prazo=%d varreduras-puladas=%d hist(1/2/3/4+)=%d/%d/%d/%d | cpu p50=%.1f p95=%.1f | swap p50=%.1f p95=%.1f"
+    "[ritmo] tela=%.2fHz ref=%.2fms(%s) | apresentados=%d fps=%.1f ritmo-medio=%.2fms | frame p50=%.1f p95=%.1f p99=%.1f max=%.1fms"
+    " | fora-do-prazo=%d(%.0f%%) varreduras-puladas=%d hist(1/2/3/4+)=%d/%d/%d/%d | cpu p50=%.1f p95=%.1f | swap p50=%.1f p95=%.1f"
     " | controle->tela n=%d p50=%.0f max=%.0fms",
-    hzAnunciado, o->periodo, 1000.0 / o->periodo, o->n, o->fps, o->p50, o->p95, o->p99, o->max,
-    o->foraPrazo, o->pulados, o->hist[0], o->hist[1], o->hist[2], o->hist[3], o->cpu50, o->cpu95, o->swp50, o->swp95,
-    o->nLat, o->lat50, o->latMax);
+    hzAnunciado, o->periodo, fonteRef ? fonteRef : "?", o->n, o->fps, o->ritmoMedio, o->p50, o->p95, o->p99, o->max,
+    o->foraPrazo, o->n > 0 ? 100.0 * o->foraPrazo / o->n : 0.0, o->pulados, o->hist[0], o->hist[1], o->hist[2], o->hist[3],
+    o->cpu50, o->cpu95, o->swp50, o->swp95, o->nLat, o->lat50, o->latMax);
 }
+
+// QUADRO LENTO para o [qd-lento] de main.c: acima de 2,5 varreduras da tela de
+// referencia (60 Hz: 41,7 ms). Um quadro de 2 varreduras e atraso de cadencia
+// (aparece em fora-do-prazo/hist); o [qd-lento] e para o tranco que se sente.
+static inline int rq_quadro_lento(double dtms, double referencia) { return dtms > 2.5 * referencia; }
 
 // Media harmonica de taxas de grupos com o MESMO numero de quadros.
 static inline double rq_media_harmonica(const double *fps, int n) {

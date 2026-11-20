@@ -14,15 +14,15 @@ int main(void) {
   SwapInt s = {0}; double t = 1000;
   CHECK(fabs(swapint_periodo(&s) - 16.7) < 0.1, "sem amostra: padrao 16.7, deu %.2f", swapint_periodo(&s));
   roda(&s, 33.3, 30, &t);   /* TV travada em 30 Hz */
-  printf("30 Hz: periodo=%.2f limite-jank=%.2f\n", swapint_periodo(&s), swapint_limite_jank(&s));
+  printf("30 Hz: periodo=%.2f limite-jank=%.2f\n", swapint_periodo(&s), swapint_limite_jank(swapint_referencia(&s, 0.0)));
   CHECK(fabs(swapint_periodo(&s) - 33.3) < 0.5, "30 Hz medido, deu %.2f", swapint_periodo(&s));
-  CHECK(swapint_limite_jank(&s) > 55.0, "limite de jank em 30 Hz deve seguir o periodo, deu %.2f", swapint_limite_jank(&s));
+  CHECK(swapint_limite_jank(swapint_referencia(&s, 0.0)) > 55.0, "limite de jank em 30 Hz deve seguir o periodo, deu %.2f", swapint_limite_jank(swapint_referencia(&s, 0.0)));
   t += 800; swapint_marca(&s, t);   /* suspensao: nao contamina */
   CHECK(fabs(swapint_periodo(&s) - 33.3) < 0.5, "quadro de 800 ms nao entra no periodo, deu %.2f", swapint_periodo(&s));
   SwapInt a = {0}; t = 5000;
   roda(&a, 16.67, 60, &t);
-  printf("60 Hz: periodo=%.2f limite-jank=%.2f\n", swapint_periodo(&a), swapint_limite_jank(&a));
-  CHECK(swapint_limite_jank(&a) >= 33.0 && swapint_limite_jank(&a) < 34.5, "60 Hz mantem ~33, deu %.2f", swapint_limite_jank(&a));
+  printf("60 Hz: periodo=%.2f limite-jank=%.2f\n", swapint_periodo(&a), swapint_limite_jank(swapint_referencia(&a, 0.0)));
+  CHECK(swapint_limite_jank(swapint_referencia(&a, 0.0)) >= 33.0 && swapint_limite_jank(swapint_referencia(&a, 0.0)) < 34.5, "60 Hz mantem ~33, deu %.2f", swapint_limite_jank(swapint_referencia(&a, 0.0)));
   double med, pior; int n = swapint_colher(&a, &med, &pior);
   CHECK(n == 59 && fabs(med - 16.67) < 0.05 && pior < 16.8, "janela: n=%d med=%.2f pior=%.2f", n, med, pior);
   CHECK(swapint_colher(&a, &med, &pior) == 0, "janela zera depois de colhida");
@@ -30,9 +30,15 @@ int main(void) {
   SwapInt j = {0}; t = 9000;
   roda(&j, 16.67, 60, &t);
   for (int i = 0; i < 30; i++) { roda(&j, 100, 1, &t); roda(&j, 16.67, 1, &t); }
-  CHECK(swapint_limite_jank(&j) < 40.0, "engasgos contaminaram o periodo: limite %.2f", swapint_limite_jank(&j));
+  CHECK(swapint_limite_jank(swapint_referencia(&j, 0.0)) < 40.0, "engasgos contaminaram o periodo: limite %.2f", swapint_limite_jank(swapint_referencia(&j, 0.0)));
   /* troca real de cadencia 60 -> 30 Hz ainda e seguida */
   roda(&j, 33.3, 40, &t);
-  CHECK(swapint_limite_jank(&j) > 55.0, "troca para 30 Hz nao seguida: limite %.2f", swapint_limite_jank(&j));
+  CHECK(swapint_limite_jank(swapint_referencia(&j, 0.0)) > 55.0, "troca para 30 Hz nao seguida: limite %.2f", swapint_limite_jank(swapint_referencia(&j, 0.0)));
+  /* Com a frequencia INFORMADA (Android), a referencia e a varredura da tela,
+     nao o periodo medido: a TV a 60 Hz com o app preso a 30 fps continua com
+     prazo de 16,7 ms (auditoria 20/11). */
+  CHECK(fabs(swapint_referencia(&s, 60.0) - 16.667) < 0.01, "referencia com 60 Hz informado: %.3f", swapint_referencia(&s, 60.0));
+  CHECK(fabs(swapint_limite_jank(swapint_referencia(&s, 60.0)) - 33.33) < 0.05, "jank com 60 Hz informado segue a tela, nao o periodo de %.1f", swapint_periodo(&s));
+  CHECK(fabs(swapint_referencia(&s, 0.0) - swapint_periodo(&s)) < 1e-9, "sem frequencia: o periodo medido, como antes");
   return falhas ? 1 : 0;
 }

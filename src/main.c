@@ -934,6 +934,15 @@ static double nvTelaHz(SDL_Window *w) {
   if (w && SDL_GetWindowDisplayMode(w, &m) == 0 && m.refresh_rate > 0) return m.refresh_rate;
   return 0.0;
 }
+// So a frequencia INFORMADA pela plataforma (Android: Display.getRefreshRate do
+// modo ativo) vira referencia de prazo. O refresh do SDL nao: em TVs Samsung/LG
+// ele ja anunciou 60 com a saida a 30 Hz (swapint.h), e la o prazo continua
+// seguindo o periodo medido, como antes.
+static double nvTelaHzInformada(void) {
+  const char *e = getenv("NUVIO_DISPLAY_HZ");
+  double v = e && *e ? strtod(e, NULL) : 0.0;
+  return v > 1.0 ? v : 0.0;
+}
 
 int main(int argc, char **argv) {
   // NUMERO COM PONTO, SEMPRE. O host .NET do .tpk poe o processo no locale do
@@ -1820,6 +1829,10 @@ int main(int argc, char **argv) {
   int quadros = 0, janks = 0; double pior = 0;
   int playerUiPrevious = 0;
   SwapInt swapInt = {0};   // intervalo real entre swaps (swapint.h)
+  // Frequencia ativa da tela (Hz, 0 = desconhecida), relida a cada relatorio de
+  // 3 s: e dela que sai o periodo de REFERENCIA de prazo/jank/[qd-lento]
+  // (swapint_referencia), nunca do ritmo medido do proprio app.
+  double hzTela = -1.0;
 
   // TELEMETRIA POR FASE. O quadro pior custava 22ms num alvo de 20ms e nao
   // havia como saber ONDE. Os relogios sao de CPU (SDL_GetPerformanceCounter)
@@ -2142,7 +2155,8 @@ int main(int argc, char **argv) {
                          pUplN=fUplN; pUplB=fUplB;
                          pGfxMs=fGfxMs; pTexMs=fTexMs; pNRect=fNRect; pNProg=fNProg;
                          pNBind=fNBind; pNBusca=fNBusca; pOutMs=fOutMs; pNOut=fNOut; pFill=fFill; pNCheio=fNCheio; pTela=fTela; pTrans=fTrans; }
-      if (dtms > swapint_limite_jank(&swapInt)) janks++;
+      if (hzTela < 0.0) hzTela = nvTelaHzInformada();
+      if (dtms > swapint_limite_jank(swapint_referencia(&swapInt, hzTela))) janks++;
     }
     // Automatic glass belongs to the shared FPS ladder (gpunivel.h).
     // RASTRO POR QUADRO, so com /tmp/nuvio-quadros presente (conferido no
@@ -2158,7 +2172,7 @@ int main(int argc, char **argv) {
     // ou espera da GPU/vsync (clr/swap).
     { static int qdAuto; static Uint32 qdJanela;
       if (agora - qdJanela >= 3000) { qdJanela = agora; qdAuto = 0; }
-      if (!rastroQuadros && nvPrimeiroQuadroFeito && dtms > 2.5 * swapint_periodo(&swapInt) && qdAuto < 8) {
+      if (!rastroQuadros && nvPrimeiroQuadroFeito && rq_quadro_lento(dtms, swapint_referencia(&swapInt, hzTela < 0.0 ? 0.0 : hzTela)) && qdAuto < 8) {
         qdAuto++;
         printf("[qd-lento] %.1fms tecla=%s ha %ums | ev=%.1f bomb=%.1f(%d tex %.1fMB) upd=%.1f clr=%.1f des=%.1f swap=%.1f"
                " txt=%.1fms/%d rects=%d fill=%.2f gpu~=%.1f vidro cap=%d pass=%d reusos=%d | %s\n",
@@ -2450,16 +2464,18 @@ int main(int argc, char **argv) {
           printf("[locale] numerico trocado por fora (\"%s\"): de volta ao C\n", lc->decimal_point);
           setlocale(LC_NUMERIC, "C");
         } }
-      { RqRelato rr = rq_relato(&nvRitmo, swapint_periodo(&swapInt));
-        char rl[512];
-        if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), rl, sizeof rl); printf("%s\n", rl); }
+      hzTela = nvTelaHzInformada();
+      { RqRelato rr = rq_relato(&nvRitmo, swapint_referencia(&swapInt, hzTela));
+        char rl[560];
+        if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), hzTela >= 20.0 && hzTela <= 500.0 ? "tela" : "medido", rl, sizeof rl); printf("%s\n", rl); }
         // Vidro: nivel do ritmo do fundo (gfx.c) e quantos quadros reusaram o desfoque.
         if (ajustes_vidro()) printf("[vidro-ritmo] nivel=%d escada-ritmo=%d degrau=%d qualidade=%d reusos=%d\n", gfx_vidro_nivel(),
                                     gpun_vidro_ritmo(), gpun_degrau(), ajustes_vidro_qualidade(), gfx_vidro_reusos);
         gfx_vidro_reusos = 0; }
       { double sMed, sPior; int sN = swapint_colher(&swapInt, &sMed, &sPior);
-        if (sN > 0) printf("[swap] periodo=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
-                           swapint_periodo(&swapInt), sMed, sPior, sN, swapint_limite_jank(&swapInt)); }
+        if (sN > 0) printf("[swap] ritmo=%.2fms ref=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
+                           swapint_periodo(&swapInt), swapint_referencia(&swapInt, hzTela), sMed, sPior, sN,
+                           swapint_limite_jank(swapint_referencia(&swapInt, hzTela))); }
       printf("FPS=%.1f pior=%.1fms janks=%d | pior-quadro: texto %.1fms em %d linhas"
              " | gpu-cache=%d %.1fMB tela=%d/%.1fMB fila-tex=%d tex-despejos=%d(q=%d) disco-direto=%d neg-arte=%d"
              " | despejos=%d | cache-arte=%ld/%ldB hit=%ld miss=%ld grav=%ld err=%ld essenciais=%ld/%ld"
