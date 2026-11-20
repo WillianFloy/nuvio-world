@@ -2,6 +2,7 @@
 #include "app_id.h"
 #include "arranque.h"
 #include "swapint.h"
+#include "ritmoquadro.h"
 #include "streams.h"
 #ifdef NV_DTS_DEBUG
 #include "dts/dts_engine.h"
@@ -917,6 +918,20 @@ static EM_BOOL cicloWgt(int tipo, const EmscriptenVisibilityChangeEvent *e, void
   return EM_FALSE;
 }
 #endif
+
+// RITMO DOS QUADROS (ritmoquadro.h): so medicao, nada segura o laco.
+static RitmoQuadro nvRitmo;
+// A frequencia ATIVA da saida. No Android vem da Activity (Display.getMode()
+// da janela, NUVIO_DISPLAY_HZ), que e o modo em uso -- nao o maximo do painel.
+// Fora dele, o modo atual do SDL. O periodo MEDIDO (swapint) sai no mesmo log:
+// se discordarem, quem manda e o medido (compositor/driver).
+static double nvTelaHz(SDL_Window *w) {
+  const char *e = getenv("NUVIO_DISPLAY_HZ");
+  SDL_DisplayMode m;
+  if (e && *e) { double v = strtod(e, NULL); if (v > 1.0) return v; }
+  if (w && SDL_GetWindowDisplayMode(w, &m) == 0 && m.refresh_rate > 0) return m.refresh_rate;
+  return 0.0;
+}
 
 int main(int argc, char **argv) {
   // NUMERO COM PONTO, SEMPRE. O host .NET do .tpk poe o processo no locale do
@@ -1851,6 +1866,7 @@ int main(int argc, char **argv) {
     SDL_Event e;
     Uint32 frameStarted = SDL_GetTicks();
     Uint64 tEv = NV_T0();
+    double rqInicio = (double)tEv * 1000.0 / perFreq;   // ritmoquadro.h: inicio do quadro (ms)
     // VIRADA DE QUADRO DO CATALOGO, antes de qualquer tela tocar em cat_item():
     // aqui nenhum ponteiro de item do quadro anterior esta mais na mao, entao
     // os blocos trocados fora durante ele podem morrer. Ver cat_quadro.
@@ -1878,6 +1894,7 @@ int main(int argc, char **argv) {
       }
 #endif
       ponteiro_diag(&e);
+      if (e.type == SDL_KEYDOWN) rq_tecla(&nvRitmo, (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq);
       // PROTECAO DE OLED (esmaecer.h): toda acao da pessoa acorda a tela, e a
       // tecla que acorda so acorda — nao age.
       if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP || e.type == SDL_MOUSEMOTION ||
@@ -2314,7 +2331,9 @@ int main(int argc, char **argv) {
       playerUiPrevious = playerUi;
     }
     if (!nvPrimeiroQuadroFeito) arranque_etapa("primeiro SwapWindow");
+    double rqAntesSwap = (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq;
     SDL_GL_SwapWindow(win);
+    double rqDepoisSwap = (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq;
 #ifndef __EMSCRIPTEN__
     { unsigned wait = player_frame_wait(playerUi, SDL_GetTicks() - frameStarted);
       if (wait) SDL_Delay(wait); }
@@ -2322,6 +2341,7 @@ int main(int argc, char **argv) {
     (void)frameStarted;
 #endif
     swapint_marca(&swapInt, (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq);
+    rq_quadro(&nvRitmo, rqDepoisSwap, rqInicio, rqAntesSwap - rqInicio, rqDepoisSwap - rqAntesSwap);
 #ifdef NV_ANDROID
     android_quadro();   // todo quadro apresentado, de qualquer tela (vigia #266)
 #endif
@@ -2362,6 +2382,8 @@ int main(int argc, char **argv) {
     { static int jaCarimbou;
       if (!jaCarimbou) { jaCarimbou = 1; nvPrimeiroQuadroFeito = 1; arranque_etapa("quadro-1"); marco("primeiro quadro na tela");
         gfx_desfoque_aquecer();   // 2.0.34: o 1o desfoque custava 248 ms na entrada da Collection
+        { const char *mo = getenv("NUVIO_DISPLAY_MODOS");   // ritmoquadro.h: a saida em uso, uma vez
+          printf("[tela] hz-ativo=%.2f %s\n", nvTelaHz(win), mo ? mo : "(modos: n/d nesta plataforma)"); }
         NV_ETAPA("pronto");
 #ifdef __EMSCRIPTEN__
         // Chegou: zera o contador de arranques falhados (tizen-shell.html).
@@ -2409,6 +2431,9 @@ int main(int argc, char **argv) {
           printf("[locale] numerico trocado por fora (\"%s\"): de volta ao C\n", lc->decimal_point);
           setlocale(LC_NUMERIC, "C");
         } }
+      { RqRelato rr = rq_relato(&nvRitmo, swapint_periodo(&swapInt));
+        char rl[512];
+        if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), rl, sizeof rl); printf("%s\n", rl); } }
       { double sMed, sPior; int sN = swapint_colher(&swapInt, &sMed, &sPior);
         if (sN > 0) printf("[swap] periodo=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
                            swapint_periodo(&swapInt), sMed, sPior, sN, swapint_limite_jank(&swapInt)); }

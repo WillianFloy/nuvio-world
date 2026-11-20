@@ -830,6 +830,25 @@ class NuvioActivity : SDLActivity() {
                 }
             }
         } catch (_: Exception) { /* Keep the SDL fallback when display info is unavailable. */ }
+        // RITMO DOS QUADROS (World, 20/11): a frequencia ATIVA da saida (o modo
+        // em uso agora, nao o maximo anunciado pelo painel), os modos que a TV
+        // oferece na resolucao atual e as taxas alternativas sem corte (API 31,
+        // troca "seamless"). So informacao para o log [ritmo]/[tela]: o app NAO
+        // pede troca de modo.
+        try {
+            @Suppress("DEPRECATION")
+            val d = windowManager.defaultDisplay
+            env("NUVIO_DISPLAY_HZ", String.format(java.util.Locale.ROOT, "%.3f", d.refreshRate))
+            if (Build.VERSION.SDK_INT >= 23) {
+                val m = d.mode
+                val mesmos = d.supportedModes.filter { it.physicalWidth == m.physicalWidth && it.physicalHeight == m.physicalHeight }
+                    .joinToString(",") { String.format(java.util.Locale.ROOT, "%.2f", it.refreshRate) }
+                val alt = if (Build.VERSION.SDK_INT >= 31)
+                    m.alternativeRefreshRates.joinToString(",") { String.format(java.util.Locale.ROOT, "%.2f", it) } else "n/d"
+                env("NUVIO_DISPLAY_MODOS", "ativo=${m.modeId}:${m.physicalWidth}x${m.physicalHeight}@" +
+                    String.format(java.util.Locale.ROOT, "%.2f", m.refreshRate) + " mesma-resolucao=[$mesmos] alternativas-sem-corte=[$alt]")
+            }
+        } catch (_: Exception) { }
         // Real metrics include physical DPI; use the same pixel space as that DPI.
         // Display.Mode.physicalWidth/Height are pixel counts, not inches.
         val panelInches = try {
