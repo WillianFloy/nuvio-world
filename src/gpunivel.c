@@ -60,6 +60,23 @@ static unsigned efeitos, semGanho;
 static int testePasso, testeAntes;
 static double testeFps, medidaMs, medidaRuim;
 static int medidaN, medidaTransiente, testeGanhos;
+// RITMO DO FUNDO DO VIDRO (World, auditoria 20/11, P2). O governador proprio do
+// vidro (gfx_vidro_governar) nunca era chamado em producao -- o upstream o
+// trocou por esta escada em 20/10 -- e o nivel 2 da etapa 5 era codigo morto.
+// Agora e a escada quem decide: com o vidro fosco ligado e a qualidade em
+// Automatica, as 3 primeiras janelas lentas no degrau 0 passam o fundo do
+// vidro ao ritmo 2 (refeito a cada 3 quadros em movimento, 1 passada de
+// desfoque; continua fosco) e ZERAM a sequencia: o degrau 1 (vidro esfumacado)
+// so vem depois de mais 3 janelas lentas, ja medidas com o ritmo 2. Sem prova
+// de ganho: o ritmo 2 nao muda o que se ve (um borrao atrasado 33 ms) e o
+// ganho pode ser menor que o piso de 10 % da prova dos degraus. Volta ao
+// ritmo 1 com 10 janelas rapidas no degrau 0; se a volta nao segurar (lento
+// de novo antes de 100 relatorios), a proxima volta espera 100 relatorios.
+static int ritmoVidro = 1, ritmoTentativa, ritmoEspera, ritmoDesde;
+static int vidroDesfocaAuto(void) {
+  return ajustes_vidro() && ajustes_vidro_fosco() && ajustes_vidro_qualidade() == 0;
+}
+int gpun_vidro_ritmo(void) { return ritmoVidro; }
 
 int gpun_efeito_ativo(int passo) { return !!(efeitos & (1u << (passo - 1))); }
 static void aplicarEscada(void) {
@@ -71,6 +88,7 @@ static void reiniciarMedida(void) {
   decidido = bloqueado = 0;
   relatoCena = relatosLentos = relatosRapidos = relatosValidos = 0;
   degrau = foscoVetado = recuperacaoEspera = 0;
+  ritmoVidro = 1; ritmoTentativa = ritmoEspera = ritmoDesde = 0;
   relatoTentativa = -1;
   efeitos = semGanho = 0; testePasso = 0;
   medidaMs = medidaRuim = 0; medidaN = medidaTransiente = testeGanhos = 0;
@@ -547,6 +565,9 @@ static int intPreparar(void) {
 }
 
 void gpun_quadro_inicio(void) {
+  // O ritmo vale so na Automatica; Alta e o desfoque de sempre (ritmo 1), e o
+  // Desempenho nem captura fundo.
+  gfx_vidro_nivel_definir(ajustes_vidro_qualidade() == 0 ? ritmoVidro : 1);
   intLigado = 0;
   // A granted 720p drawable is already scaled by the platform compositor.
   if (!gfx_hdr_output && forca720 && telaW <= 1280 && telaH <= 720) return;
@@ -691,6 +712,22 @@ void gpun_relatar(double fps, double pior, double periodo, int cena, int cheia) 
   relatosLentos = fps < alvo - 5.0 ? relatosLentos + 1 : 0;
   relatosRapidos = fps >= alvo - 2.0 ? relatosRapidos + 1 : 0;
   if (recuperacaoEspera > 0) recuperacaoEspera--;
+  if (ritmoEspera > 0) ritmoEspera--;
+  // Primeiro o ritmo do vidro, ainda fosco; so depois os degraus.
+  if (relatosLentos >= 3 && degrau == 0 && ritmoVidro < 2 && vidroDesfocaAuto()) {
+    ritmoVidro = 2;
+    if (ritmoTentativa) { ritmoEspera = 100; ritmoTentativa = 0; }
+    printf("[gpu-escada] vidro ritmo 1 -> 2 fps %.1f alvo %.1f (fundo a cada 3 quadros, 1 passada, ainda fosco)\n", fps, alvo);
+    relatosLentos = relatosRapidos = 0;
+    return;
+  }
+  if (relatosRapidos >= 10 && degrau == 0 && ritmoVidro > 1 && !ritmoEspera) {
+    ritmoVidro = 1; ritmoTentativa = 1; ritmoDesde = 0;
+    printf("[gpu-escada] vidro ritmo 2 -> 1 fps %.1f alvo %.1f, tentativa de volta\n", fps, alvo);
+    relatosLentos = relatosRapidos = 0;
+    return;
+  }
+  if (ritmoTentativa && ++ritmoDesde > 100) ritmoTentativa = 0;   // a volta segurou ~5 min
   int proximo = degrau;
   if (relatosLentos >= 3) {
     // Visit every rung, including forced/vetoed effects, in separate windows.

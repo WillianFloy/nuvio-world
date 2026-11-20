@@ -63,22 +63,8 @@ int main(void) {
   printf("panel contrast over white: %.2f\n", c);
   confere(c >= 4.5f, "dim label contrast >= 4.5 over white video");
 
-  // Governor through the drawn glass counters, as app.c feeds it: 4 janky
-  // windows start one trial; a workload change drops it, restores frost and
-  // ends governing — never a second trial.
-  for (int phase = 0; phase < 3; phase++) {
-    gfx_novo_quadro();
-    gfx_cor((GfxRect){ 0, 0, LW, LH }, 0, .1f, .2f, .3f, 1);   // page behind, not a video hole
-    gfx_vidro_material(phase == 1 ? (GfxRect){ 200, 200, 1400, 400 } : r, .1f, .8f, 1);
-    int nf = gfx_vidro_com_fonte, nc = gfx_vidro_chapados, ar = gfx_vidro_area;
-    printf("phase %d drawn: fonte=%d chapados=%d area=%d\n", phase, nf, nc, ar);
-    for (int frame = (phase == 1 ? 150 : 600); frame--;) {
-      gfx_vidro_com_fonte = nf; gfx_vidro_chapados = nc; gfx_vidro_area = ar;
-      gfx_vidro_governar(40, 16.7);
-    }
-    confere(gfx_vidro_degradado() == (phase == 0), phase == 0 ? "governor: 4 janky windows start the trial" :
-            phase == 1 ? "interrupted trial: frost back, governor done" : "governor: never a second trial");
-  }
+  // (The glass's own governor tested here was dead code in production and was
+  // removed, World audit 20/11: the effects ladder decides, tests/gpun_vidro.sh.)
   free(px);
   printf("vidro_video: %s\n", falhas ? "FALHA" : "ok");
   return falhas ? 1 : 0;

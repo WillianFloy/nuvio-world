@@ -9,7 +9,6 @@ static int trakt_checks(void) {
     static const char *nome[9] = { "captures", "passes", "fill", "copy", "sampled", "flat", "rects", "uploads", "area" };
     double c[2][9] = {{0}};
     abrir(1, 1, SEC_COMENTARIOS, 0);
-    gfx_vidro_governar_zerar();
     for (int row = 0; row < 2; row++)
       for (int frame = 0; frame < 120; frame++) {
         scrollSec[SEC_COMENTARIOS] = (float)(frame % 90) * 40;
@@ -24,9 +23,6 @@ static int trakt_checks(void) {
                         gfx_vidro_com_fonte, gfx_vidro_chapados, gfx_n_rect, txt_rasterizadas - up,
                         gfx_vidro_area };
         for (int k = 0; k < 9; k++) c[row][k] += v[k] / 90.0;
-        // The real governor entry point, fed fast frames (1 ms vs a 16.7 ms
-        // target): any timing-driven fallback would show up as degraded=1.
-        gfx_vidro_governar(1.0, 16.7);
       }
     for (int row = 0; row < 2; row++) {
       printf("%s row per frame:", rows[row]);
@@ -44,9 +40,10 @@ static int trakt_checks(void) {
     // Zero sampled panels means the cards went flat and the capture gates
     // above measured nothing (the gfx_vidro_chip regression this catches).
     if (c[0][4] <= 0) { failures = 1; printf("FAIL: trakt cards lost the frosted backdrop read\n"); }
-    // The governor must not have smoked the glass (frames here are fast, quality Automatica).
-    printf("governor: quality=%d degraded=%d\n", ajustes_vidro_qualidade(), gfx_vidro_degradado());
-    if (gfx_vidro_degradado()) failures = 1;
+    // Quality Automatica stays frosted: only the effects ladder (gpunivel.c,
+    // tests/gpun_vidro.sh) may smoke the glass, and it is not running here.
+    printf("glass quality=%d\n", ajustes_vidro_qualidade());
+    if (ajustes_vidro_qualidade() != 0) failures = 1;
   } else if (!strcmp(mode, "series")) {
     // Reopen after choosing episode comments on the previous title.
     comentEp = 1;

@@ -1,4 +1,4 @@
-// "Qualidade do vidro": Alta / Desempenho / Automatica and its governor.
+// "Qualidade do vidro": Alta / Desempenho / Automatica and the ladder rhythm (gfx side).
 //   bash tests/vidro_qualidade.sh
 #include "gfx.h"
 #include "ajustes.h"
@@ -24,11 +24,12 @@ static void confere(int ok, const char *nome) {
 // Home frame: a page under a bar, the clock island and a glass panel, the
 // backdrop colour changing every frame so frosted glass has to capture.
 static float fundo = 0.05f;
+static int sujar = 1;   // 0: the backdrop changes only through its hash (the app's normal scroll)
 static void quadro(Uint32 agora) {
   int i;
   gfx_novo_quadro();
   glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
-  gfx_vidro_sujar();   // changing art: forces the backdrop hash off last frame's
+  if (sujar) gfx_vidro_sujar();   // changing art: forces the backdrop hash off last frame's
   gfx_cor((GfxRect){ 0, 0, 1920, 1080 }, 0, fundo, fundo, fundo * 1.2f, 1.0f);
   for (i = 0; i < 12; i++)
     gfx_cor((GfxRect){ 0, i * 90.0f - 80.0f, 1920, 90 }, 0, .1f + .06f * i, .2f, .5f - .03f * i, 1.0f);
@@ -53,20 +54,6 @@ static void roda(int n, Uint32 *t) {
     if (gfx_vidro_passadas > pas) pas = gfx_vidro_passadas;
     fonte += gfx_vidro_com_fonte; chapado += gfx_vidro_chapados;
   }
-}
-
-// One window of the governor: GOV_JANELA frames, each `ms` long, target 16.7.
-static void janela(double ms) { int i; for (i = 0; i < 150; i++) gfx_vidro_governar(ms, 16.7); }
-
-// The workload the next governor windows see: n glasses of `area` px^2; in a
-// trial the glass is flat, in the baseline it is frosted.
-static void cena(int n, int area, int prova) {
-  gfx_vidro_com_fonte = prova ? 0 : n; gfx_vidro_chapados = prova ? n : 0; gfx_vidro_area = area;
-}
-// One window that alternates two scenes (every frame differs from the last).
-static void janela_mista(double ms, int n1, int n2) {
-  int i;
-  for (i = 0; i < 150; i++) { cena(i & 1 ? n1 : n2, 900000, 0); gfx_vidro_governar(ms, 16.7); }
 }
 
 int main(void) {
@@ -117,94 +104,42 @@ int main(void) {
   printf("Desempenho: cap<=%d pas<=%d fonte=%d chapado=%d\n", cap, pas, fonte, chapado);
   confere(cap == 0 && pas == 0 && fonte == 0 && chapado > 0, "Desempenho: Home draws no blur (smoked glass only)");
 
-  // Automatica: frost until the governor trips. 3 janky windows are not
-  // enough, and a clean window in between resets the count.
+  // Automatica: frost. Nothing in gfx smokes it on its own any more (the glass
+  // governor that used to, gfx_vidro_governar, was dead code in production and
+  // was removed): the effects ladder decides (gpunivel.c, tests/gpun_vidro.sh).
   setenv("NUVIO_SHOT_VIDRO_QUAL", "0", 1); ajustes_teste_vidro_env();
   assert(ajustes_vidro_qualidade() == 0);
   roda(150, &t); roda(20, &t);
-  confere(cap == 1 && fonte > 0 && !gfx_vidro_degradado(), "Automatica: frost at first");
-  for (i = 0; i < 3; i++) janela(40.0);
-  janela(16.7);
-  for (i = 0; i < 3; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: 3 janky windows, a clean one, 3 more: no drop");
-  janela(20.0);   // 20 ms < 1.5 x 16.7: not janky either
-  for (i = 0; i < 3; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: a window of normal frames resets the count");
-  janela(40.0);   // the 4th janky window in a row: starts the trial
-  confere(gfx_vidro_degradado(), "governor: 4 janky windows in a row start the smoked trial");
-  roda(1, &t);   // the switch frame may still run the capture that was queued before
-  roda(20, &t);
-  janela(8.0);   // the trial window is much faster: the drop stays
-  confere(gfx_vidro_degradado(), "governor: trial improved the frame time, the drop stays");
-  printf("depois do governador: cap<=%d pas<=%d fonte=%d chapado=%d\n", cap, pas, fonte, chapado);
-  confere(cap == 0 && pas == 0 && fonte == 0 && chapado > 0, "after the drop: smoked glass, no capture");
+  confere(cap == 1 && fonte > 0, "Automatica: frost at first");
+  roda(600, &t);
+  confere(cap == 1 && fonte > 0 && chapado == 0, "Automatica: 600 frames later still frost (no hidden drop)");
 
-  // Never flips back: a long run of perfect frames, and the Alta setting too
-  // (the drop is only for Automatica; Alta stays frost).
-  for (i = 0; i < 10; i++) janela(8.0);
-  roda(20, &t);
-  confere(gfx_vidro_degradado() && cap == 0 && fonte == 0, "governor: fast frames never bring the frost back");
-  setenv("NUVIO_SHOT_VIDRO_QUAL", "2", 1); ajustes_teste_vidro_env();
-  roda(20, &t);
-  confere(cap == 1 && fonte > 0, "Alta ignores the governor (frost)");
-
-  // ESCADA GRADUAL (World, 20/11): do nivel 1, duas janelas lentas seguidas
-  // sobem o vidro ao nivel 2 (fundo a cada 3 quadros, 1 passada) SEM prova do
-  // fume; o vidro continua fosco.
-  gfx_vidro_governar_zerar();
-  setenv("NUVIO_SHOT_VIDRO_QUAL", "0", 1); ajustes_teste_vidro_env();
-  confere(gfx_vidro_nivel() == 1, "governor: nivel 1 (padrao) no comeco");
-  janela(40.0); janela(40.0);
-  confere(gfx_vidro_nivel() == 2 && !gfx_vidro_degradado(), "governor: 2 janelas lentas -> nivel 2, ainda fosco");
-  for (i = 0; i < 3; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: no nivel 2, 3 janelas lentas ainda nao fazem a prova");
-  janela(40.0);
-  confere(gfx_vidro_degradado(), "governor: no nivel 2, a 4a janela lenta seguida faz a prova");
-
-  // Slowness the glass did not cause: the trial window is as slow as before, so
-  // the frost comes back and the governor stops for the session (no second trial).
-  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
-  setenv("NUVIO_SHOT_VIDRO_QUAL", "0", 1); ajustes_teste_vidro_env();
-  roda(20, &t);
-  for (i = 0; i < 4; i++) janela(40.0);
-  confere(gfx_vidro_degradado(), "governor: trial started");
-  roda(1, &t); roda(20, &t);
-  janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: no improvement without glass, the frost is restored");
-  roda(1, &t); roda(20, &t);
-  confere(cap == 1 && fonte > 0, "governor: frost drawn again after the failed trial");
-  for (i = 0; i < 10; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: never trips again after the trial");
-
-  // Workload changes (review P1). The governor only judges EQUIVALENT workloads.
-  // (a) baseline: 3 janky windows on a busy screen, then a 4th on another screen
-  //     does not start a trial.
-  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
-  cena(6, 3000000, 0);
-  for (i = 0; i < 3; i++) janela(40.0);
-  cena(2, 400000, 0);
-  janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: 3 janky windows + 1 on another screen: no trial");
-  janela(40.0); janela(40.0); janela(40.0);
-  confere(gfx_vidro_degradado(), "governor: 4 janky windows on the same screen start the trial");
-  // (b) trial interrupted by a cheaper scene: 40 -> 25 ms is not the glass.
-  cena(1, 100000, 1);
-  janela(25.0);
-  confere(!gfx_vidro_degradado(), "governor: trial on a cheaper scene is dropped, no permanent Desempenho");
-  cena(6, 3000000, 0);
-  for (i = 0; i < 6; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: at most one trial, the interrupted one ends it");
-  // (c) the reverse: trial window on a costlier scene must not end the governor.
-  cena(9, 5000000, 1);
-  janela(60.0);
-  confere(!gfx_vidro_degradado(), "governor: trial on a costlier scene is dropped");
-  cena(6, 3000000, 0);
-  for (i = 0; i < 6; i++) janela(40.0);
-  confere(!gfx_vidro_degradado(), "governor: the second interrupted trial stays ended");
-  // (d) a window that mixes scenes proves nothing: 4 of them never start a trial.
-  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
-  for (i = 0; i < 6; i++) janela_mista(40.0, 6, 2);
-  confere(!gfx_vidro_degradado(), "governor: windows mixing scenes never start a trial");
+  // THE LADDER'S GLASS RHYTHM, gfx side of the contract (gpun_quadro_inicio ->
+  // gfx_vidro_nivel_definir). Same moving backdrop, 120 frames per rhythm:
+  // rhythm 2 must capture less often AND blur with fewer passes, still frosted.
+  {
+    int capT[3] = {0}, pasT[3] = {0}, fonteT[3] = {0}, k, nv;
+    sujar = 0;
+    for (nv = 1; nv <= 2; nv++) {
+      gfx_vidro_nivel_definir(nv);
+      for (k = 0; k < 4; k++) quadro(t++ * 16u);   // parado: the next change is a cut
+      for (k = 0; k < 120; k++) {
+        fundo = 0.30f + 0.002f * (k + 1) + 0.3f * nv;
+        quadro(t++ * 16u);
+        capT[nv] += gfx_vidro_capturas; pasT[nv] += gfx_vidro_passadas; fonteT[nv] += gfx_vidro_com_fonte;
+      }
+    }
+    gfx_vidro_nivel_definir(1); sujar = 1;
+    printf("ritmo 1: capturas=%d passadas=%d vidros-foscos=%d | ritmo 2: capturas=%d passadas=%d vidros-foscos=%d\n",
+           capT[1], pasT[1], fonteT[1], capT[2], pasT[2], fonteT[2]);
+    confere(capT[1] >= 55 && capT[1] <= 65, "ritmo 1: backdrop captured every 2nd moving frame (~60/120)");
+    // Not exactly 40: the menu pill and the clock island move between frames
+    // here, and a glass region that leaves the captured area forces a fresh
+    // capture (vidroFundo `fora`). Measured: 45/120 (~25 % fewer than ritmo 1).
+    confere(capT[2] >= 38 && capT[2] * 4 <= capT[1] * 3 + 2, "ritmo 2: at most 3/4 of ritmo 1's captures, never below every 3rd frame");
+    confere(pasT[2] * capT[1] < pasT[1] * capT[2], "ritmo 2: fewer blur passes per capture (1 Kawase instead of 2)");
+    confere(fonteT[2] > 0 && fonteT[2] == fonteT[1], "ritmo 2: same frosted glasses drawn (not smoked)");
+  }
 
   // Interface de vidro OFF with frost kept (Alta): no glass consumes a
   // backdrop, so the zero-region fallback must not blur the full screen on

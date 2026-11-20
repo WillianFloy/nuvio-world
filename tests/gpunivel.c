@@ -35,6 +35,14 @@ void gfx_rect(GfxRect r, GLuint tex, GfxModo modo, float foco, float px, float p
   (void)r; (void)tex; (void)modo; (void)foco; (void)px; (void)py; (void)raio;
   (void)cr; (void)cg; (void)cb; (void)ca;
 }
+// Ritmo do vidro da escada (gpunivel.c, World 20/11): estes testes cuidam dos
+// DEGRAUS; com o vidro desligado aqui a etapa do ritmo nao entra e a escada se
+// comporta como antes. O ritmo, e a ordem ritmo -> degrau 1, sao provados em
+// tests/gpun_vidro.sh com os Ajustes de verdade (vidro fosco, Automatica).
+int ajustes_vidro(void) { return 0; }
+int ajustes_vidro_fosco(void) { return 0; }
+int ajustes_vidro_qualidade(void) { return 0; }
+void gfx_vidro_nivel_definir(int n) { (void)n; }
 static char gravado[512];
 int dados_gravar(const char *nome, const char *c) {
   assert(!strcmp(nome, "gpu-nivel.txt"));

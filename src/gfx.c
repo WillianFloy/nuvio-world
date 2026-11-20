@@ -2212,9 +2212,10 @@ void gfx_vidro_fundo_passo(int passo) { fundoPasso = passo; }
 // captura NA HORA, nunca mostra o fundo antigo.
 //   nivel 0: toda mudanca (o comportamento antigo; so por teste/ajuste);
 //   nivel 1 (padrao): a cada 2 quadros em movimento continuo;
-//   nivel 2 (governador, sob pressao): a cada 3 quadros e UMA passada de
-//            Kawase em vez de duas -- o vidro continua fosco, so mais barato.
-// So depois do nivel 2 o governador antigo faz a prova do vidro fume.
+//   nivel 2 (escada de efeitos sob pressao, gpunivel.c): a cada 3 quadros e
+//            UMA passada de Kawase em vez de duas -- o vidro continua fosco,
+//            so mais barato. So depois dele a escada prova o vidro esfumacado.
+// Quem escolhe o nivel em producao: gpun_quadro_inicio, a cada quadro.
 static int vidNivel = 1;
 static unsigned fundoCapQuadro, fundoMudouQuadro;
 int gfx_vidro_nivel(void) { return vidNivel; }
@@ -3628,65 +3629,12 @@ void gfx_vidro_fosco_bloquear(void) { foscoBloq = 1; }
 void gfx_vidro_cobrir(void) { vidroNVidros = 0; }
 int gfx_vidro_com_fonte, gfx_vidro_chapados;
 
-// GLASS GOVERNOR ("Qualidade do vidro" = Automatica). Frames are counted in
-// windows of GOV_JANELA frames that drew blurred glass; a window is janky when
-// >= 20% of its frames took over 1.5x the target frame time. GOV_SEGUIDAS janky
-// windows in a row start ONE trial: the glass drops to smoked glass for a window.
-// If the mean frame time improves (< 80% of the janky one) the drop stays until
-// the app restarts; if not, the glass was not the cost (a slow TV is slow with or
-// without it): the frost comes back and the governor stops for the session.
-// Only equivalent workloads are compared: every frame carries a signature (how
-// many glasses, how much glass area). A window whose frames mix signatures says
-// nothing; consecutive janky windows must share one signature; a trial window must
-// match the baseline's. A trial that was interrupted by a scene change is dropped
-// (frost back, no verdict): at most one trial, so the governor stops too.
-#define GOV_JANELA 150
-#define GOV_SEGUIDAS 4
-int gfx_vidro_area;   // glass area (px^2) drawn this frame
-static int govN, govLentos, govSeguidas, vidroDegradou, govProva, govFim, govSig, govSigBase, govDifere;
-static double govSoma, govBase;
-int gfx_vidro_degradado(void) { return vidroDegradou; }
-void gfx_vidro_governar_zerar(void) { govN = govLentos = govSeguidas = vidroDegradou = govProva = govFim = govSig = govSigBase = govDifere = 0; govSoma = govBase = 0.0; vidNivel = 1; }   // tests
-static int govAssinatura(void) {
-  int a = gfx_vidro_area / 250000;
-  return (gfx_vidro_com_fonte + gfx_vidro_chapados) * 64 + (a > 63 ? 63 : a);
-}
-void gfx_vidro_governar(double ms, double alvo_ms) {
-  int sig, comparavel;
-  if (govFim || ajustes_vidro_qualidade() != 0) return;
-  if (govProva ? gfx_vidro_chapados <= 0 : (vidroDegradou || gfx_vidro_com_fonte <= 0)) return;
-  sig = govAssinatura();
-  if (govN == 0) govSig = sig; else govDifere += sig != govSig;
-  govN++; govSoma += ms; govLentos += ms > alvo_ms * 1.5;
-  if (govN < GOV_JANELA) return;
-  comparavel = govDifere <= GOV_JANELA / 10;
-  if (govProva) {
-    double m = govSoma / govN;
-    govProva = 0;
-    if (!comparavel || govSig != govSigBase) {
-      vidroDegradou = 0; govSeguidas = 0; govFim = 1;
-      printf("[vidro] governador: prova interrompida (carga mudou), frost de volta, sem nova prova\n");
-    } else {
-      govFim = 1; vidroDegradou = m < govBase * 0.8;
-      printf("[vidro] governador: prova %.1f ms (frost %.1f ms) -> %s\n", m, govBase, vidroDegradou ? "desempenho" : "frost mantido");
-    }
-  } else if (!comparavel) {
-    govSeguidas = 0;
-  } else {
-    if (govSig != govSigBase) govSeguidas = 0;
-    govSigBase = govSig;
-    govSeguidas = govLentos * 5 >= govN ? govSeguidas + 1 : 0;
-    govBase = govSoma / govN;
-    // GRADUAL (World, 20/11): antes de testar o vidro fume, o fundo passa a
-    // ser refeito mais espacado e com uma passada so (vidNivel 2). O vidro
-    // continua fosco; so se ainda assim faltar quadro vem a prova antiga.
-    if (govSeguidas >= 2 && vidNivel < 2) {
-      vidNivel = 2; govSeguidas = 0;
-      printf("[vidro] governador: nivel 2 (fundo a cada 3 quadros em movimento, 1 passada de desfoque)\n");
-    } else if (govSeguidas >= GOV_SEGUIDAS) { vidroDegradou = govProva = 1; printf("[vidro] governador: prova do desempenho\n"); }
-  }
-  govN = govLentos = govDifere = 0; govSoma = 0.0;
-}
+// GLASS QUALITY ("Qualidade do vidro" = Automatica): the backdrop rhythm
+// (vidNivel) and the drop to smoked glass are decided by the effects ladder in
+// gpunivel.c, the governor that runs in production (gpun_relatar, every 3 s).
+// The glass's own governor that used to live here (gfx_vidro_governar) had no
+// caller since upstream 4c7b5e47a (20/10) and was removed (World audit, 20/11).
+int gfx_vidro_area;   // glass area (px^2) drawn this frame (log/diagnostics)
 
 static const char *VID_VS =
   NV_GLSL_PREFIXO
@@ -3932,7 +3880,7 @@ static void vidroFundoFechar(void) {
   // No glass last frame (frost just resumed or appeared): its regions are
   // unknown, so blur the whole screen once, before foreground, instead of one
   // capture per glass. Not for smoked glass or over a video hole: no backdrop read.
-  if (!n && !vidroNFuros && ajustes_vidro() && (ajustes_vidro_qualidade() == 2 || (ajustes_vidro_qualidade() == 0 && !vidroDegradou))) { reg[0][0] = reg[0][1] = 0; reg[0][2] = NV_TELA_W; reg[0][3] = NV_TELA_H; n = 1; }
+  if (!n && !vidroNFuros && ajustes_vidro() && ajustes_vidro_qualidade() != 1) { reg[0][0] = reg[0][1] = 0; reg[0][2] = NV_TELA_W; reg[0][3] = NV_TELA_H; n = 1; }
   // A copia le a TELA: o fundo da Dinamica adiado tem de sair nela antes
   // (dinAdiado), senao a copia fica com o framebuffer transparente do
   // clear e o vidro le preto/lixo ate a proxima mudanca de hash — a faixa
@@ -4130,8 +4078,8 @@ void gfx_vidro(GfxRect r, float raio, int tipo, float cinza, float dens, float a
   // the alpha-0 hole, so the video shows through) — translucent by design
   // (Nuvio Arc): the real glass look is the tint plus the in-shader rim/top
   // highlight, never an art stand-in or a flat opaque box. With quality =
-  // Desempenho, or once the governor dropped the tier.
-  fumaca = video || ajustes_vidro_qualidade() == 1 || (vidroDegradou && ajustes_vidro_qualidade() == 0);
+  // Desempenho, chosen by hand or by the effects ladder (gpunivel.c, step 1).
+  fumaca = video || ajustes_vidro_qualidade() == 1;
   if (fumaca) chapado = 1;
   if (vidroNVidros < VID_N) memcpy(vidroVidros[vidroNVidros++], tela, sizeof tela);
   memset(&vidPend, 0, sizeof vidPend);

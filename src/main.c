@@ -2454,7 +2454,8 @@ int main(int argc, char **argv) {
         char rl[512];
         if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), rl, sizeof rl); printf("%s\n", rl); }
         // Vidro: nivel do ritmo do fundo (gfx.c) e quantos quadros reusaram o desfoque.
-        if (ajustes_vidro()) printf("[vidro-ritmo] nivel=%d reusos=%d degradado=%d\n", gfx_vidro_nivel(), gfx_vidro_reusos, gfx_vidro_degradado());
+        if (ajustes_vidro()) printf("[vidro-ritmo] nivel=%d escada-ritmo=%d degrau=%d qualidade=%d reusos=%d\n", gfx_vidro_nivel(),
+                                    gpun_vidro_ritmo(), gpun_degrau(), ajustes_vidro_qualidade(), gfx_vidro_reusos);
         gfx_vidro_reusos = 0; }
       { double sMed, sPior; int sN = swapint_colher(&swapInt, &sMed, &sPior);
         if (sN > 0) printf("[swap] periodo=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",

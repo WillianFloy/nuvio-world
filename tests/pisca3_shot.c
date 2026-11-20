@@ -910,7 +910,9 @@ int main(int argc, char **argv) {
   tecla(SDLK_DOWN);
   for (i = 0; i < 600; i++) frame();          // the offline extras text lands late
   parado("page-down", 90);
-  for (i = 0; i < 4 * 150; i++) gfx_vidro_governar(100.0, 16.7);   // C9: the governor trips
+  // C9: the effects ladder (gpunivel.c, step 1) drops the glass to smoked:
+  // the same switch as "Qualidade do vidro" = Desempenho.
+  setenv("NUVIO_SHOT_VIDRO_QUAL", "1", 1); ajustes_teste_vidro_env();
   for (i = 0; i < 30; i++) frame();
   parado("detail-smoked", 90);
   printf("[pisca3] jumps=%d\n%s: trailer fades without a jump\n", saltos, saltos ? "FAIL" : "PASS");
@@ -918,7 +920,7 @@ int main(int argc, char **argv) {
   printf("[pisca3] garbage-textures=%d\n", sujas);
   printf("[pisca3] flashes=%d\n%s: no single-frame flash\n", flashes, flashes ? "FAIL" : "PASS");
   failures += flashes != 0;
-  printf("[pisca3] degraded=%d gl=%#x\n", gfx_vidro_degradado(), glGetError());
+  printf("[pisca3] glass-quality=%d gl=%#x\n", ajustes_vidro_qualidade(), glGetError());
   tex_encerrar(); SDL_Quit(); free(px);
   return failures ? 1 : 0;
 }

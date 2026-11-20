@@ -75,6 +75,11 @@ void gpun_log_perfil(long memMB, int texMb, int fios, int heroi);
 // Global minimal is manual-only: its flat-glass/outline shortcuts override
 // forced frost/outline settings, so Automatic never enables it.
 int  gpun_degrau(void);
+// Ritmo do fundo do vidro decidido pela escada (1 = a cada 2 quadros em
+// movimento; 2 = a cada 3 e uma passada de desfoque, ainda fosco). Vale so com
+// a qualidade do vidro em Automatica: gpun_quadro_inicio o aplica no gfx
+// (gfx_vidro_nivel_definir) a cada quadro.
+int  gpun_vidro_ritmo(void);
 int  gpun_efeito_ativo(int passo);
 void gpun_fosco_reiniciar(void);
 int  gpun_fosco_vetado(void);
