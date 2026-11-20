@@ -1413,6 +1413,8 @@ static void ajDesenharGrupo(int item, float y, float a) {
   { int sec = secDoItem[item];
     // Depois do MAIS(): "Mais opcoes · Escolha da fonte" (mockup v3, tela 07).
     if (maisItem[sec] >= 0 && item > maisItem[sec]) snprintf(b, sizeof b, i18n("Mais opções · %s"), i18n(TELA[item].titulo));
+    // Menu no topo: o grupo "Barra lateral" e o do menu superior (World, 20/11).
+    else if (ajustes_menu_topo() && !strcmp(TELA[item].titulo, "Barra lateral")) snprintf(b, sizeof b, "%s", "Menu do topo");
     else snprintf(b, sizeof b, "%s", TELA[item].titulo); }
   larg = ajCapsC(TXT_V2_KICK, b, 2.5f, x + 22, ty, 0.62f * a, w - 44.0f);
   if (TELA[item].sub && TELA[item].sub[0]) {

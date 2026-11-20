@@ -87,7 +87,7 @@ static float menuEscala(void) {
 //     na rail um traco de 40 a 10 % com 8 de margem;
 //   - perfil: aberta linha de 72, avatar de 40, nome em --fg cheio e a acao
 //     em cinza a 45 %; na rail so o avatar de 44.
-#define NV_MENU_X           (48.0f / NV_MENU_ESCALA)
+#define NV_MENU_X           (NV_MENU_MODERNA_X / NV_MENU_ESCALA)   // 28 px da tela (eram 48; dono, 20/11)
 #define NV_MENU_PAD         MK(14.0f)
 #define NV_MENU_W_RAIL      MK(88.0f)
 #define NV_MENU_W_ABERTO   MK(320.0f)
@@ -151,6 +151,17 @@ static int mostra(int i) {
 static int visiveis(void) {
   int i, n = 0;
   for (i = 0; i < MENU_N; i++) n += mostra(i);
+  return n;
+}
+// ORDEM DA BARRA LATERAL (World, 20/11): a MESMA ordem salva do menu superior
+// (ajustes_menu_topo_ordem, por perfil nesta TV), para as duas posicoes do menu
+// nunca divergirem. Padrao novo: Busca, Inicio, Explorar, Biblioteca, Guia TV,
+// Agenda, Perfil e Stats, Ajustes. Devolve os destinos VISIVEIS nessa ordem.
+static int ladoLista(int *ordem) {
+  int salvos[AJ_MENU_TOPO_ORDEM_N], n = 0, i;
+  ajustes_menu_topo_ordem(salvos);
+  for (i = 0; i < AJ_MENU_TOPO_ORDEM_N; i++)
+    if (salvos[i] >= 0 && salvos[i] < MENU_N && mostra(salvos[i])) ordem[n++] = salvos[i];
   return n;
 }
 // RODAPE: quem esta usando o app, e a porta para trocar. Ele e um item de
@@ -281,7 +292,14 @@ static GfxRect linhaRect(const MenuGeo *g, float y, float h, float e) {
 // menu aberto) da o contraste sobre arte clara; o item em foco e uma pilula
 // BRANCA cheia com icone e rotulo escuros; a pagina atual e uma barra vertical no
 // acento. Mesma geometria, mesmas teclas, mesma mola de abrir/fechar.
-static int world(void) { return !padrao() && !topo(); }
+// A COLUNA WORLD e a "Barra lateral moderna" LIGADA no layout Moderna. Na etapa 1
+// ela valia para todo o layout Moderna e a opcao nao mudava nada (dono, 20/11:
+// "ativada e desativada produzem praticamente o mesmo resultado"). Desligada:
+// a ilha flutuante, recolhida ou fixa, so icones ou mista.
+static int world(void) { return !padrao() && !topo() && ajustes_rail_moderna(); }
+// Ilha com "Somente icones" (a apresentacao do menu, a mesma escolha do menu
+// superior): ela nunca abre a largura dos rotulos.
+static int soIcones(void) { return !world() && !topo() && ajustes_menu_topo_modo() == 0; }
 // A LINGUAGEM DE FOCO DO WORLD (pilula branca, icone e rotulo escuros, barra
 // no acento na pagina atual) vale nas duas barras laterais: a coluna da
 // Moderna e a ilha da Padrao. A ilha continua sendo ilha (material, deslize).
@@ -322,10 +340,9 @@ static void ponteiroFora(int a, int b) { (void)a; (void)b; menu_fechar(); }
 static void alvosDasLinhas(const MenuGeo *g, float x, float w) {
   int k = 0;
   if (!ponteiro_ativo()) return;
-  for (int i = 0; i < MENU_N; i++) {
-    if (!mostra(i)) continue;
-    ponteiro_alvo(x, linhaY(g, k++), w, NV_MENU_ITEM_H, ponteiroLinha, NULL, i, 0);
-  }
+  int ordem[MENU_N], n = ladoLista(ordem);
+  for (int j = 0; j < n; j++)
+    ponteiro_alvo(x, linhaY(g, k++), w, NV_MENU_ITEM_H, ponteiroLinha, NULL, ordem[j], 0);
   ponteiro_alvo(x, g->rodY, w, g->rodH, ponteiroLinha, NULL, MENU_RODAPE, 0);
 }
 
@@ -350,6 +367,14 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
     // arte). Uma passada (GFX_VEU_CSS), sem vidro nem sombra.
     float ab = limita01((g->w - NV_MENU_W_RAIL) / (NV_MENU_W_ABERTO - NV_MENU_W_RAIL));
     float w = anim_mistura(MK(300.0f), MK(760.0f), ab);
+    // SOBREPOSICAO (TCL, 20/11: rotulos por cima do nome do destaque, do "51
+    // listas" e do cartao em foco). O veu so esvanecia ate a borda: onde ficam
+    // os rotulos a Home quase nao escurecia, e o chapado do comentario antigo
+    // nunca foi desenhado. Aberto, a Home inteira recua para tras do menu: um
+    // escurecimento de tela cheia (58 %, junto com a abertura) e o veu da borda
+    // por cima. A Home nao anda (composicao intacta); fechando, tudo some junto.
+    if (ab > 0.002f)
+      gfx_cor((GfxRect){ 0, 0, NV_TELA_W + 4.0f, NV_TELA_H + 4.0f }, 0.0f, 0, 0, 0, 0.58f * ab * a);
     gfx_veu_css_base((GfxRect){ 0, 0, w, NV_TELA_H }, 2, 1.6f, 1.0f,
                      anim_mistura(0.62f, 0.92f, ab) * a, 0.0f);
     return;
@@ -405,8 +430,9 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
   // e desenhado no x fixo do texto — vaza para o conteudo enquanto o painel
   // ainda esta estreito.
   gfx_recorte(g.x, g.y, g.w, g.h);
-  for (int i = 0; i < MENU_N; i++) {
-    if (!mostra(i)) continue;
+  int ladoOrdem[MENU_N], ladoN = ladoLista(ladoOrdem);
+  for (int j = 0; j < ladoN; j++) {
+    int i = ladoOrdem[j];
     float y = linhaY(&g, k++);
     float f = focos ? animFoco[i] : 0.0f;
     float cy = y + NV_MENU_ITEM_H * 0.5f;
@@ -523,6 +549,28 @@ const char *menu_rotulo(int d) {
 // esta olhando, e desfazer a escolha no caminho de volta seria surpresa.
 static int tvPastaDoFoco(int foco);
 static int tvPastasTotal(const int **v);
+// CONFIRMAR A TROCA DE PERFIL (World, 20/11, dono: "evitar mudancas
+// acidentais"). OK no rodape (barra lateral) ou no avatar (menu do topo) abre
+// a confirmacao; so "Trocar" segue para a escolha de perfil, que continua sendo
+// quem pede o PIN e troca de verdade (nada aqui pula o PIN). Com UM outro
+// perfil, a confirmacao ja diz para qual. Abre com o foco em Cancelar: um
+// segundo OK sem querer nao troca. ESQUERDA/DIREITA, OK e Voltar.
+static int confTrocar, confFoco = 1;   // confFoco: 0 = Trocar, 1 = Cancelar
+static float confA, confFocoA[2];
+static const ContaPerfil *confDestino(void) {
+  int n = perfis_n(), outro = -1, k;
+  const ContaPerfil *at = perfis_item_ativo();
+  for (k = 0; k < n; k++) {
+    const ContaPerfil *q = perfis_item(k);
+    if (!q || q == at || (at && q->indice == at->indice)) continue;
+    if (outro >= 0) return NULL;   // mais de um: a escolha e na tela de perfis
+    outro = k;
+  }
+  return outro >= 0 ? perfis_item(outro) : NULL;
+}
+int menu_confirmando_perfil(void) { return confTrocar; }
+static void avatarDe(const ContaPerfil *p, GfxRect av, float alfa);
+
 static void escolher(void) {
   escolheu = 1;
   if (linha >= MENU_ST0) {
@@ -533,10 +581,10 @@ static void escolher(void) {
     return;
   }
   if (linha == MENU_RODAPE) {
-    // O rodape nao troca de destino: ele pede a tela de escolha de perfil.
-    pediuTrocar = 1;
-    aberto = 0;
-    linha = destino;
+    // O rodape nao troca de destino: ele pede a tela de escolha de perfil,
+    // DEPOIS da confirmacao (confTrocar).
+    escolheu = 0;
+    confTrocar = 1; confFoco = 1;
     return;
   }
   if (linha != destino) { destino = linha; mudou = 1; }
@@ -549,6 +597,19 @@ int menu_pediu_spotlight(void) { int p = pediuSpot; pediuSpot = 0; return p; }
 
 void menu_evento(const SDL_Event *e) {
   if (!aberto) return;
+  if (confTrocar) {
+    SDL_Keycode k;
+    if (e->type != SDL_KEYDOWN) return;
+    k = e->key.keysym.sym;
+    if (k == SDLK_LEFT) confFoco = 0;
+    else if (k == SDLK_RIGHT) confFoco = 1;
+    else if (k == SDLK_AC_BACK || k == SDLK_ESCAPE || k == SDLK_BACKSPACE || k == SDLK_DELETE) confTrocar = 0;
+    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) {
+      confTrocar = 0;
+      if (confFoco == 0) { escolheu = 1; pediuTrocar = 1; aberto = 0; linha = destino; }
+    }
+    return;
+  }
   if (e->type == SDL_KEYUP && buscaOk &&
       (e->key.keysym.sym == SDLK_RETURN || e->key.keysym.sym == SDLK_KP_ENTER)) {
     int longo = buscaLongo;
@@ -600,19 +661,18 @@ void menu_evento(const SDL_Event *e) {
   }
   // Sem rotacao nas pontas: a barra e curta e o usuario ve as quatro linhas de
   // uma vez, entao dar a volta no fim da lista le como falha, nao como atalho.
-  if (k == SDLK_DOWN) {
-    int j = linha + 1;
-    while (j < MENU_N && !mostra(j)) j++;
-    if (j < NV_MENU_FOCOS) linha = j;
-  } else if (k == SDLK_UP) {
-    int j = linha - 1;
-    while (j >= 0 && !mostra(j)) j--;
-    if (j >= 0) linha = j;
-  }
+  // Na ORDEM SALVA (ladoLista); depois do ultimo vem o rodape.
+  { int ordem[MENU_N], n = ladoLista(ordem), p = n;
+    for (int j = 0; j < n; j++) if (ordem[j] == linha) p = j;
+    if (k == SDLK_DOWN) { if (p + 1 < n) linha = ordem[p + 1]; else if (p < n) linha = MENU_RODAPE; }
+    else if (k == SDLK_UP) { if (linha == MENU_RODAPE) { if (n > 0) linha = ordem[n - 1]; } else if (p > 0) linha = ordem[p - 1]; } }
   // ESQUERDA morre aqui de proposito: a barra ja e a borda da tela.
 }
 
 void menu_atualizar(float dt, Uint32 agora) {
+  if (!aberto) confTrocar = 0;
+  confA = anim_mola(confA, confTrocar ? 1.0f : 0.0f, dt, NV_MOLA_FOCO);
+  for (int k = 0; k < 2; k++) confFocoA[k] = anim_mola(confFocoA[k], confTrocar && confFoco == k ? 1.0f : 0.0f, dt, NV_MOLA_FOCO);
   if (buscaOk && !buscaLongo && aberto && segurar_venceu(agora, buscaDesde ? buscaDesde : 1, "menu busca")) {
     buscaLongo = 1;
     pediuSpot = 1;   // o Spotlight abre por cima de tudo: nao fecha a camada
@@ -634,6 +694,8 @@ void menu_atualizar(float dt, Uint32 agora) {
   float alvo = aberto ? 1.0f : 0.0f;
   float ms   = aberto ? NV_MENU_ABRIR_MS : NV_MENU_FECHAR_MS;
   desliza = anim_rampa(desliza, alvo, dt, ms);
+  // SOMENTE ICONES: a ilha entra (desliza) mas a forma fica na largura da rail.
+  if (soIcones()) alvo = 0.0f;
   // A MOLA DA ILHA (ilha.c, molaIlhaWZ): quatro subpassos, dt no maximo 50 ms.
   // Com Animacoes reduzidas vai direto ao alvo.
   if (anim_politica_reduzida || ajustes_animacoes_reduzidas()) { expande = alvo; expandeV = 0.0f; }
@@ -649,7 +711,7 @@ void menu_atualizar(float dt, Uint32 agora) {
     }
     // Fechando, a forma nao passa da rail para menos (encolher abaixo de 88
     // seria um defeito, nao um repique).
-    if (!aberto && expande < 0.0f) { expande = 0.0f; if (expandeV < 0.0f) expandeV = 0.0f; }
+    if ((!aberto || soIcones()) && expande < 0.0f) { expande = 0.0f; if (expandeV < 0.0f) expandeV = 0.0f; }
   }
   for (int i = 0; i < NV_MENU_FOCOS; i++) {
     float a = (aberto && i == linha) ? 1.0f : 0.0f;
@@ -784,6 +846,55 @@ float menu_barra_borda(void) {
   return (g.x + g.w) * NV_MENU_ESCALA;
 }
 
+// Borda direita da RAIL (largura recolhida), em px da tela REAL; 0 sem rail na
+// tela. As fileiras com foco fixo esvanecem ate ela (home.c, vertudo.c): o
+// cartaz anterior ao foco nao passa mais POR BAIXO dos icones (TCL, 20/11).
+// Nao segue a largura aberta: abrir o menu nao mexe no corte das fileiras.
+float menu_rail_borda(void) {
+  MenuGeo g;
+  if (tvAtivo() || topo()) return 0.0f;
+  if (!railFixa() && !aberto && desliza < 0.002f) return 0.0f;
+  g = geoEm(0.0f, railFixa() ? 1.0f : anim_suave(desliza));
+  return (g.x + g.w) * NV_MENU_ESCALA;
+}
+
+// A confirmacao, por cima de tudo no menu: escurece a tela, cartao central com
+// o avatar (do destino, quando ha so um outro perfil; senao o atual), o titulo
+// e os dois botoes em pilula (o em foco branco com texto escuro).
+static void desenharConfTrocar(void) {
+  float a = limita01(confA);
+  const ContaPerfil *dst, *at;
+  char linha1[160], linha2[160];
+  if (a <= 0.004f) return;
+  dst = confDestino(); at = perfis_item_ativo();
+  gfx_cor((GfxRect){ 0, 0, NV_TELA_W + 4.0f, NV_TELA_H + 4.0f }, 0.0f, 0, 0, 0, 0.62f * a);
+  { float cw = MK(620.0f), ch = MK(380.0f), s = anim_mistura(0.96f, 1.0f, a);
+    GfxRect c = { (NV_TELA_W - cw * s) * 0.5f, (NV_TELA_H - ch * s) * 0.5f, cw * s, ch * s };
+    float cx = c.x + c.w * 0.5f, y = c.y + MK(40.0f) * s, av = MK(96.0f) * s;
+    gfx_rect((GfxRect){ c.x - 30, c.y - 10, c.w + 60, c.h + 70 }, 0, GFX_SOMBRA, 1.0f, 0, 0, 0.5f, 0, 0, 0, 0.45f * a);
+    gfx_vidro_ou_solido(c, MK(28.0f) / c.h, 0.92f, a, 0x15 / 255.0f, 0x16 / 255.0f, 0x1a / 255.0f, 1.0f);
+    avatarDe(dst ? dst : at, (GfxRect){ cx - av * 0.5f, y, av, av }, a);
+    y += av + MK(22.0f) * s;
+    if (dst) { snprintf(linha1, sizeof linha1, i18n("Trocar para %s?"), dst->nome); }
+    else snprintf(linha1, sizeof linha1, "%s", i18n("Trocar de perfil?"));
+    if (at && at->nome[0]) snprintf(linha2, sizeof linha2, i18n("Você está no perfil %s."), at->nome);
+    else linha2[0] = 0;
+    { TxtLinha t = txt_linha_corta(TXT_TITULO2, linha1, 245, 245, 243, 255, c.w - MK(60.0f));
+      txt_desenhar_alpha(t, cx - t.w * 0.5f, y, a); y += t.h + MK(8.0f) * s; }
+    if (linha2[0]) { TxtLinha t = txt_linha_corta(TXT_CALLOUT, linha2, 200, 204, 212, 255, c.w - MK(60.0f));
+      txt_desenhar_alpha(t, cx - t.w * 0.5f, y, a * 0.9f); }
+    { const char *rot[2] = { "Trocar", "Cancelar" };
+      float bw = MK(220.0f) * s, bh = MK(64.0f) * s, vao = MK(20.0f) * s, by = c.y + c.h - bh - MK(32.0f) * s;
+      for (int k = 0; k < 2; k++) {
+        GfxRect b = { cx - bw - vao * 0.5f + k * (bw + vao), by, bw, bh };
+        float f = limita01(confFocoA[k]), cor = anim_mistura(0.96f, 0.07f, f);
+        gfx_cor(b, 0.5f, 1, 1, 1, anim_mistura(0.12f, 0.0f, f) * a);
+        if (f > 0.004f) gfx_cor(b, 0.5f, 0.96f, 0.96f, 0.95f, f * a);
+        { TxtLinha t = txt_linha_corta(TXT_BODY, rot[k], 255, 255, 255, 255, bw - MK(24.0f));
+          txt_desenhar_tom(t, b.x + (b.w - t.w) * 0.5f, b.y + (b.h - t.h) * 0.5f, cor, cor, cor, a); }
+      } } }
+}
+
 static void menu_desenharCorpo_(Uint32 agora);
 // Camada ampliada no fator fixo do menu (NV_MENU_ESCALA): o corpo desenha na
 // tela virtual dele.
@@ -791,6 +902,7 @@ void menu_desenhar(Uint32 agora) {
   float ant = gfx_escala();
   gfx_escala_sair(NV_MENU_ESCALA);   // fator FIXO, nao o do Tamanho da interface
   menu_desenharCorpo_(agora);
+  desenharConfTrocar();               // a confirmacao da troca de perfil, por cima de tudo
   gfx_escala_sair(ant);
 }
 static void menu_desenharCorpo_(Uint32 agora) {
@@ -1194,8 +1306,8 @@ static void tvCirculoPasta(const ColFolder *pf, float cx, float cy, float alfa) 
   }
 }
 
-static void tvAvatar(GfxRect av, float alfa) {
-  const ContaPerfil *p = perfis_item_ativo();
+static void tvAvatar(GfxRect av, float alfa) { avatarDe(perfis_item_ativo(), av, alfa); }
+static void avatarDe(const ContaPerfil *p, GfxRect av, float alfa) {
   // Como o avatar do menu: pela largura com que desenha (tex_obter_larg).
   GLuint tex = (p && p->avatarUrl[0]) ? tex_obter_larg(p->avatarUrl, av.w) : 0;
   if (tex) {
@@ -1746,12 +1858,17 @@ static void topoDesenhar(void) {
     ponteiro_alvo(g.x, g.y, g.w, g.h, NULL, NULL, 0, 0);
   }
   desenhaMaterial(&g, a);
-  desenhaMaterial(&gAv, a);
   // O perfil: o avatar e do tamanho de uma pilula, dentro do seu circulo de
-  // trilha (CHIP_D = TAB_PILL_H); em foco ganha o aro claro.
+  // trilha (CHIP_D = TAB_PILL_H); em foco ganha o aro claro e CRESCE 14 % em
+  // torno do centro, na mola do foco (World, 20/11: "aumentar suavemente").
   fAv = focos ? animFoco[MENU_RODAPE] : 0.0f;
-  tvAvatar((GfxRect){ gAv.x + TOPO_TRILHA, gAv.y + TOPO_TRILHA, TOPO_PILULA_H, TOPO_PILULA_H }, a);
-  if (fAv > 0.01f) gfx_vidro_borda((GfxRect){ gAv.x, gAv.y, gAv.w, gAv.h }, 0.5f, .75f * fAv * a);
+  { float sAv = 1.0f + 0.14f * limita01(fAv), cxA = gAv.x + gAv.w * 0.5f, cyA = gAv.y + gAv.h * 0.5f;
+    MenuGeo gAs = gAv;
+    gAs.w = gAv.w * sAv; gAs.h = gAv.h * sAv; gAs.x = cxA - gAs.w * 0.5f; gAs.y = cyA - gAs.h * 0.5f;
+    gAs.raio = gAv.raio * sAv;
+    desenhaMaterial(&gAs, a);
+    tvAvatar((GfxRect){ gAs.x + TOPO_TRILHA * sAv, gAs.y + TOPO_TRILHA * sAv, TOPO_PILULA_H * sAv, TOPO_PILULA_H * sAv }, a);
+    if (fAv > 0.01f) gfx_vidro_borda((GfxRect){ gAs.x, gAs.y, gAs.w, gAs.h }, 0.5f, .75f * fAv * a); }
   if (ponteiro_ativo() && a > 0.5f) ponteiro_alvo(gAv.x, gAv.y, gAv.w, gAv.h, ponteiroLinha, NULL, MENU_RODAPE, 0);
   gfx_recorte(g.x, g.y, g.w, g.h);
   // As capsulas por BAIXO dos rotulos: selecao, e o foco por cima dela.

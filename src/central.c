@@ -374,13 +374,20 @@ float central_segurar_progresso(Uint32 agora) {
 }
 
 // Both clock islands draw the fill before their text, within their own scale.
+// SEGURAR CH+ (World, 20/11). Antes a pilula enchia CHEIA no acento: com
+// acento claro (Branco, Grafite, Dourado) a hora branca sumia por baixo. Agora:
+// um veu claro (14 %) avanca da esquerda e a barra de 4 px no acento corre na
+// base, dentro dos cantos; a pilula e o que esta nela continuam legiveis.
 void central_segurar_desenhar(GfxRect r, float raio, float a, Uint32 agora) {
-  float p = central_segurar_progresso(agora), cr, cg, cb;
+  float p = central_segurar_progresso(agora), cr, cg, cb, rpx, bx, bw;
   if (p <= 0.0f || a <= 0.0f) return;
   ajustes_acento(&cr, &cg, &cb);
   gfx_recorte(r.x, r.y, r.w * p, r.h);
-  gfx_cor(r, raio, cr, cg, cb, a);
+  gfx_cor(r, raio, 1.0f, 1.0f, 1.0f, 0.14f * a);
   gfx_sem_recorte();
+  rpx = raio * r.h;                      // raio em px (raio chega relativo a altura)
+  bx = r.x + rpx * 0.75f; bw = (r.w - rpx * 1.5f) * p;
+  if (bw > 0.5f) gfx_cor((GfxRect){ bx, r.y + r.h - 7.0f, bw, 4.0f }, 0.5f, cr, cg, cb, a);
 }
 
 int central_tecla(const SDL_Event *e, int pode) {

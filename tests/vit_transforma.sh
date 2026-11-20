@@ -32,7 +32,8 @@ for s in src/*.c src/dts/*.c; do
 done | xargs -P "$(nproc)" -I{} sh -c 'o="'"$D"'/$(echo {} | tr / _).o"; cc -c $0 {} -o "$o"' "$FLAGS"
 cc $FLAGS "$D"/*.o tests/vit_transforma.c -o "$D/vit_transforma" -lSDL2 -lSDL2_image -lSDL2_ttf -lz -lGLESv2 -lm -lpthread -ldl
 OUT="$D/vit_transforma.out"; : > "$OUT"
-for L in ${NV_LAYOUTS:-0 1 2}; do
+# Layout Dinamica (2) saiu do app em 20/11 (NV_LAYOUTS=2 ainda roda a cena dela).
+for L in ${NV_LAYOUTS:-0 1}; do
   rm -rf "$D/data$L"; mkdir -p "$D/data$L"
   echo "== layout $L" | tee -a "$OUT"
   SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data$L" NUVIO_TESTE_DIR="$D/data$L" timeout -s KILL 600 "$D/vit_transforma" $L ${NV_SHOTS:+$NV_SHOTS-L$L} 2>&1 \

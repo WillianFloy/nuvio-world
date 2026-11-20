@@ -46,7 +46,7 @@ int layout_modo_mobile(void);
 // a mesma pilula colada na borda (borda 88). ajustes_rail_largura_fixa
 // reserva borda + vao - NV_CONTENT_PAD, e o conteudo comeca 64 px depois dela.
 #define NV_MENU_MODERNA_AUMENTO      1.20f
-#define NV_MENU_RAIL_BORDA_MODERNA (48.0f + 88.0f * NV_MENU_MODERNA_AUMENTO)
+#define NV_MENU_RAIL_BORDA_MODERNA (28.0f + 88.0f * NV_MENU_MODERNA_AUMENTO)   /* = NV_MENU_MODERNA_X + rail */
 #define NV_MENU_RAIL_BORDA_PADRAO   88.0f
 #define NV_MENU_RAIL_VAO            64.0f
 

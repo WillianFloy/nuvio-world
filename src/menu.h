@@ -80,6 +80,7 @@ const char *menu_rotulo(int destino);
 // proposito: trocar de perfil nao e uma aba do app, e uma acao que devolve a
 // pessoa a tela de escolha.
 int  menu_pediu_trocar(void);
+int  menu_confirmando_perfil(void);   // World 20/11: a confirmacao da troca de perfil esta na tela
 // Layout Dinamica: indice de col_folder da pasta de Streaming escolhida na
 // barra (a fileira "Streaming" mora la nesse layout), uma vez; -1 sem pedido.
 // Quem le abre a colecao (vertudo_colecao), como OK na pasta da home.
@@ -99,8 +100,9 @@ int  menu_pediu_spotlight(void);
 // rail fixa e ajustes_rail_largura_fixa (NV_MENU_RAIL_BORDA_* em layout.h).
 // O menu usa escala propria (90%, ampliada20% na Moderna), nao o Tamanho da
 // interface; tudo o que esta API devolve ja vem em px da tela REAL.
-#define NV_MENU_MODERNA_X 48.0f   // px da tela REAL
+#define NV_MENU_MODERNA_X 28.0f   // px da tela REAL (eram 48: "distante demais", dono 20/11)
 float menu_barra_borda(void);
+float menu_rail_borda(void);   // World 20/11: borda da rail recolhida (px REAIS), 0 sem rail
 // Barra no topo: a geometria da tira como desenhada agora, em px da tela REAL
 // (retangulos x, y, w, h). `sel`/`foc` sao as capsulas de selecao e de foco
 // (x, w, alfa); `foco[k]` e quanto a de foco cobre a pilula k (a tinta do

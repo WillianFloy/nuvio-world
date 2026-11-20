@@ -35,7 +35,7 @@ ok("vitgeom_prebusca(vitFR, fc, eixo, dh, dv" in v and "tex_lookahead_pedir(cam,
 # 2.0.37: texto sobreposto ao sair, fechamento animado do pôster expandido, prioridade da fila.
 ok("if (!aberta) {\n    float f = fmaxf(0.0f, fminf(1.0f, (anim - 0.55f) / 0.45f));" in v, "saida da Collection apaga o conteudo na 1a metade")
 ok("static void vitExpFechar(void)" in v and "vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);" in v and "vitExpExtra(r, c, w, h, &propria)" in v, "pôster expandido fecha animado")
-ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }" in t and "int pr = prioFila(&itens[f[p]]);" in t, "fila de rede: pedido visivel antes do especulativo")
+ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }" in t and "int pr = prioFila(it);" in t and "static unsigned long recenciaFila" in t, "fila de rede: pedido visivel antes do especulativo (e, no nivel, o mais recente; World 20/11)")
 # 2.0.38: troca do destaque continua quando interrompida (pilha de camadas), 350 ms.
 ok("#define VIT_HERO_DUR (NV_MOTION_MS / 1000.0f)" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
 ok("vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;" in v and "vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;" in v, "troca interrompida empilha a camada com o progresso que tinha")

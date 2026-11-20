@@ -176,11 +176,11 @@ static AjcHome ajcHomePadrao(void) {
 }
 
 // --- cenas ---------------------------------------------------------------------------
-// Tres diagramas de layout lado a lado; o atual no acento.
+// Dois diagramas de layout lado a lado (a Dinamica saiu, 20/11); o atual no acento.
 static void ajcCenaLayouts(void) {
   int i, atual = (int)(ajcValor(AJ_HOME_LAYOUT) + 0.5f);
-  for (i = 0; i < 3; i++) {
-    float x = 24 + i * 204, y = 70, w = 184, h = 103.5f;
+  for (i = 0; i < 2; i++) {
+    float x = 126 + i * 204, y = 70, w = 184, h = 103.5f;
     AjcHome o = ajcHomePadrao();
     o.layout = i; o.hero = 1; o.rail = 1;
     o.focoAnda = i == atual ? o.focoAnda : -1;

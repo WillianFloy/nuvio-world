@@ -55,7 +55,7 @@ assert "static float vitAlturaViewport(void)" in source
 assert "conteudo / 3.0f" not in source
 assert '#include "vitgeom.h"' in source
 assert "vitgeom_fixo_n(" in source and "vitgeom_fixo_alvo(" in source and "vitgeom_fixo_ancora(" in source
-assert "gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W)" in source
+assert "gfx_esvanecer_x(z0, fmaxf(esp, z0 + 1.0f), NV_TELA_W - esp, NV_TELA_W)" in source   # World 20/11: zera na borda da rail
 assert "gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport())" in source
 assert "Fontes nao-addon ficam visiveis, mas vazias" not in source
 

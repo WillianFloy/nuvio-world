@@ -116,7 +116,7 @@ grep -q 'if (atualizacaoDesligada()) return;' src/atualizacao.c || falha "atuali
 grep -q 'packageName.endsWith(".test")) return 0' android/app/src/main/java/space/nuvio/nativelegacy/NuvioActivity.kt || falha "instalarApk sem a trava"
 echo "ok variante de teste: pacote .test, rotulo proprio, sem auto-atualizacao"
 # 6. Redesign World (18/11): menu-coluna, veu adaptativo, pre-carga direcional.
-grep -q 'static int world(void) { return !padrao() && !topo(); }' src/menu.c || falha "menu World ausente"
+grep -q 'static int world(void) { return !padrao() && !topo() && ajustes_rail_moderna(); }' src/menu.c || falha "menu World ausente (ou sem a opcao Barra lateral moderna)"
 grep -q 'gfx_veu_css_base((GfxRect){ 0, 0, w, NV_TELA_H }, 2' src/menu.c || falha "veu da borda do menu ausente"
 [ "$(grep -c 'nv_veu_luz(' src/gfx.c)" -ge 5 ] || falha "veu adaptativo do destaque incompleto (simples e camadas)"
 grep -q 'for (int k = 1; k <= janela + alcance && !pediuH; k++)' src/home.c || falha "pre-carga horizontal alem da janela ausente"
@@ -142,4 +142,19 @@ grep -q 'static int porqueCartao' src/explorar.c || falha "Explorar repete o mot
 grep -q 'int vertudo_voo_titulo_ativo(void)' src/vertudo.c && grep -q 'if (!vertudo_voo_titulo_ativo())' src/home.c || falha "titulo da pasta duplo no voo"
 grep -q 'home_pasta_nome(folder, &lg)' src/vertudo.c || falha "nome da pasta nao viaja ao cabecalho"
 echo "ok etapa 2: interruptor, foco World nas laterais, icones de traco, Explorar, voo do titulo"
+
+# 9. Etapa 3 (20/11): barra lateral, menu do topo, perfil, fila de imagens.
+grep -q 'static int ladoLista(int \*ordem)' src/menu.c || falha "barra lateral sem a ordem salva"
+grep -q '{ 3, 0, 1, 4, 2, 5, 6, 7 }' src/ajustes.c || falha "ordem padrao do menu (Busca primeiro) ausente"
+grep -q 'static int soIcones(void)' src/menu.c || falha "barra lateral sem Somente icones"
+grep -q '0.58f \* ab \* a' src/menu.c || falha "coluna World aberta sem escurecer a Home (sobreposicao)"
+grep -q 'float menu_rail_borda(void)' src/menu.c && grep -q 'menu_rail_borda()' src/home.c && grep -q 'vitRailZero()' src/vertudo.c || falha "fileiras voltaram a passar por baixo da rail"
+grep -q '#define NV_MENU_MODERNA_X 28.0f' src/menu.h || falha "barra lateral longe da borda"
+grep -q 'static const char \*rotuloMenuPos(int op)' src/ajustes.c || falha "nomes das opcoes nao seguem a posicao do menu"
+grep -q 'confTrocar = 1; confFoco = 1;' src/menu.c || falha "troca de perfil sem confirmacao"
+grep -q 'if (gfx_tema_preto && !video)' src/gfx.c || falha "Preto puro sem vidro preto (menu do topo, relogio)"
+grep -q 'V_HOME_LAYOUT, 2)' src/ajustes.c || falha "layout Dinamica voltou ao seletor"
+grep -q 'recenciaFila' src/tex_cache.c && grep -q 'NV_TEX_LA_VENCE_MS' src/tex_cache.c || falha "fila de imagens sem recencia/vencimento"
+grep -q 'heroLogoCruza' src/home.c || falha "destaque sem o nome na espera da logo"
+echo "ok etapa 3: barra lateral, ordem, menu do topo, perfil, Preto puro, fila e logo"
 echo "tudo ok"

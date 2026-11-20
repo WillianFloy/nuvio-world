@@ -32,6 +32,7 @@
 #include "progresso.h"
 #include <time.h>
 #include "ctxmenu.h"
+#include "menu.h"
 #include "ponteiro.h"
 #include "rolagemtoque.h"
 #include "telefoneui.h"
@@ -2426,6 +2427,13 @@ static float vitPasso(void) {
   home_vitrine_medida(&w, &h, &p, &rot);
   return VIT_TITULO_H + h + rot + 40.0f;
 }
+// Onde o esvanecer esquerdo das fileiras ZERA: na borda da rail (+12) quando
+// ela esta na tela (o cartaz anterior ao foco passava por baixo dos icones,
+// TCL 20/11); sem rail, a borda da tela, como sempre.
+static float vitRailZero(void) {
+  float rail = menu_rail_borda();
+  return rail > 0.0f ? rail / gfx_escala() + 12.0f : 0.0f;
+}
 // Topo da primeira fileira: o do layout da Home (home_vitrine_topo).
 static float vitTopo(void) { return home_vitrine_topo(vitPasso()); }
 // Janela vertical da Vitrine (TV), como na referencia da Home: a fileira em foco
@@ -4360,8 +4368,8 @@ static void vitDesenhar(float a, float x0) {
       // TV: a fileira ocupa a tela toda e as duas pontas esvanecem por pixel na
       // largura da espiada (meio cartaz), igual dos dois lados.
       if (!vtTelefone()) {
-        float esp = fmaxf(1.0f, xr - (passo - w));
-        gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W);
+        float esp = fmaxf(1.0f, xr - (passo - w)), z0 = vitRailZero();
+        gfx_esvanecer_x(z0, fmaxf(esp, z0 + 1.0f), NV_TELA_W - esp, NV_TELA_W);
       }
       for (int c = 0; c < vitColunas(r); c++) {
         float cx = xr + c * passo - vitSx[r];
@@ -4455,7 +4463,7 @@ static void vitDesenhar(float a, float x0) {
       if (l->mais) botaoMaisVistos(ac, x0, cy + 60.0f, r);
     } else {
       // Esqueleto enquanto a fileira espera a vez ou a rede.
-      if (!vtTelefone()) { float esp = fmaxf(1.0f, xr - (passo - w)); gfx_esvanecer_x(0.0f, esp, NV_TELA_W - esp, NV_TELA_W); }
+      if (!vtTelefone()) { float esp = fmaxf(1.0f, xr - (passo - w)), z0 = vitRailZero(); gfx_esvanecer_x(z0, fmaxf(esp, z0 + 1.0f), NV_TELA_W - esp, NV_TELA_W); }
       for (int c = 0; c < VIT_ITENS; c++) {
         GfxRect e = { xr + c * passo, cy, w, h };
         if (e.x > NV_TELA_W) break;

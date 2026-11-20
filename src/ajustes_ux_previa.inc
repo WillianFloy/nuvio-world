@@ -260,15 +260,16 @@ static AjMini ajMiniPadrao(void) {
   return m;
 }
 static float ajPreviaLayout(float x, float y, float w) {
-  AjMini m = ajMiniPadrao(), o[3];
-  static const char *const N[3] = { "Moderna", "Padrão", "Dinâmica" };
-  static const char *const N2[3] = { "Moderna", "Padrão", "Dinâmica" };   // v2: o nome inteiro esta no titulo
+  // A Dinamica saiu do seletor (20/11): duas miniaturas.
+  AjMini m = ajMiniPadrao(), o[2];
+  static const char *const N[2] = { "Moderna", "Padrão" };
   int i, sel = valor[AJ_HOME_LAYOUT];
   if (ajEditandoLinha(AJ_HOME_LAYOUT)) sel = uxPendente;
+  if (sel < 0 || sel > 1) sel = 0;
   m.lay = sel;
   ajMiniHome(m, x, y, w);
-  for (i = 0; i < 3; i++) { o[i] = m; o[i].lay = i; }
-  return w * 9.0f / 16.0f + 16.0f + ajOpcoesMini(o, ajMiniRotuloV2 ? N2 : N, 3, sel, x, y + w * 9.0f / 16.0f + 16.0f, w);
+  for (i = 0; i < 2; i++) { o[i] = m; o[i].lay = i; }
+  return w * 9.0f / 16.0f + 16.0f + ajOpcoesMini(o, N, 2, sel, x, y + w * 9.0f / 16.0f + 16.0f, w);
 }
 static float ajPreviaHome(float x, float y, float w) {
   ajMiniHome(ajMiniPadrao(), x, y, w);

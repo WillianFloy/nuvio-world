@@ -1576,7 +1576,7 @@ static const Opcao OPCOES[AJ_N] = {
   ACAO("Chave do RPDB"),
   ACAO("Modelo de URL dos pôsteres"),
   ACAO("Testar pôsteres"),
-  ESC("Layout da home",             V_HOME_LAYOUT, 3), // local: ver V_HOME_LAYOUT
+  ESC("Layout da home",             V_HOME_LAYOUT, 2), // local: ver V_HOME_LAYOUT (Dinamica fora: 20/11)
   ACAO("Chave do AllDebrid"),
   ACAO("Testar chave do AllDebrid"),
   ACAO("Chave do Real-Debrid"),
@@ -3043,6 +3043,12 @@ void ajustes_teste_vidro_env(void) {
   if (f && *f) valor[AJ_VIDRO_FOSCO] = atoi(f) ? 1 : 0;
   if (q && *q) valor[AJ_VIDRO_QUALIDADE] = atoi(q) == 1 ? 1 : atoi(q) == 2 ? 2 : 0;   // 0 Auto, 1 Desempenho, 2 Alta
   if ((o && *o) || (f && *f) || (q && *q)) valor[AJ_VIDRO] = 0;   // o teste e do vidro: liga
+  // Barra lateral nas capturas (World, 20/11): NUVIO_SHOT_MODERNA=0/1,
+  // NUVIO_SHOT_MENU_MODO=0 (so icones)/1 (mista), NUVIO_SHOT_RAIL=0 recolhida/1 fixa.
+  { const char *m = getenv("NUVIO_SHOT_MODERNA"), *md = getenv("NUVIO_SHOT_MENU_MODO"), *rl = getenv("NUVIO_SHOT_RAIL");
+    if (m && *m) valor[AJ_RAIL_MODERNA] = atoi(m) ? 0 : 1;          // V_LIGA: 0 = Ligado
+    if (md && *md) valor[AJ_MENU_TOPO_MODO] = atoi(md) ? 1 : 0;
+    if (rl && *rl) valor[AJ_RAIL] = atoi(rl) ? 1 : 0; }             // V_RAIL: 0 Recolhida, 1 Fixa
 }
 int ajustes_relogio_ligado(void) { return lig(AJ_RELOGIO); }
 int ajustes_relogio_pos(void) { return valor[AJ_RELOGIO_POS]; }
@@ -3555,6 +3561,9 @@ void ajustes_menu_topo_ordem(int ordem[AJ_MENU_TOPO_ORDEM_N]) {
   if (!ordem) return;
   p = (unsigned)(ajMenuTopoOrdemValida(valor[AJ_MENU_TOPO_ORDEM])
                  ? valor[AJ_MENU_TOPO_ORDEM] : valorPadrao[AJ_MENU_TOPO_ORDEM]);
+  // A ordem de fabrica ANTIGA (outro perfil, ainda nao relido) le como o padrao
+  // novo (World, 20/11; ver ajustes_dir).
+  if (p == 16434824u) p = (unsigned)valorPadrao[AJ_MENU_TOPO_ORDEM];
   for (i = 0; i < AJ_MENU_TOPO_ORDEM_N; i++) ordem[i] = (int)((p >> (3 * i)) & 7u);
 }
 int ajustes_menu_topo_ordem_definir(const int ordem[AJ_MENU_TOPO_ORDEM_N]) {
@@ -5082,6 +5091,17 @@ void ajustes_dir(const char *dir) {
       gravar();
     } }
 #endif
+  // ORDEM PADRAO DO MENU (World, 20/11): quem ainda esta na ordem de fabrica
+  // antiga (Inicio, Explorar, Guia, Busca...; 16434824 empacotado) passa ao
+  // padrao novo. A ordem e por perfil e esta funcao roda na leitura de cada um,
+  // entao nao ha marca global; ordem escolhida pela pessoa fica.
+  if (valor[AJ_MENU_TOPO_ORDEM] == 16434824) { valor[AJ_MENU_TOPO_ORDEM] = valorPadrao[AJ_MENU_TOPO_ORDEM]; gravar(); }
+  // LAYOUT DINAMICA REMOVIDO (World, 20/11, dono: "nao gosto desse modo e nao
+  // quero mante-lo"). A opcao saiu do seletor; quem tinha a Dinamica gravada
+  // volta a Moderna (o padrao) ao abrir. O codigo dela continua (testes que a
+  // forcam pelo valor[] ainda cobrem as partes compartilhadas), mas o app nunca
+  // mais a escolhe.
+  if (valor[AJ_HOME_LAYOUT] == HOME_LAYOUT_DINAMICA) { valor[AJ_HOME_LAYOUT] = HOME_LAYOUT_MODERNA; gravar(); }
   // MIGRACAO UNICA (2.0.3, dono): o tamanho dos Ajustes volta ao padrao de 80%
   // para quem ainda esta no padrao antigo (90%, ate e87ecb3c). O arquivo grava
   // o indice, entao 90% guardado e quase sempre o padrao que ninguem escolheu.
@@ -6786,7 +6806,23 @@ static const char *rotuloNovo(int op) {
     default: return NULL;
   }
 }
+// NOMES QUE SEGUEM A POSICAO DO MENU (World, 20/11): com o menu no topo nada
+// fala em "barra lateral", e as duas opcoes compartilhadas (apresentacao e
+// ordem) dizem de qual menu se trata.
+static const char *rotuloMenuPos(int op) {
+  int t = ajustes_menu_topo();
+  switch (op) {
+    case AJ_MENU_EXPLORAR: return t ? "Explorar no Menu do Topo" : NULL;
+    case AJ_MENU_GUIA:     return t ? "Guia TV no Menu do Topo" : NULL;
+    case AJ_MENU_AGENDA:   return t ? "Agenda no Menu do Topo" : NULL;
+    case AJ_MENU_PERFIL:   return t ? "Perfil e Stats no Menu do Topo" : NULL;
+    case AJ_MENU_TOPO_MODO:  return t ? NULL : "Apresentação da barra lateral";
+    case AJ_MENU_TOPO_ORDEM: return t ? NULL : "Ordem da barra lateral";
+    default: return NULL;
+  }
+}
 static const char *rotuloOpcao(int op) {
+  if (rotuloMenuPos(op)) return rotuloMenuPos(op);
   if(op==AJ_IPTV_ACOES)return iptvAlvo.nome;
   if(op==AJ_IPTV_CANCELAR && !iptvForm.nova)return "Voltar";
   if (op == AJ_FALHA_ADDON_LIMITE && faAddonEditar[0]) return faAddonTitulo;
@@ -7267,7 +7303,9 @@ static int inativa(int op) {
     case AJ_VIDRO_CONTORNO: case AJ_FOCO_ACENTO: case AJ_VIDRO_OPAC: case AJ_VIDRO_FOSCO: case AJ_VIDRO_QUALIDADE: return !lig(AJ_VIDRO);
     case AJ_RAIL:         return ajustes_rail_moderna();
     case AJ_MENU_TOPO:    return ajustes_home_layout() == HOME_LAYOUT_DINAMICA;
-    case AJ_MENU_TOPO_MODO: case AJ_MENU_TOPO_TAMANHO: case AJ_MENU_TOPO_ORDEM:
+    // Apresentacao e ordem valem nas duas posicoes (a lateral usa as mesmas).
+    case AJ_MENU_TOPO_MODO: case AJ_MENU_TOPO_ORDEM: return 0;
+    case AJ_MENU_TOPO_TAMANHO:
     case AJ_MENU_TOPO_FIXO: case AJ_MENU_TOPO_FOCO_EXPANDIDO: return !ajustes_menu_topo();
     case AJ_RAIL_BLUR:    return !ajustes_rail_moderna();
     case AJ_HERO_CATALOGOS: return !ajustes_hero_ligado();
@@ -7414,6 +7452,19 @@ static int visivel(int i) {
     if ((op == AJ_FUNDO_DIN || op == AJ_FUNDO_DIN_COR) && ajustes_home_layout() != HOME_LAYOUT_DINAMICA) return 0;
     if (op == AJ_FUNDO_DIN_COR && ajustes_fundo_din() != 1) return 0;
     if ((op == AJ_PERFIL_PESQ || op == AJ_PERFIL_EDITAR) && !recomenda_ativo()) return 0;
+    // POSICAO DO MENU (World, 20/11): na lateral so o que e da barra lateral; no
+    // topo so o que e do menu superior. A apresentacao (so icones / mista) e a
+    // ordem valem para os dois e mudam de nome (rotuloMenuPos). Com a barra
+    // moderna ligada a coluna World e sempre fixa e sem rotulo escondido: sem
+    // "Recolhida/Fixa" e sem apresentacao. O desfoque da barra moderna nao e
+    // lido por ninguem (a coluna World e um veu, nao vidro): sai da lista.
+    if (op == AJ_RAIL_BLUR) return 0;
+    if (ajustes_menu_topo()) {
+      if (op == AJ_RAIL_MODERNA || op == AJ_RAIL) return 0;
+    } else {
+      if (op == AJ_MENU_TOPO_TAMANHO || op == AJ_MENU_TOPO_FIXO || op == AJ_MENU_TOPO_FOCO_EXPANDIDO) return 0;
+      if ((op == AJ_RAIL || op == AJ_MENU_TOPO_MODO) && ajustes_rail_moderna()) return 0;
+    }
     if (op == AJ_BUSCA_CINEMETA && valor[op] == 0 && !cinemetaInstalado()) return 0;
     // Only while the app upscales (App (4K) on a capable GPU); sharpness only for RCAS choices.
     if ((op == AJ_AMPLIACAO_ALGO || op == AJ_AMPLIACAO_NITIDEZ) &&
@@ -7483,6 +7534,15 @@ static void focarOpcao(int op) {
 // separado de proposito: as duas perguntas sao diferentes e juntas viram um
 // paragrafo que ninguem le do sofa.
 static const char *ajudaOpcaoBase(int op) {
+  if (!ajustes_menu_topo()) {
+    if (op == AJ_MENU_TOPO_MODO) return "Somente ícones: a barra fica estreita mesmo com o foco nela. Ícones Mistos: ao entrar, ela abre e mostra o nome de cada item. Vale para este perfil.";
+    if (op == AJ_MENU_TOPO_ORDEM) return "Muda a ordem dos itens da barra lateral. A mesma ordem vale para o menu superior. Vale para este perfil nesta TV.";
+    if (op == AJ_RAIL_MODERNA) return "Ligada: a coluna do Nuvio World, sempre visível, com o nome dos itens ao entrar nela. Desligada: uma ilha flutuante, recolhida ou fixa, só com ícones ou com ícones e nomes.";
+  } else {
+    if (op == AJ_MENU_EXPLORAR || op == AJ_MENU_GUIA || op == AJ_MENU_AGENDA || op == AJ_MENU_PERFIL)
+      return "Desligado, o item some do menu superior. Nada é apagado: ligue de novo para ele voltar.";
+    if (op == AJ_MENU_TOPO_ORDEM) return "Reordena as abas do menu superior. A mesma ordem vale para a barra lateral. Vale para este perfil nesta TV.";
+  }
   if (ajLegendaPrincipal(op) || op == AJ_LEG1_RESTAURAR)
     return "Tamanho, fonte, cores, fundo e posição das legendas.";
   if (op >= AJ_LEG2_FONTE && op <= AJ_LEG2_RESTAURAR)
@@ -7870,7 +7930,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_COL_ENTRADA: return "Ao abrir uma Collection da Home, a Home se transforma nela: o cartão vira o fundo da Collection, a Home recua e o conteúdo se forma durante o movimento (de 0,6 a 1 s, conforme os pôsteres chegam). Desligado: a Collection abre direto. Com Animações reduzidas ou efeitos mínimos ela sempre abre direto. Vale para este perfil nesta TV.";
     case AJ_COLECOES_STATUS: return "Mostra as pastas recebidas e quantas fontes de catálogo pertencem a addons ativos nesta TV. Se uma pasta foi recebida, mas nenhuma fonte está ativa, confira se o addon foi reconfigurado: nesse caso, selecione novamente o catálogo no editor de coleções do site.";
     case AJ_MURAL_TITULOS: return "Ligado (padrão): cada ladrilho do Mural mostra o nome do título. Desligado: o nome fica só no painel da direita. Vale só nesta TV.";
-    case AJ_HOME_LAYOUT: return "Moderna: destaque atrás das fileiras. Padrão: destaque num banner no topo. Dinâmica: estilo Apple TV, com destaques grandes e Top 10.";
+    case AJ_HOME_LAYOUT: return "Moderna: destaque atrás das fileiras. Padrão: destaque num banner no topo.";
     case AJ_VIDRO: return "Painéis, botões e menus viram ilhas translúcidas que deixam a arte aparecer. Desligado, as mesmas ilhas ficam opacas. Só muda o visual; nada muda de lugar.";
     case AJ_PROVEDORES_ESCOPO: return "Compartilhada usa as mesmas contas de provedores neste aparelho. Separada guarda uma cópia para este perfil. Trocar de opção mantém as duas configurações.";
     case AJ_ADDONS_PRINCIPAL: return "Os outros perfis desta conta usam os addons do perfil principal. Desligado, cada perfil usa os seus — a não ser que a conta já diga para usar os do principal.";
@@ -8153,6 +8213,10 @@ static const char *efeitoOpcao(int op) {
 // ajuda ja diz isso, ela e usada (ja traduzida); onde a ajuda abre listando
 // valores ("Equilibrio: ...") ou e longa demais, a frase e propria.
 static const char *beneficioProprio(int op) {
+  if (!ajustes_menu_topo()) {
+    if (op == AJ_MENU_TOPO_MODO) return "Barra lateral só com ícones ou com ícones e nomes.";
+    if (op == AJ_MENU_TOPO_ORDEM) return "Muda a ordem dos itens da barra lateral.";
+  }
   switch (op) {
     case AJ_QUALIDADE: return "O teto de resolução das fontes que o Nuvio escolhe.";
     case AJ_FONTE_HDR: return "Se fontes com HDR ou Dolby Vision passam na frente das outras.";
@@ -8167,7 +8231,7 @@ static const char *beneficioProprio(int op) {
     case AJ_SAIDA_PLAYER: return "O filme pode ficar na ilha do relógio para você voltar depois.";
     case AJ_LEG_FORCADA: return "Placas e falas em outra língua aparecem; o resto, não.";
     case AJ_BUSCA_CINEMETA: return "A busca também consulta o Cinemeta se o catálogo do Nuvio falhar.";
-    case AJ_HOME_LAYOUT: return "Como a Home se organiza: Moderna, Padrão ou Dinâmica.";
+    case AJ_HOME_LAYOUT: return "Como a Home se organiza: Moderna ou Padrão.";
     case AJ_MENU_TOPO: return "Onde fica o menu: na esquerda ou no alto da tela.";
     case AJ_MENU_TOPO_MODO: return "Escolhe entre abas compactas com somente ícones e Ícones Mistos, que expande o item focado para mostrar seu nome.";
     case AJ_MENU_TOPO_FIXO: return "Mantém o menu superior e o avatar visíveis na Home.";
@@ -9154,7 +9218,7 @@ static void frMontar(void) {
   char nm[FR_NOME_MAX];
   if (frAberta == 9) {
     static const char *const rotulos[AJ_MENU_TOPO_ORDEM_N] = {
-      "Início", "Explorar", "Guia TV", "Busca", "Biblioteca", "Agenda", "Perfil", "Ajustes"
+      "Início", "Explorar", "Guia TV", "Busca", "Biblioteca", "Agenda", "Perfil e Stats", "Ajustes"
     };
     ajustes_menu_topo_ordem(frMenuOrdem);
     frN = AJ_MENU_TOPO_ORDEM_N;
@@ -9248,7 +9312,9 @@ static void frEventoOrdem(SDL_Keycode k) {
   if (k == SDLK_RETURN || k == SDLK_KP_ENTER) {
     if (frFoco == 0 && frAberta == 7) { notaFontes[0] = -1; valor[AJ_NT_ORDEM] = 0; gravar(); }
     else if (frFoco == 0 && frAberta == 9) {
-      static const int padrao[AJ_MENU_TOPO_ORDEM_N] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+      // O padrao do dono (20/11): Busca, Inicio, Explorar, Biblioteca, Guia TV,
+      // Agenda, Perfil e Stats, Ajustes (MENU_* de menu.h).
+      static const int padrao[AJ_MENU_TOPO_ORDEM_N] = { 3, 0, 1, 4, 2, 5, 6, 7 };
       if (ajustes_menu_topo_ordem_definir(padrao)) uxNotificar("Ordem padrão restaurada.");
       else uxNotificar("Não foi possível salvar a ordem do menu.");
     }

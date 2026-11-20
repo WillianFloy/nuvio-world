@@ -30,6 +30,7 @@
 #include "continuar.h"
 #include "vertudo.h"
 #include "ctxmenu.h"
+#include "menu.h"
 #include "marco.h"
 #include "titulotempo.h"
 static TituloTempo heroTempo;
@@ -2011,6 +2012,10 @@ static void homeFocoFixoFade(int r) {
   float x0 = homeConteudoX() + bordaX(r), ov = sobraDireitaFoco(r, 0.0f) + 1.0f;
   float zero = x0 - ANC(NV_CONTENT_PAD), cheio = x0 - ov;
   float fimInt = x0 + (float)(homeFixoN(r) - 1) * passoFil(r) + larguraFil(r) + ov;
+  // A RAIL na tela: o cartaz anterior ao foco some ANTES dela (antes passava por
+  // baixo dos icones). 12 px de folga depois da borda da rail.
+  { float rail = menu_rail_borda();
+    if (rail > 0.0f) { rail = rail / gfx_escala() + 12.0f; if (zero < rail) zero = rail; } }
   if (zero < 0.0f) zero = 0.0f;
   if (cheio < zero + 1.0f) cheio = zero + 1.0f;
   if (fimInt > NV_TELA_W - 1.0f) fimInt = NV_TELA_W - 1.0f;

@@ -61,6 +61,7 @@ static void captura(const char *nome, SDL_Window *win) {
         gfx_cor((GfxRect){ 60.0f + p * 200.0f, 140.0f, 180.0f, 60.0f }, 0, 1, 1, 1, .85f);
       }
     }
+    gfx_tema_preto = ajustes_tema_preto();   // Tom da interface (o app assenta em corviva_quadro)
     { int n0 = gfx_n_rect; double f0 = gfx_fill_gpu, f1 = gfx_fill_gpu_mist;
       Uint64 t0;
       glFinish(); t0 = SDL_GetPerformanceCounter();
@@ -183,6 +184,17 @@ int main(int argc, char **argv) {
     for (p = 0; p < 12; p++) tecla(SDLK_DOWN);
     snprintf(nome, sizeof nome, "%s-rodape.bmp", saida);
     captura(nome, w);
+    // OK no rodape: a CONFIRMACAO da troca de perfil (World, 20/11), foco em Cancelar.
+    tecla(SDLK_RETURN);
+    snprintf(nome, sizeof nome, "%s-confirma.bmp", saida);
+    captura(nome, w);
+    if (menu_pediu_trocar()) { puts("FAIL: OK no rodape trocou de perfil sem confirmar"); return 1; }
+    tecla(SDLK_RETURN);   // OK em Cancelar: fecha a confirmacao, nao troca
+    if (menu_pediu_trocar() || menu_confirmando_perfil()) { puts("FAIL: Cancelar trocou de perfil ou nao fechou"); return 1; }
+    tecla(SDLK_RETURN); tecla(SDLK_LEFT); tecla(SDLK_RETURN);   // abre de novo, vai a Trocar, confirma
+    if (!menu_pediu_trocar()) { puts("FAIL: Trocar nao pediu a escolha de perfil"); return 1; }
+    puts("PASS: troca de perfil so com confirmacao (Cancelar e o foco inicial)");
+    menu_abrir();
   }
   menu_fechar();
   // NUVIO_SHOT_SO_MENU=1: so o menu (sem a folha de faixas), para comparar com

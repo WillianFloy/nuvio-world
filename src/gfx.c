@@ -4136,6 +4136,18 @@ void gfx_vidro(GfxRect r, float raio, int tipo, float cinza, float dens, float a
   vidPend.dens[0] = 0.125f; vidPend.dens[1] = 0.72f; vidPend.dens[2] = 0.82f; vidPend.dens[3] = 1.0f;
   // A27 chrome: the same solve, scaled by "Opacidade do vidro" (gfx_chrome_dens).
   if (tipo == GFX_VIDRO_BARRA) gfx_chrome_dens(vidPend.dens);
+  // PRETO PURO = VIDRO PRETO (World, 20/11). A tinta mapeada acima quase nao
+  // pesa: o vidro e quase todo o fundo desfocado, entao a barra do topo e a ilha
+  // do relogio saiam IDENTICAS no Grafite e no Preto (captura pixel a pixel).
+  // Fora do video: tinta 0 com piso de 0,80 e o alvo de luminancia do texto a
+  // 0,04 — o vidro vira um preto fumê, a arte so de leve por baixo. Sobre o
+  // video o vidro continua claro de proposito (o video aparece por ele).
+  if (gfx_tema_preto && !video) {
+    for (int k = 0; k < 3; k++) vidPend.scrT[k] = vidPend.scrB[k] = 0.0f;
+    if (vidPend.scrT[3] < 0.80f) vidPend.scrT[3] = 0.80f;
+    if (vidPend.scrB[3] < 0.84f) vidPend.scrB[3] = 0.84f;
+    vidPend.dens[0] = 0.04f;
+  }
   vidPend.aro = 0.14f + (contorno ? 0.0f : video ? 0.04f : 0.0f);
   vidPend.aroLuz = 0.28f;
   gfx_vidro_com_fonte += vidPend.fonte != 0;
@@ -4353,8 +4365,10 @@ void gfx_chrome_dens(float out[3]) {
 }
 void gfx_chrome(GfxRect r, float raio, float a) {
   if (ajustes_vidro()) { gfx_vidro(r, raio, GFX_VIDRO_BARRA, 0.0f, 0.0f, a); return; }
-  gfx_cor(r, raio, 0x1a / 255.0f, 0x1c / 255.0f, 0x21 / 255.0f, a);
-  gfx_anel(r, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.22f * a);
+  // Preto puro: o chrome solido e preto (o #1A1C21 mapeado ainda saia grafite).
+  if (gfx_tema_preto) gfx_rect(r, 0, GFX_COR, 0, 0, 0, raio, 0.0f, 0.0f, 0.0f, a);
+  else gfx_cor(r, raio, 0x1a / 255.0f, 0x1c / 255.0f, 0x21 / 255.0f, a);
+  gfx_anel(r, raio, 1.0f, 1.0f, 1.0f, 1.0f, (gfx_tema_preto ? 0.14f : 0.22f) * a);
 }
 void gfx_vidro_material(GfxRect r, float raio, float dens, float a) {
   gfx_vidro(r, raio, GFX_VIDRO_PAINEL, 0.06f, dens * gfx_vidro_opacidade(), a);
