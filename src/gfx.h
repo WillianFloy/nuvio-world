@@ -690,6 +690,12 @@ void gfx_vidro_sujar(void);
 void gfx_vidro_fundo_passo(int passo);
 // Capturas e passadas de desfoque do quadro corrente (zeradas em gfx_novo_quadro).
 extern int gfx_vidro_capturas, gfx_vidro_passadas;
+// Ritmo do fundo do vidro (gfx.c): 0 toda mudanca, 1 padrao (a cada 2 quadros
+// em movimento), 2 governador (a cada 3 e 1 passada). Reusos = quadros que
+// usaram o desfoque anterior por ritmo (acumulado; o log zera).
+int  gfx_vidro_nivel(void);
+void gfx_vidro_nivel_definir(int n);
+extern int gfx_vidro_reusos;
 // Blur writes and framebuffer copy area, in drawable screens per frame.
 extern double gfx_vidro_fill, gfx_vidro_copia;
 // O quadro tem video vivo (furo) por baixo: o vidro sai chapado ate o proximo

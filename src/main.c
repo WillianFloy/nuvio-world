@@ -921,6 +921,8 @@ static EM_BOOL cicloWgt(int tipo, const EmscriptenVisibilityChangeEvent *e, void
 
 // RITMO DOS QUADROS (ritmoquadro.h): so medicao, nada segura o laco.
 static RitmoQuadro nvRitmo;
+static SDL_Keycode nvUltTecla;   // [qd-lento]: a ultima tecla e quando
+static Uint32 nvUltTeclaEm;
 // A frequencia ATIVA da saida. No Android vem da Activity (Display.getMode()
 // da janela, NUVIO_DISPLAY_HZ), que e o modo em uso -- nao o maximo do painel.
 // Fora dele, o modo atual do SDL. O periodo MEDIDO (swapint) sai no mesmo log:
@@ -1894,7 +1896,8 @@ int main(int argc, char **argv) {
       }
 #endif
       ponteiro_diag(&e);
-      if (e.type == SDL_KEYDOWN) rq_tecla(&nvRitmo, (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq);
+      if (e.type == SDL_KEYDOWN) { rq_tecla(&nvRitmo, (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq);
+                                   nvUltTecla = e.key.keysym.sym; nvUltTeclaEm = SDL_GetTicks(); }
       // PROTECAO DE OLED (esmaecer.h): toda acao da pessoa acorda a tela, e a
       // tecla que acorda so acorda — nao age.
       if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP || e.type == SDL_MOUSEMOTION ||
@@ -2147,6 +2150,22 @@ int main(int argc, char **argv) {
     // uploads e o texto rasterizado. O [quadro] de 3 s mostra UM pior por
     // janela; para achar o que causa cada tranco da navegacao e preciso ver
     // todos, na ordem, ao lado das teclas.
+    // QUADRO LENTO AUTOMATICO (World, 20/11: "engasgo na horizontal da Home"):
+    // sem a bandeira de rastro, ate 8 quadros por janela de 3 s acima de 2,5
+    // periodos saem no log com a reparticao e A ULTIMA TECLA (direcao e ha
+    // quanto tempo) -- e o que separa, no log da TV, o engasgo da horizontal
+    // do da vertical e diz se foi CPU (upd/des/bomb), envio de textura (tex)
+    // ou espera da GPU/vsync (clr/swap).
+    { static int qdAuto; static Uint32 qdJanela;
+      if (agora - qdJanela >= 3000) { qdJanela = agora; qdAuto = 0; }
+      if (!rastroQuadros && nvPrimeiroQuadroFeito && dtms > 2.5 * swapint_periodo(&swapInt) && qdAuto < 8) {
+        qdAuto++;
+        printf("[qd-lento] %.1fms tecla=%s ha %ums | ev=%.1f bomb=%.1f(%d tex %.1fMB) upd=%.1f clr=%.1f des=%.1f swap=%.1f"
+               " txt=%.1fms/%d rects=%d fill=%.2f gpu~=%.1f vidro cap=%d pass=%d reusos=%d | %s\n",
+               dtms, SDL_GetKeyName(nvUltTecla), (unsigned)(agora - nvUltTeclaEm), fEv, fBomb, fUplN, fUplB / 1048576.0,
+               fUpd, fClr, fDes, fSwap, txtMsQuadro, txtNQuadro, fNRect, fFill, gputempo_ultimo(),
+               gfx_vidro_capturas, gfx_vidro_passadas, gfx_vidro_reusos, home_rastro_foco());
+      } }
     if (rastroQuadros && dtms > 25.0)
       printf("[qd] %.1fms ev=%.1f bomb=%.1f(%d tex %.1fMB) upd=%.1f clr=%.1f des=%.1f aux=%.1f swap=%.1f"
              " [prep=%.1f glclear=%.1f] txt=%.1fms/%d rects=%d fill=%.2f assados=%d gpu~=%.1f %s\n", dtms, fEv, fBomb, fUplN, fUplB / 1048576.0,
@@ -2433,7 +2452,10 @@ int main(int argc, char **argv) {
         } }
       { RqRelato rr = rq_relato(&nvRitmo, swapint_periodo(&swapInt));
         char rl[512];
-        if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), rl, sizeof rl); printf("%s\n", rl); } }
+        if (rr.n > 0) { rq_formatar(&rr, nvTelaHz(win), rl, sizeof rl); printf("%s\n", rl); }
+        // Vidro: nivel do ritmo do fundo (gfx.c) e quantos quadros reusaram o desfoque.
+        if (ajustes_vidro()) printf("[vidro-ritmo] nivel=%d reusos=%d degradado=%d\n", gfx_vidro_nivel(), gfx_vidro_reusos, gfx_vidro_degradado());
+        gfx_vidro_reusos = 0; }
       { double sMed, sPior; int sN = swapint_colher(&swapInt, &sMed, &sPior);
         if (sN > 0) printf("[swap] periodo=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
                            swapint_periodo(&swapInt), sMed, sPior, sN, swapint_limite_jank(&swapInt)); }

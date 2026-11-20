@@ -43,6 +43,7 @@
 #include "fundo.h"
 #include "gfx.h"
 #include "home.h"
+#include "addons.h"
 #include "layout.h"
 #include "perfis.h"    // perfis_carregar_ativo (cena perfil)
 #include "perfilsel.h"  // a tela de escolha, medida (#2 do handoff 1.8)
@@ -149,7 +150,14 @@ static void quadro(SDL_Window *w, Quadro *q, Uint32 agora) {
   else { if (!detail_cobre_tela()) home_desenhar(agora); detail_desenhar(agora); }
   gfx_ambiente_descarregar();
   t2 = SDL_GetPerformanceCounter();
-  glFinish();
+  if (getenv("NV_QUADROS") && ms(t1, t2) > 5.0)
+    printf("[lento] des=%.1fms assados=%d fundo-assados=%d vidro cap=%d pass=%d fill=%.2f gpu=%.2f mist=%.2f rects=%d upl=%d tag=%s\n",
+           ms(t1, t2), gfx_n_assados, gfx_n_fundo_assados, gfx_vidro_capturas, gfx_vidro_passadas, gfx_fill, gfx_fill_gpu,
+           gfx_fill_gpu_mist, gfx_n_rect, tex_upl_n, home_perf_tag());
+  if (getenv("NV_QUADROS")) {   // modos por quadro, lento ou nao (comparar)
+    int k2; printf("[modos] %s des=%.1f:", ms(t1, t2) > 5.0 ? "LENTO" : "ok", ms(t1, t2));
+    for (k2 = 0; k2 < GFX_NMODOS; k2++) if (gfx_fill_modo[k2] > 0.02) printf(" %d=%.2f", k2, gfx_fill_modo[k2]);
+    printf("\n"); }
   t3 = SDL_GetPerformanceCounter();
   if (q) {
     q->upd = ms(t0, t1); q->des = ms(t1, t2); q->gpu = ms(t2, t3);
@@ -243,6 +251,8 @@ static void ajusta(const char *cenario) {
   else if (!strcmp(cenario, "frost")) { layout = 2; vidro = 0; tema = 15; fundo = 2; }
   else if (!strcmp(cenario, "borrada")) { layout = 2; vidro = 0; tema = 15; fundo = 1; }
   else if (!strcmp(cenario, "padrao")) layout = 1;
+  else if (!strcmp(cenario, "moderna-vidro")) vidro = 1;   // World 20/11: vidro ligado x desligado
+  else if (!strcmp(cenario, "padrao-vidro")) { layout = 1; vidro = 1; }
   else if (!strcmp(cenario, "dinamica")) layout = 2;
   snprintf(cam, sizeof cam, "%s/ajustes.txt", dirDados);
   a = fopen(cam, "w");
@@ -364,6 +374,14 @@ static void cenario(SDL_Window *w, const char *cen) {
     quadro(w, &qs[i], t); t += 16;
   }
   relatar(cen, "navegando", qs, n);
+  // World 20/11: a MESMA cadencia de teclas, mas VERTICAL (entre fileiras),
+  // para comparar com a horizontal ("navegando") no mesmo cenario.
+  for (i = 0; i < n; i++) {
+    if (i % 12 == 0) tecla(i < n / 2 ? SDLK_DOWN : SDLK_UP);
+    quadro(w, &qs[i], t); t += 16;
+  }
+  relatar(cen, "vertical", qs, n);
+  if (getenv("NV_SO_HOME")) return;
   // Detalhe por cima.
   { HomeItem it;
     if (home_item_focado(&it)) {
@@ -489,7 +507,7 @@ static void cenario(SDL_Window *w, const char *cen) {
 
 int main(int argc, char **argv) {
   static const char *const todos[] = { "moderna", "imersiva", "padrao", "dinamica", "dono", "c9", "frost",
-                                       "borrada" };
+                                       "borrada", "moderna-vidro", "padrao-vidro" };
   const char *so = getenv("NV_CENARIO");
   SDL_Window *w;
   SDL_GLContext gl;
@@ -524,8 +542,12 @@ int main(int argc, char **argv) {
   gfx_icones_dir("deploy/app/art");
   ajusta(so ? so : "moderna");
   assert(home_iniciar("deploy/app/art"));
+  // A Home exige um addon ligado mesmo com catalogo de fixture (sem isso o
+  // harness media o cartao "Sua Home esta vazia": 10 desenhos por quadro).
+  { AddonRemoto addon = { .nome = "Fixture", .url = "http://127.0.0.1:1/manifest.json", .ativo = 1 };
+    assert(addons_definir_lista(&addon, 1)); }
   povoar();
-  for (i = 0; i < 8; i++)
+  for (i = 0; i < 10; i++)
     if (!so || !strcmp(so, todos[i])) cenario(w, todos[i]);
   SDL_GL_DeleteContext(gl);
   SDL_DestroyWindow(w);

@@ -118,6 +118,27 @@ int main(void) {
   printf("parada: %d capturas, %d passadas em 5 quadros\n", cap, pas);
   confere(cap == 0 && pas == 0, "pagina parada: zero passadas de desfoque");
 
+  // RITMO DO FUNDO (World, 20/11): com o fundo mudando seguidamente, a copia
+  // e refeita a cada nivel+1 quadros; a primeira mudanca depois de parado
+  // (corte) captura no mesmo quadro.
+  { int nv, tot, primeira;
+    for (nv = 0; nv <= 2; nv++) {
+      gfx_vidro_nivel_definir(nv);
+      for (k = 0; k < 4; k++) quadro(80.0f, 16u * (200 + k));   // parado
+      tot = 0; primeira = -1;
+      for (k = 0; k < 30; k++) {
+        fundo = 0.10f + 0.01f * (k + 1) + 0.2f * nv;
+        quadro(80.0f, 16u * (210 + k));
+        tot += gfx_vidro_capturas;
+        if (primeira < 0 && gfx_vidro_capturas) primeira = k;
+      }
+      printf("nivel %d: %d capturas em 30 quadros de fundo mudando (primeira no quadro %d)\n", nv, tot, primeira);
+      confere(primeira == 0, "corte: o primeiro quadro mudado captura na hora");
+      confere(nv == 0 ? tot == 30 : nv == 1 ? (tot >= 14 && tot <= 16) : (tot >= 9 && tot <= 11),
+              nv == 0 ? "nivel 0: toda mudanca" : nv == 1 ? "nivel 1 (padrao): metade das copias" : "nivel 2: um terco das copias");
+    }
+    gfx_vidro_nivel_definir(1); }
+
   unlink(cam);
   { char t[700]; snprintf(t, sizeof t, "%s/ajustes.tmp", dir); unlink(t); }
   printf("vidro_orcamento: %s\n", falhas ? "FALHA" : "ok");

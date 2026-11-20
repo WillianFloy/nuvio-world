@@ -2188,6 +2188,27 @@ static unsigned fundoHash;
 // exact hash path resumes once the key is cleared (-1, every frame).
 static int fundoPasso = -1, fundoPassoCap = -1;
 void gfx_vidro_fundo_passo(int passo) { fundoPasso = passo; }
+// RITMO DO FUNDO DO VIDRO (World, 20/11: "a Interface de vidro deixa o app
+// pesado na TCL"). O custo do vidro na Mali nao e o desfoque em 1/4 de
+// resolucao: e a COPIA da tela no meio do quadro (glCopyTexSubImage2D), que
+// fecha o passe de render -- todos os tiles vao para a memoria e voltam -- e
+// mais tres passadas em FBO. Com o fundo mudando a cada quadro (fileira
+// rolando sob o menu, destaque esvanecendo sob o relogio), isso acontecia em
+// TODO quadro da navegacao. Agora, com o fundo mudando SEGUIDAMENTE, a copia
+// e refeita a cada `vidNivel + 1` quadros e os do meio reusam o desfoque
+// anterior (um borrao atrasado 16 ms nao se ve; uma copia a menos por quadro
+// se sente). Corte de cena (primeira mudanca depois de um quadro parado)
+// captura NA HORA, nunca mostra o fundo antigo.
+//   nivel 0: toda mudanca (o comportamento antigo; so por teste/ajuste);
+//   nivel 1 (padrao): a cada 2 quadros em movimento continuo;
+//   nivel 2 (governador, sob pressao): a cada 3 quadros e UMA passada de
+//            Kawase em vez de duas -- o vidro continua fosco, so mais barato.
+// So depois do nivel 2 o governador antigo faz a prova do vidro fume.
+static int vidNivel = 1;
+static unsigned fundoCapQuadro, fundoMudouQuadro;
+int gfx_vidro_nivel(void) { return vidNivel; }
+void gfx_vidro_nivel_definir(int n) { vidNivel = n < 0 ? 0 : n > 2 ? 2 : n; }
+int gfx_vidro_reusos;   // quadros que reusaram o fundo desfocado por ritmo (log)
 static void vidroFundoFechar(void);
 static int vidroFundoModo(GfxRect r, GfxModo m) {
   static const unsigned long long FUNDO =
@@ -3614,7 +3635,7 @@ int gfx_vidro_area;   // glass area (px^2) drawn this frame
 static int govN, govLentos, govSeguidas, vidroDegradou, govProva, govFim, govSig, govSigBase, govDifere;
 static double govSoma, govBase;
 int gfx_vidro_degradado(void) { return vidroDegradou; }
-void gfx_vidro_governar_zerar(void) { govN = govLentos = govSeguidas = vidroDegradou = govProva = govFim = govSig = govSigBase = govDifere = 0; govSoma = govBase = 0.0; }   // tests
+void gfx_vidro_governar_zerar(void) { govN = govLentos = govSeguidas = vidroDegradou = govProva = govFim = govSig = govSigBase = govDifere = 0; govSoma = govBase = 0.0; vidNivel = 1; }   // tests
 static int govAssinatura(void) {
   int a = gfx_vidro_area / 250000;
   return (gfx_vidro_com_fonte + gfx_vidro_chapados) * 64 + (a > 63 ? 63 : a);
@@ -3645,7 +3666,13 @@ void gfx_vidro_governar(double ms, double alvo_ms) {
     govSigBase = govSig;
     govSeguidas = govLentos * 5 >= govN ? govSeguidas + 1 : 0;
     govBase = govSoma / govN;
-    if (govSeguidas >= GOV_SEGUIDAS) { vidroDegradou = govProva = 1; printf("[vidro] governador: prova do desempenho\n"); }
+    // GRADUAL (World, 20/11): antes de testar o vidro fume, o fundo passa a
+    // ser refeito mais espacado e com uma passada so (vidNivel 2). O vidro
+    // continua fosco; so se ainda assim faltar quadro vem a prova antiga.
+    if (govSeguidas >= 2 && vidNivel < 2) {
+      vidNivel = 2; govSeguidas = 0;
+      printf("[vidro] governador: nivel 2 (fundo a cada 3 quadros em movimento, 1 passada de desfoque)\n");
+    } else if (govSeguidas >= GOV_SEGUIDAS) { vidroDegradou = govProva = 1; printf("[vidro] governador: prova do desempenho\n"); }
   }
   govN = govLentos = govDifere = 0; govSoma = 0.0;
 }
@@ -3854,7 +3881,7 @@ static int vidCapturar(const float reg[][4], int n, GLuint dst, GLuint dstFbo, G
     float o = (float)telaW / qw * 0.5f - 1.0f;
     vidPassada(source ? source : vidGrab, vidQaFbo, qw, qh, uv, k, o / telaW, o / telaH);
   }
-  if (efeitosLeves) {
+  if (efeitosLeves || vidNivel >= 2) {
     // One Kawase instead of two; sqrt(.35^2 + .75^2) keeps the blur spread.
     // Glass stays frosted at native UI resolution; level 2 keeps its old rule.
     vidPassada(vidQa, dstFbo, qw, qh, uv, k, 0.828f / qw, 0.828f / qh);
@@ -3904,7 +3931,17 @@ static void vidroFundoFechar(void) {
   if (fundoPasso < 0) fundoPassoCap = -1;   // a later crossfade starts with a fresh capture
   if (fundoPasso >= 0) { reg[0][0] = reg[0][1] = 0; reg[0][2] = NV_TELA_W; reg[0][3] = NV_TELA_H; n = 1; }
   for (i = 0; i < vidroNRegAnt; i++) fora |= !vidroRegContem(fundoReg, fundoNReg, vidroRegAnt[i]);
+  if (fundoValido && !fora && fundoPasso < 0 && fundoHash != vidroHash) {
+    int seguido = fundoMudouQuadro + 1 == gfx_quadro_n;   // mudou no quadro anterior tambem
+    fundoMudouQuadro = gfx_quadro_n;
+    if (seguido && vidNivel > 0 && gfx_quadro_n - fundoCapQuadro <= (unsigned)vidNivel) {
+      gfx_vidro_reusos++;
+      fundoFim = 1;
+      return;
+    }
+  }
   if (!fundoValido || fora || (fundoPasso >= 0 ? fundoPasso != fundoPassoCap : fundoHash != vidroHash)) {
+    fundoCapQuadro = gfx_quadro_n;
 #ifdef NV_SHOT_HOOKS
     if (!fundoValido || fundoHash != vidroHash) gfx_vidro_copia_com_din_adiado += dinAdiado;
 #endif
