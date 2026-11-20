@@ -8,7 +8,6 @@ static const char *ajVisualIcone(int op) {
     case AJ_COL_ENTRADA: return "aj_sparkles";
     case AJ_TEMA_FUNDO: return "aj_moon";
     case AJ_ABERTURA_VIDEO: return "aj_clapperboard";
-    case AJ_FPS_MODO: return "aj_gauge";
     // Auditoria de icones (World, 20/11): as opcoes do menu superior e as
     // ultimas da conta deixavam de cair no generico aj_settings-2.
     case AJ_MENU_TOPO_MODO: return ajustes_menu_topo() ? "aj_panel-top" : "aj_panel-left";

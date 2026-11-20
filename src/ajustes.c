@@ -727,7 +727,6 @@ typedef enum {
   // VISUAL WORLD (18/11), LOCAIS, append-only:
   AJ_TEMA_FUNDO,           // 0 Grafite (o de sempre) | 1 Preto puro (#000, estilo AMOLED)
   AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
-  AJ_FPS_MODO,             // World 20/11: 0 Desempenho | 1 Equilibrado (padrao) | 2 Qualidade (30 estaveis)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -934,9 +933,6 @@ static const char *V_POSTER_PROV[] = { "Desligado", "SpatialPosters", "RPDB", "M
 // era a do antigo tema de cor, que desde 03/10 se chama "Da arte"; a traducao
 // dela agora e a do layout. O valor gravado continua HOME_LAYOUT_DINAMICA.
 static const char *V_HOME_LAYOUT[] = { "Moderna", "Padrão", "Dinâmica" };
-// MODO DE DESEMPENHO (World, 20/11). Sem 45: num painel de 60 Hz 45 quadros nao
-// tem cadencia uniforme (16,7/16,7/33,3 ms). Ver ritmo.c.
-static const char *V_FPS_MODO[] = { "Desempenho", "Equilibrado", "Qualidade" };
 // "Fonte automatica" (issue #130). O INDICE e o gravado (fonteAutoLocal) e o
 // FONTEAUTO_* de fonteauto.h: 0 = a regra de pontuacao, 1 = a primeira da
 // lista do addon, e so ela — o "Auto-play first source" do Nuvio.
@@ -1879,7 +1875,6 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Animação de entrada das Collections", V_LIGA, 2),   // colEntradaLocal (2.0.43)
   ESC("Tom da interface",                V_TEMA_FUNDO, 2),       // temaFundoLocal
   ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
-  ESC("Modo de desempenho",              V_FPS_MODO, 3),         // fpsModoLocal (World 20/11)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2221,7 +2216,6 @@ static const char *CHAVE[] = {
   "colEntradaLocal",
   "temaFundoLocal",
   "aberturaVideoLocal",
-  "fpsModoLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3039,16 +3033,7 @@ int ajustes_efeitos_automaticos(void) {
          (valor[AJ_VIDRO_FOSCO] == 2 ? 2 : 0) |
          (valor[AJ_ANIM] == 2 ? 4 : 0) | (valor[AJ_VIDRO] == 2 ? 8 : 0);
 }
-// O MODO DE DESEMPENHO manda no vidro quando o vidro esta em Automatica:
-// Desempenho = vidro leve (chapado); Qualidade = Alta (desfoque sempre, o
-// orcamento de 33 ms comporta); Equilibrado = o governador de sempre.
-int ajustes_vidro_qualidade(void) {
-  if (valor[AJ_VIDRO_QUALIDADE] == 1) return 1;
-  if (valor[AJ_VIDRO_QUALIDADE] == 2) return 2;
-  if (ajustes_fps_modo() == 0) return 1;
-  if (ajustes_fps_modo() == 2) return 2;
-  return gpun_efeito_ativo(1) ? 1 : 0;   // 0 Automatica, 1 Desempenho, 2 Alta
-}
+int ajustes_vidro_qualidade(void) { return valor[AJ_VIDRO_QUALIDADE] == 1 ? 1 : valor[AJ_VIDRO_QUALIDADE] == 2 ? 2 : gpun_efeito_ativo(1) ? 1 : 0; }   // 0 Automatica, 1 Desempenho, 2 Alta
 // Capturas do teste do vidro: NUVIO_SHOT_VIDRO_OPAC=60|70|78|86|92 e
 // NUVIO_SHOT_VIDRO_FOSCO=1 e NUVIO_SHOT_VIDRO_QUAL=0|1|2 (sem gravar nada). INTENCIONAL no release: so os
 // tests/*_shot.c e ajustes_teste_ux_captura a chamam; nenhum caminho de src/ chega aqui na TV.
@@ -3882,7 +3867,6 @@ int   ajustes_tema_preto(void) {
   return valor[AJ_TEMA_FUNDO] == 1;
 }
 int   ajustes_abertura_video(void) { return lig(AJ_ABERTURA_VIDEO); }
-int   ajustes_fps_modo(void) { int v = valor[AJ_FPS_MODO]; return v >= 0 && v <= 2 ? v : 1; }
 float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
@@ -7709,7 +7693,6 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_LOGO_APP: return "O símbolo que o Nuvio mostra na abertura e nas telas de entrada. World é a identidade do Nuvio World; Clássico é a TV retrô de sempre. Vale só nesta TV.";
     case AJ_TEMA_FUNDO: return "Grafite (padrão): fundos e painéis em cinza bem escuro. Preto puro: fundos em preto absoluto, bom para TVs OLED; textos, foco e imagens continuam iguais. Vale só nesta TV.";
     case AJ_ABERTURA_VIDEO: return "Ligado (padrão): o app abre com o vídeo do Nuvio World enquanto se prepara. Se o vídeo falhar, a abertura de sempre aparece. Vale só nesta TV.";
-    case AJ_FPS_MODO: return "Desempenho: 60 quadros por segundo com efeitos leves. Equilibrado (padrão): busca 60 e alivia os efeitos quando a TV não aguenta. Qualidade: 30 quadros estáveis, com todos os efeitos. Vale só nesta TV.";
     case AJ_ABERTURA: return "Como o logo some quando o app abre. Padrão para um instante, aproxima e esmaece; Só esmaece não aproxima; Direto abre a Home sem parar. Vale só nesta TV.";
     case AJ_FONTE_HDR: return "Preferir: fontes com HDR ou Dolby Vision vêm na frente. Indiferente: o formato não conta. Evitar: prefere SDR na mesma resolução. O Dolby Vision só entra se estiver ligado em Imagem e som; perfil 5 sem HDR10 fica atrás do HDR10, porque sai com cores erradas fora de TV Dolby Vision. Só vale para a escolha automática.";
     case AJ_FONTE_ORDEM_ADDON: return "Por qualidade: as fontes vêm agrupadas por resolução, da maior para a menor, e do maior arquivo para o menor. Do addon: cada addon na ordem em que você o instalou, e as fontes de cada um na ordem em que ele mandou — para quem já ordena no AIOStreams. A escolha automática não muda.";
@@ -10801,7 +10784,7 @@ static AjPreview familiaPreviaOpcao(int op) {
     case AJ_COR_LOGO: case AJ_FONTE_UI: case AJ_VIDRO: case AJ_VIDRO_CONTORNO: case AJ_FOCO_ACENTO:
     case AJ_RELOGIO: case AJ_RELOGIO_POS: case AJ_SAIDA_PLAYER: case AJ_RELOGIO_12H:
     case AJ_TAMANHO_UI: case AJ_ESCALA_TEXTO: case AJ_DET_ESPACO: case AJ_TAMANHO_AJUSTES: case AJ_LAYOUT_AJUSTES: case AJ_INTERFACE_MODO: case AJ_TECLADO_ANDROID: case AJ_FUNDO: case AJ_VIDRO_OPAC: case AJ_VIDRO_FOSCO: case AJ_VIDRO_QUALIDADE:
-    case AJ_AVANCADAS: case AJ_LOGO_APP: case AJ_ABERTURA: case AJ_TEMA_FUNDO: case AJ_ABERTURA_VIDEO: case AJ_FPS_MODO:
+    case AJ_AVANCADAS: case AJ_LOGO_APP: case AJ_ABERTURA: case AJ_TEMA_FUNDO: case AJ_ABERTURA_VIDEO:
     case AJ_ESMAECER: case AJ_BRILHO_PLAYER: case AJ_HDR_UI: case AJ_MANTER_VIDEO:
     case AJ_DESCANSO_ESTILO: case AJ_DESCANSO_FONTE:
       return AJPV_INTERFACE;

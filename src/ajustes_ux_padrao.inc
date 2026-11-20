@@ -361,4 +361,3 @@
   0, /* Collections: entry animation on open: On, profile-local (2.0.43) */
   0, /* Interface tone: Grafite (Preto puro = 1), local */
   0, /* Android opening video: On, local */
-  1, /* performance mode: Equilibrado (60 with the governor), local (World 20/11) */
