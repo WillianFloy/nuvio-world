@@ -103,6 +103,8 @@ int  menu_pediu_spotlight(void);
 #define NV_MENU_MODERNA_X 28.0f   // px da tela REAL (eram 48: "distante demais", dono 20/11)
 float menu_barra_borda(void);
 float menu_rail_borda(void);
+// Quanto a tela anda para a direita com a barra lateral aberta (px reais; 0 fechada/topo).
+float menu_empurra(void);
 // Padrao com o menu do topo: base das abas (com o traco da pagina ativa), em
 // px REAIS; 0 fora disso. Medida de repouso (sem o zoom do foco).
 float menu_topo_padrao_base(void);   // World 20/11: borda da rail recolhida (px REAIS), 0 sem rail

@@ -124,7 +124,9 @@ static void quadros(int n, const char *bmp) {
     glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     gfx_ambiente(1.0f);
+    if (getenv("NV_MENU")) gfx_deslocar_base(floorf(menu_empurra()));   // como app.c: o menu aberto empurra a home
     home_desenhar(agora);
+    gfx_deslocar_base(0.0f);
     ctx_atualizar(1.0f / 60.0f, agora);
     ctx_desenhar(agora);
     if (getenv("NV_STAGE_SCALE")) home_holofote_desenhar(agora);
@@ -629,6 +631,7 @@ int main(int argc, char **argv) {
           menu_abrir();
           snprintf(bmp, sizeof bmp, "%s-L%d-g%d-0-menu-aberto.bmp", saida, layout, vidro);
           quadros(60, bmp);
+          printf("[shot] menu aberto=%d empurra=%.1f borda=%.1f\n", menu_aberto(), menu_empurra(), menu_barra_borda());
           memset(&me, 0, sizeof me);
           me.type = SDL_KEYDOWN; me.key.keysym.sym = SDLK_DOWN;
           for (d = 0; d < 10; d++) menu_evento(&me);

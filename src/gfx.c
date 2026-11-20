@@ -178,11 +178,22 @@ void gfx_escala_sair(float anterior) { escAtiva = anterior; }
 // deslocamento, em coordenadas de layout, ANTES do fator da camada. As
 // passadas internas (ESC_REAL, miniatura) desligam junto com o fator.
 static struct { int on; float ox, oy, s, dx, dy; } gfxTr, miniTrAnt;
+// DESLOCAMENTO DE BASE (World, 20/11: o menu lateral aberto EMPURRA a tela em
+// vez de cobri-la). Um dx horizontal por baixo de tudo: o gfx_transformar das
+// telas (recuo da home, voo do cartao) COMPOE com ele em vez de apaga-lo, e o
+// gfx_sem_transformar volta a ele, nao a zero.
+static float gfxBaseDx;
 void gfx_transformar(float ox, float oy, float s, float dx, float dy) {
+  dx += gfxBaseDx;
   gfxTr.on = !(s == 1.0f && dx == 0.0f && dy == 0.0f);
   gfxTr.ox = ox; gfxTr.oy = oy; gfxTr.s = s; gfxTr.dx = dx; gfxTr.dy = dy;
 }
-void gfx_sem_transformar(void) { gfxTr.on = 0; }
+void gfx_sem_transformar(void) {
+  if (gfxBaseDx != 0.0f) { gfxTr.on = 1; gfxTr.ox = gfxTr.oy = 0.0f; gfxTr.s = 1.0f; gfxTr.dx = gfxBaseDx; gfxTr.dy = 0.0f; }
+  else gfxTr.on = 0;
+}
+void gfx_deslocar_base(float dx) { gfxBaseDx = dx; gfx_sem_transformar(); }
+float gfx_deslocamento_base(void) { return gfxBaseDx; }
 int gfx_transformado(void) { return gfxTr.on; }
 // GIRO DE GRUPO (gfx_girar): cos, sin e o pivo em pixels do alvo. Identidade
 // = (1, 0, 0, 0). Aplicado no vertice, depois do fator da camada.

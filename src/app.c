@@ -6913,6 +6913,12 @@ static void desenharAtrasDoPainel(void *ctx) {
   // "Ver tudo" cobre a tela de tras por completo (fundo opaco), entao a home
   // nao precisa ser desenhada por baixo — a mesma conta do detail_cobre_tela.
   // 2.0.44: durante o VOO DO CARTAO a Home fica por baixo (o cartao cresce a partir dela) ate ele cobrir a tela.
+  // MENU LATERAL ABERTO EMPURRA A TELA (World, 20/11): a tela de tras (Home,
+  // Collections, Explorar, Busca, Biblioteca...) desliza o quanto a barra
+  // aberta passou da borda do conteudo; detalhe, player e menus de contexto
+  // ficam onde estao (a barra nao abre sobre eles).
+  float empurra = (!detail_aberto() && !player_aberto() && !ctx_aberto()) ? menu_empurra() : 0.0f;
+  if (empurra > 0.5f) gfx_deslocar_base(floorf(empurra));
   if (!detail_cobre_tela() && !vertudo_cobre_tela()) {
 #ifdef NV_TOUCH_UI
     sidebarToqueRegistrar(0);
@@ -6938,6 +6944,7 @@ static void desenharAtrasDoPainel(void *ctx) {
   if (!detail_cobre_tela()) sidebarToqueRegistrar(2);
 #endif
   if (!detail_cobre_tela()) vertudo_desenhar(agora);
+  gfx_deslocar_base(0.0f);
   // Com o painel de Salvos na tela o menu do cartaz e desenhado DEPOIS dele
   // (desenharTelas): e o painel que o abre, e por baixo ele ficaria sob o veu.
   if (!spainel_visivel() && !detail_aberto()) {

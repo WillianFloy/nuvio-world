@@ -900,6 +900,23 @@ float menu_barra_borda(void) {
 // tela. As fileiras com foco fixo esvanecem ate ela (home.c, vertudo.c): o
 // cartaz anterior ao foco nao passa mais POR BAIXO dos icones (TCL, 20/11).
 // Nao segue a largura aberta: abrir o menu nao mexe no corte das fileiras.
+// QUANTO A TELA ANDA PARA A DIREITA com o menu lateral aberto (World, 20/11:
+// "o menu lateral abre por cima de posteres e textos, tambem nas Collections").
+// O conteudo e diagramado para o menu FECHADO (comeca em ajustes_conteudo_x);
+// aberto, a barra passa dessa borda. A tela inteira desliza o que a barra
+// passou (+24 px de respiro), na mesma mola da abertura (`expande`), entao
+// nada fica escondido atras dela e a animacao e uma so. Px da tela REAL.
+float menu_empurra(void) {
+  MenuGeo g;
+  float e, dir, borda;
+  if (tvAtivo() || topo()) return 0.0f;
+  e = limita01(expande);
+  if (e <= 0.002f) return 0.0f;
+  g = geoEm(e, railFixa() ? 1.0f : (padrao() ? anim_suave(desliza) : 1.0f));
+  dir = (g.x + g.w) * NV_MENU_ESCALA;
+  borda = ajustes_conteudo_x() - 24.0f;
+  return dir > borda ? dir - borda : 0.0f;
+}
 float menu_rail_borda(void) {
   MenuGeo g;
   if (tvAtivo() || topo()) return 0.0f;

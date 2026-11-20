@@ -368,6 +368,11 @@ extern int gfx_cortar_invisiveis;
 // Nao aninha. Miniaturas e passadas internas ficam de fora.
 void gfx_transformar(float ox, float oy, float s, float dx, float dy);
 void gfx_sem_transformar(void);
+// Deslocamento horizontal de BASE (layout px), por baixo do gfx_transformar:
+// o menu lateral aberto empurra a tela (app.c). 0 = desligado. Quem chama
+// gfx_transformar dentro dele compoe; gfx_sem_transformar volta a ele.
+void  gfx_deslocar_base(float dx);
+float gfx_deslocamento_base(void);
 // Ha um gfx_transformar ativo? Durante uma transicao o desenho sai escalado
 // e os retangulos das funcoes nao sao os da tela: quem registra alvos de
 // ponteiro/toque espera ele voltar 0.
