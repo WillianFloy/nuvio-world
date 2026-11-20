@@ -63,6 +63,11 @@ static float explorarDireita(void) {
 #define EX_CL_H         250.0f
 #define EX_CL_GAP       18.0f
 #define EX_CL_TOPO      212.0f
+// Leque de cartazes do cartao de clima: 60x90 (eram 52x78, miudos a 3 m). O
+// topo fica a 140 do cartao: com titulo de 2 linhas a frase acaba em ~134.
+#define EX_CL_PW        60.0f
+#define EX_CL_PH        90.0f
+#define EX_CL_PASSO     38.0f
 
 // Clima aberto: duas fileiras de cartazes.
 #define EX_CA_W         200.0f
@@ -435,6 +440,23 @@ static void porque(const MapaVizGrupo *g, const MapaVizItem *it, char *dst, size
       break;
     case MAPA_GR_AMIGOS: snprintf(dst, n, i18n("%s gostou"), it->motivo); break;
   }
+}
+
+// O "porque" do cartao SO quando ele diz algo que o titulo do grupo nao diz.
+// "O fio de Paulo Vidal" ja explica todos os cartoes; repetir "Tambem com Paulo
+// Vidal" em cada um apertava o nome em 3 linhas e cortava o resto ("No mesmo
+// genero: Ficcao..."). Sem novidade, o cartao mostra ano e tipo (o que ajuda a
+// escolher); a decada (o ano de cada um), os amigos (nomes diferentes) e um
+// elo diferente do grupo continuam.
+static int porqueCartao(const MapaVizGrupo *g, const MapaVizItem *it, char *dst, size_t n) {
+  int novo = g->tipo == MAPA_GR_EPOCA || g->tipo == MAPA_GR_AMIGOS ||
+             ((g->tipo == MAPA_GR_PESSOA || g->tipo == MAPA_GR_TEMA || g->tipo == MAPA_GR_GENERO) &&
+              it->motivo[0] && strcmp(it->motivo, g->sub) != 0);
+  if (novo) { porque(g, it, dst, n); return 1; }
+  { const char *tp = !strcmp(it->obra.tipo, "series") ? i18n("Série") : i18n("Filme");
+    if (it->obra.ano > 0) snprintf(dst, n, "%d · %s", it->obra.ano, tp);
+    else snprintf(dst, n, "%s", tp); }
+  return 0;
 }
 
 static void cabecalhoGrupo(const MapaVizGrupo *g, char *dst, size_t n) {
@@ -878,7 +900,7 @@ static void desenharClimas(void) {
     // Tres cartazes do clima, em leque, embaixo a esquerda; os numeros na
     // coluna que sobra a direita.
     for (k = 0; k < c->n && k < 3; k++) {
-      GfxRect p = { r.x + 24.0f + 34.0f * (float)k, r.y + r.h - 20.0f - 78.0f, 52.0f, 78.0f };
+      GfxRect p = { r.x + 24.0f + EX_CL_PASSO * (float)k, r.y + r.h - 20.0f - EX_CL_PH, EX_CL_PW, EX_CL_PH };
       cartaz(&c->itens[k], p, 0.0f, a);
     }
     if (c->n == 0) {
@@ -886,7 +908,7 @@ static void desenharClimas(void) {
       txt_desenhar_alpha(l, r.x + 24.0f, r.y + r.h - 50.0f, a);
     } else {
       float rx = r.x + r.w - 24.0f, ry = r.y + r.h - 20.0f;
-      float larg = r.w - 48.0f - (34.0f * (float)((c->n < 3 ? c->n : 3) - 1) + 52.0f) - 16.0f;
+      float larg = r.w - 48.0f - (EX_CL_PASSO * (float)((c->n < 3 ? c->n : 3) - 1) + EX_CL_PW) - 16.0f;
       TxtLinha l;
       snprintf(s, sizeof s, i18n(c->total == 1 ? "%d título · você viu %d" : "%d títulos · você viu %d"),
                c->total, c->vistos);
@@ -1178,9 +1200,10 @@ static void desenharGrupos(float a) {
       ty = p.y + 2.0f;
       ty += txt_bloco_corta(TXT_CAPTION, it->obra.titulo, sel ? 255 : 230, sel ? 255 : 232, sel ? 255 : 238,
                             x + EX_VZ_PW + 14.0f, ty, EX_VZ_CARD - EX_VZ_PW - 18.0f, 31.0f, ae, 2) + 4.0f;
-      porque(gr, it, pq, sizeof pq);
-      txt_bloco_corta(TXT_CAPTION2, pq, tr, tg, tb, x + EX_VZ_PW + 14.0f, ty,
-                      EX_VZ_CARD - EX_VZ_PW - 18.0f, 26.0f, ae * (sel ? 1.0f : 0.85f), 3);
+      // O motivo novo no acento; ano e tipo em cinza (dado, nao "porque").
+      { int nv = porqueCartao(gr, it, pq, sizeof pq);
+      txt_bloco_corta(TXT_CAPTION2, pq, nv ? tr : 186, nv ? tg : 190, nv ? tb : 202, x + EX_VZ_PW + 14.0f, ty,
+                      EX_VZ_CARD - EX_VZ_PW - 18.0f, 26.0f, ae * (sel ? 1.0f : 0.85f), 3); }
     }
 #ifdef NV_TOUCH_UI
     if (layout_modo_mobile()) gfx_sem_recorte();
