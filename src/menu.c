@@ -426,9 +426,12 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
     GfxRect s = { r.x - b, r.y + dy - b, r.w + 2.0f * b, r.h + 2.0f * b };
     gfx_sombra_sob(s, 1.0f, b * 1.41f * gfx_escala(), (g->raio + b) / s.h,
                    0, 0, 0, (topo() ? 0.34f : vidro ? 0.36f : 0.45f) * a, r, g->raio, vidro ? 0.0f : a); }
-  // Preto puro na ilha colada da Padrao: #000 absoluto com o fio claro de
-  // sempre (o contorno separa o preto da cena escura).
-  if (gfx_tema_preto && padraoLado()) {
+  // Preto puro na ilha colada da Padrao E na ilha flutuante da Moderna com a
+  // "Barra lateral Moderna" desligada (dono, 20/11: la saia vidro escuro,
+  // RGB 7-15): #000 absoluto, sem captura de fundo, com o fio claro de sempre
+  // (o contorno separa o preto da cena escura). A coluna World (Moderna
+  // ligada) fica como esta, por pedido. tests/menu_empurra_preto.sh.
+  if (gfx_tema_preto && (padraoLado() || (!padrao() && !topo() && !world()))) {
     gfx_rect(r, 0, GFX_COR, 0, 0, 0, raio, 0.0f, 0.0f, 0.0f, a);
     gfx_anel(r, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.14f * a);
     return;
@@ -906,10 +909,13 @@ float menu_barra_borda(void) {
 // aberto, a barra passa dessa borda. A tela inteira desliza o que a barra
 // passou (+24 px de respiro), na mesma mola da abertura (`expande`), entao
 // nada fica escondido atras dela e a animacao e uma so. Px da tela REAL.
+// So no layout Padrao (pedido do dono, 20/11): na Moderna o menu -- coluna
+// World ou ilha -- flutua sobre a cena e o conteudo NAO anda (a etapa 5
+// empurrava em todos os layouts; tests/menu_empurra.sh).
 float menu_empurra(void) {
   MenuGeo g;
   float e, dir, borda;
-  if (tvAtivo() || topo()) return 0.0f;
+  if (tvAtivo() || topo() || !padrao()) return 0.0f;
   e = limita01(expande);
   if (e <= 0.002f) return 0.0f;
   g = geoEm(e, railFixa() ? 1.0f : (padrao() ? anim_suave(desliza) : 1.0f));
