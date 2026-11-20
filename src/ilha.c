@@ -2284,6 +2284,19 @@ static void ilha_desenharCorpo_(Uint32 agora) {
       if (tipoLuz >= 0 || (!repouso && !ajustes_vidro()))
         gfx_luz_canto(R, raio, R.w * 0.25f, -R.h * 0.9f, R.w * 0.85f, cr, cg, cb, luz * A); }
     central_segurar_desenhar(R, raio, A, agora);
+    // ASSINATURA WORLD (20/11): a ilha crescida (modal, Central, Salvos,
+    // Spotlight, aviso aberto) ganha a ALCA no acento -- um traco de 4 px no
+    // alto, centrado, que nasce com a forma (largura e opacidade na mesma mola)
+    // -- e um fio claro de 1 px em volta, para a ilha ler sobre arte clara. Em
+    // repouso (so o relogio) nada muda: o relogio continua discreto.
+    { float k = modalT > corpoT ? modalT : corpoT;
+      k = k > 1.0f ? 1.0f : k < 0.0f ? 0.0f : k;
+      if (k > 0.02f) {
+        float ar, ag, ab, aw = (40.0f + 28.0f * k) * (R.w > 300.0f ? 1.0f : R.w / 300.0f);
+        ajustes_acento(&ar, &ag, &ab);
+        gfx_cor((GfxRect){ R.x + (R.w - aw) * 0.5f, R.y + 10.0f, aw, 4.0f }, 0.5f, ar, ag, ab, 0.90f * k * A);
+        gfx_anel(R, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.10f * k * A);
+      } }
     gfx_recorte(R.x + 6.0f, R.y, R.w - 12.0f, R.h);
     if (aPil > 0.0f) {
       if (mostra == M_CARTAO) desenharCartao(&mostraC, mostraQual, r, A * conteudoA * aPil);
