@@ -687,9 +687,6 @@ Java_space_nuvio_nativelegacy_NuvioActivity_nativeRecUrl(JNIEnv *env, jobject ac
   return (*env)->NewStringUTF(env, NV_REC_URL);
 }
 
-#endif
-
-
 // ----- RITMO DE QUADROS (World, 20/11; ritmo.c) -----------------------------
 // Sem cabecalhos do EGL: tudo por dlsym, como o hdr_native.inc. O que nao
 // existir nesta TV volta -1/0 e vai ao log; ritmo.c cai no ritmo so por CPU.
@@ -761,3 +758,5 @@ int android_ritmo_frame_rate(SDL_Window *win, float fps) {
   fflush(stdout);
   return rc;
 }
+
+#endif  // NV_ANDROID

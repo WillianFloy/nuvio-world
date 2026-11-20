@@ -7479,7 +7479,10 @@ static int visivel(int i) {
       if (op == AJ_RAIL_MODERNA || op == AJ_RAIL) return 0;
     } else {
       if (op == AJ_MENU_TOPO_TAMANHO || op == AJ_MENU_TOPO_FIXO || op == AJ_MENU_TOPO_FOCO_EXPANDIDO) return 0;
-      if ((op == AJ_RAIL || op == AJ_MENU_TOPO_MODO) && ajustes_rail_moderna()) return 0;
+      // Na Padrao a barra moderna e a GAVETA (menu.c), que tambem e recolhida ou
+      // fixa e so icones ou mista: as duas escolhas ficam.
+      if ((op == AJ_RAIL || op == AJ_MENU_TOPO_MODO) && ajustes_rail_moderna()
+          && ajustes_home_layout() != HOME_LAYOUT_PADRAO) return 0;
     }
     if (op == AJ_BUSCA_CINEMETA && valor[op] == 0 && !cinemetaInstalado()) return 0;
     // Only while the app upscales (App (4K) on a capable GPU); sharpness only for RCAS choices.
@@ -7553,6 +7556,8 @@ static const char *ajudaOpcaoBase(int op) {
   if (!ajustes_menu_topo()) {
     if (op == AJ_MENU_TOPO_MODO) return "Somente ícones: a barra fica estreita mesmo com o foco nela. Ícones Mistos: ao entrar, ela abre e mostra o nome de cada item. Vale para este perfil.";
     if (op == AJ_MENU_TOPO_ORDEM) return "Muda a ordem dos itens da barra lateral. A mesma ordem vale para o menu superior. Vale para este perfil nesta TV.";
+    if (op == AJ_RAIL_MODERNA && ajustes_home_layout() == HOME_LAYOUT_PADRAO)
+      return "Ligada: uma gaveta de altura inteira colada na borda. Desligada: a ilha colada na borda. As duas podem ser recolhidas ou fixas.";
     if (op == AJ_RAIL_MODERNA) return "Ligada: a coluna do Nuvio World, sempre visível, com o nome dos itens ao entrar nela. Desligada: uma ilha flutuante, recolhida ou fixa, só com ícones ou com ícones e nomes.";
   } else {
     if (op == AJ_MENU_EXPLORAR || op == AJ_MENU_GUIA || op == AJ_MENU_AGENDA || op == AJ_MENU_PERFIL)

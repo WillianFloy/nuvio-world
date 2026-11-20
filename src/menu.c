@@ -303,9 +303,31 @@ static int soIcones(void) { return !world() && !topo() && ajustes_menu_topo_modo
 // A LINGUAGEM DE FOCO DO WORLD (pilula branca, icone e rotulo escuros, barra
 // no acento na pagina atual) vale nas duas barras laterais: a coluna da
 // Moderna e a ilha da Padrao. A ilha continua sendo ilha (material, deslize).
-static int focoWorld(void) { return !topo(); }
+static int focoWorld(void) { return !topo() && !padrao(); }
+// BARRAS LATERAIS DA PADRAO (World, 20/11: "a Padrao precisa de barras
+// proprias; a versao Moderna dela nao pode copiar a coluna World").
+//  - Moderna desligada: a ilha colada na borda esquerda (deslize de sempre);
+//  - Moderna ligada: a GAVETA, um painel de altura inteira colado na borda,
+//    superficie de verdade (vidro ou #15161a), fio claro na borda direita e
+//    sombra curta para a cena. Nada de veu de coluna nem marca no alto.
+// As duas falam a linguagem de foco da Padrao: veu claro a 15 % com fio (nada
+// de pilula branca com tinta escura) e a PAGINA ATUAL no acento (icone e
+// rotulo), sem barra.
+static int padraoLado(void) { return padrao() && !topo(); }
+static int gaveta(void) { return padraoLado() && ajustes_rail_moderna(); }
+static void acentoLegivel(float *r, float *g, float *b) {
+  ajustes_acento(r, g, b);
+  *r = anim_mistura(*r, 1.0f, 0.22f); *g = anim_mistura(*g, 1.0f, 0.22f); *b = anim_mistura(*b, 1.0f, 0.22f);
+}
 static void focoLinha(GfxRect r, float f, float alpha) {
   if (f <= 0.01f || alpha <= 0.01f) return;
+  if (padraoLado()) {
+    float k = 0.97f + 0.03f * f;
+    GfxRect q = { r.x + r.w * (1.0f - k) * 0.5f, r.y + r.h * (1.0f - k) * 0.5f, r.w * k, r.h * k };
+    gfx_cor(q, 0.5f, 1.0f, 1.0f, 1.0f, 0.15f * f * alpha);
+    gfx_vidro_borda(q, 0.5f, 0.50f * f * alpha);
+    return;
+  }
   if (focoWorld()) {
     // A pilula nasce do proprio tamanho (sem deslocar a linha): 96 % de largura
     // e altura indo a 100 % com o foco, opacidade junto.
@@ -379,6 +401,18 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
                      anim_mistura(0.62f, 0.92f, ab) * a, 0.0f);
     return;
   }
+  if (gaveta()) {
+    // A GAVETA: altura inteira, cantos retos, colada na borda.
+    GfxRect d = { g->x - 2.0f, 0.0f, g->w + 2.0f, NV_TELA_H + 2.0f };
+    float ab = limita01((g->w - NV_MENU_W_RAIL) / (NV_MENU_W_ABERTO - NV_MENU_W_RAIL));
+    // Aberta, a cena recua um pouco (o rotulo nao briga com o titulo do hero).
+    if (ab > 0.002f) gfx_cor((GfxRect){ 0, 0, NV_TELA_W + 4.0f, NV_TELA_H + 4.0f }, 0.0f, 0, 0, 0, 0.40f * ab * a);
+    gfx_veu_css((GfxRect){ d.x + d.w, 0, MK(70.0f), NV_TELA_H }, 2, 1.8f, 1.0f, 0.30f * a);
+    if (ajustes_vidro()) { gfx_vidro_camada = 1; gfx_vidro_material(d, 0.0f, anim_mistura(.84f, .90f, ab), a); gfx_vidro_camada = 0; }
+    else gfx_cor(d, 0.0f, 21.0f / 255.0f, 22.0f / 255.0f, 26.0f / 255.0f, a);
+    gfx_cor((GfxRect){ d.x + d.w - MK(1.0f), 0, MK(1.0f), NV_TELA_H }, 0.0f, 1, 1, 1, 0.08f * a);
+    return;
+  }
   if (padrao() && !topo()) { r.x -= g->raio; r.w += g->raio; }
   raio = g->raio / r.h;
   // O box-shadow do CSS: o retangulo deslocado `dy` e alargado `b` (o blur)
@@ -448,6 +482,8 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
       // (na ilha da Padrao, dentro dela: a borda esquerda e a da tela).
       float bh = MK(26.0f), bx = world() ? linhaR.x - MK(12.0f) : fmaxf(linhaR.x - MK(12.0f), g.x + MK(4.0f));
       gfx_cor((GfxRect){ bx, cy - bh * 0.5f, MK(4.0f), bh }, 0.5f, ar, ag, ab, a * (1.0f - 0.6f * f));
+    } else if (atual && padraoLado()) {
+      // Padrao: o estado vai na cor (icone e rotulo no acento, abaixo).
     } else if (atual) {
       float px = anim_mistura(icx - MK(2.5f), linhaR.x + MK(6.0f), ec);
       float py = anim_mistura(y + NV_MENU_ITEM_H - MK(8.0f + 5.0f), cy - MK(2.5f), ec);
@@ -471,8 +507,13 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
         if (!atual && world()) op = anim_mistura(0.60f, 1.0f, f);
         tr = anim_mistura(tr, 0.07f, f); tg = anim_mistura(tg, 0.07f, f); tb = anim_mistura(tb, 0.08f, f);
       }
+      if (atual && padraoLado()) { acentoLegivel(&tr, &tg, &tb); op = 1.0f; }
       iconeTraco(i, icx, cy, NV_MENU_ICONE, tr, tg, tb, op * a);
-      if (aRot > 0.01f) {
+      if (aRot > 0.01f && atual && padraoLado()) {
+        TxtLinha l = txt_linha_corta(TXT_BODY, ROTULOS[i], (int)(tr * 255.0f), (int)(tg * 255.0f),
+                                     (int)(tb * 255.0f), 255, NV_MENU_ROTULO_MAX);
+        txt_desenhar_alpha(l, g.x + NV_MENU_ROTULO_X, cy - l.h * 0.5f, aRot);
+      } else if (aRot > 0.01f) {
         // Texto ja rasterizado nao muda de cor: troca no meio da mola, e a
         // opacidade anda com ela.
         int emFoco = f > 0.5f;
@@ -1654,6 +1695,22 @@ static const char *topoRotulo(int i) {
 typedef struct { int n, ordem[NV_MENU_FOCOS], cortado, modo; float ws[NV_MENU_FOCOS], vao, pad, rotMax, larg, txtEscala; } TopoTira;
 _Static_assert(MENU_N == AJ_MENU_TOPO_ORDEM_N, "top menu order must cover every navigation destination");
 
+// MENU DO TOPO DA PADRAO (World, 20/11): abas de TEXTO, sem ilha. Com
+// "Icones e textos" todas as abas mostram icone + rotulo o tempo todo (largura
+// fixa: nada cresce nem empurra ao andar), como as faixas de Netflix e
+// Paramount+; "Somente icones" continua so icones. A Moderna segue com as
+// pilulas e o rotulo so na focada.
+static int topoPadrao(void) { return padrao(); }
+static float topoMix(int id) {
+  if (topoPadrao() && ajustes_menu_topo_modo() == 1 && id != MENU_BUSCAR) return 1.0f;
+  return topoMixAlfa[id];
+}
+// Onde a tira comeca: centrada na Moderna; na Padrao alinhada a esquerda,
+// logo depois do avatar (o perfil abre a linha, como nas faixas de streaming).
+static float topoX0(const TopoTira *t) {
+  if (topoPadrao()) return floorf(TOPO_X + TOPO_H + TS(30.0f));
+  return floorf((NV_TELA_W - t->larg) * 0.5f);
+}
 static void topoMedir(TopoTira *t) {
   int k;
   float disp, base, extraDisponivel, extraFixo = 0.0f, extraTexto = 0.0f, pesoTexto = 0.0f;
@@ -1663,7 +1720,7 @@ static void topoMedir(TopoTira *t) {
   t->rotMax = 1e6f;
   t->cortado = 0;
   t->vao = TOPO_VAO;
-  t->pad = TOPO_PAD;
+  t->pad = topoPadrao() ? TS(16.0f) : TOPO_PAD;
   disp = NV_TELA_W - 2.0f * TOPO_RELOGIO - 2.0f * TOPO_TRILHA;
   base = t->n * TOPO_PILULA_H + (t->n > 1 ? (t->n - 1) * t->vao : 0.0f);
 
@@ -1674,7 +1731,7 @@ static void topoMedir(TopoTira *t) {
     extraDisponivel = fmaxf(0.0f, disp - base);
     for (k = 0; k < t->n; k++) {
       int id = t->ordem[k];
-      float m = topoMixAlfa[id];
+      float m = topoMix(id);
       if (id == MENU_BUSCAR || m <= 0.001f) continue;
       extraFixo += m * fmaxf(0.0f, 2.0f * t->pad + TOPO_ICONE + TOPO_ICON_VAO - TOPO_PILULA_H);
       extraTexto += m * (float)txt_largura(TOPO_TXT, topoRotulo(id));
@@ -1686,7 +1743,7 @@ static void topoMedir(TopoTira *t) {
       t->pad = TOPO_PAD_MIN;
       extraFixo = 0.0f; extraTexto = 0.0f; pesoTexto = 0.0f;
       for (k = 0; k < t->n; k++) {
-        int id = t->ordem[k]; float m = topoMixAlfa[id];
+        int id = t->ordem[k]; float m = topoMix(id);
         if (id == MENU_BUSCAR || m <= 0.001f) continue;
         extraFixo += m * fmaxf(0.0f, 2.0f * t->pad + TOPO_ICONE + TOPO_ICON_VAO - TOPO_PILULA_H);
         extraTexto += m * (float)txt_largura(TOPO_TXT, topoRotulo(id));
@@ -1696,7 +1753,7 @@ static void topoMedir(TopoTira *t) {
         t->pad = 0.0f;
         extraFixo = 0.0f;
         for (k = 0; k < t->n; k++) {
-          int id = t->ordem[k]; float m = topoMixAlfa[id];
+          int id = t->ordem[k]; float m = topoMix(id);
           if (id != MENU_BUSCAR && m > 0.001f)
             extraFixo += m * fmaxf(0.0f, TOPO_ICONE + TOPO_ICON_VAO - TOPO_PILULA_H);
         }
@@ -1720,7 +1777,7 @@ static void topoMedir(TopoTira *t) {
     if (id == MENU_BUSCAR || t->modo == 0) {
       t->ws[k] = TOPO_PILULA_H;
     } else {
-      float m = t->modo == 1 ? limita01(topoMixAlfa[id]) : 0.0f;
+      float m = t->modo == 1 ? limita01(topoMix(id)) : 0.0f;
       TxtLinha l = txt_linha_corta(TOPO_TXT * t->txtEscala, topoRotulo(id),
                                    255, 255, 255, 255, t->rotMax);
       float cheia = fmaxf(TOPO_PILULA_H, 2.0f * t->pad + TOPO_ICONE + TOPO_ICON_VAO + l.w);
@@ -1780,7 +1837,7 @@ static void topoAtualizar(float dt) {
   }
   topoMedir(&t);
   topoCapsulaPasso(&topoSel, &t, topoIndice(t.ordem, t.n, destino), pousa, dt);
-  if (t.modo == 1) {
+  if (t.modo == 1 && !topoPadrao()) {
     int idx = aberto ? topoIndice(t.ordem, t.n, linha) : -1;
     if (idx >= 0) {
       // Fundo e conteúdo usam a mesma geometria animada na apresentação mista.
@@ -1806,7 +1863,7 @@ void menu_topo_geo(MenuTopoGeo *o) {
   int k;
   topoMedir(&t);
   memset(o, 0, sizeof *o);
-  x0 = floorf((NV_TELA_W - t.larg) * 0.5f);
+  x0 = topoX0(&t);
   o->n = t.n; o->cortado = t.cortado;
   o->y = (TOPO_CY - TOPO_PILULA_H * 0.5f) * e; o->h = TOPO_PILULA_H * e;
   for (k = 0; k < t.n && k < MENU_TOPO_MAX; k++) {
@@ -1830,14 +1887,84 @@ static void topoCapsula(const TopoCapsula *c, float x0, float y, int foco, float
   gfx_cor(r, 0.5f, 0xf3 / 255.0f, 0xf2 / 255.0f, 0xef / 255.0f, (foco ? 1.0f : .18f) * ca);
 }
 
+// O TOPO DA PADRAO, desenhado (World, 20/11). Sem ilha, sem pilula de vidro:
+// a faixa e a propria cena escurecida do alto (veu em degrade que morre antes
+// do titulo do hero), e as abas sao rotulos soltos sobre ela.
+//  - repouso: tinta #F3F2EF a 62 %; a pagina ATIVA fica branca cheia e ganha
+//    um traco curto no acento por baixo do rotulo (o traco desliza na mola da
+//    selecao, entao trocar de pagina e um gesto so);
+//  - foco: um veu claro a 16 % com fio de 1 px (sem bloco opaco), o rotulo
+//    branco cheio; o veu desliza entre as abas na mesma mola;
+//  - contraste: o veu do alto e mais denso com o menu aberto (arte clara nao
+//    engole o rotulo) e o texto nunca fica abaixo de 62 %.
+// O avatar abre a linha sem circulo de vidro: so a foto, com aro e zoom no foco.
+static void topoDesenharPadrao(void) {
+  TopoTira t;
+  int k, focos = aberto || desliza >= 0.002f || expande > 0.004f;
+  float a, x0, y, fAv, ar, ag, ab;
+  topoMedir(&t);
+  x0 = topoX0(&t);
+  y = TOPO_CY - TOPO_PILULA_H * 0.5f;
+  a = fmaxf(tvPilAlfa, anim_suave(desliza));
+  if (a <= 0.01f) {
+    if (ponteiro_ativo()) ponteiro_alvo(0, 0, NV_TELA_W, MK(20.0f), ponteiroLinha, NULL, destino, 0);
+    return;
+  }
+  ajustes_acento(&ar, &ag, &ab);
+  // A faixa: preto do alto ate ~2,6x a altura da barra, curva suave.
+  gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, TOPO_Y + TOPO_H * 2.6f }, 1, 1.6f, 1.0f,
+              a * (0.50f + 0.28f * anim_suave(desliza)));
+  if (aberto) ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroFora, 0, 0);
+  // Perfil.
+  fAv = focos ? animFoco[MENU_RODAPE] : 0.0f;
+  { float sAv = 1.0f + 0.14f * limita01(fAv), d = TOPO_PILULA_H * sAv;
+    float cx = TOPO_X + TOPO_H * 0.5f, cy = TOPO_CY;
+    GfxRect ra = { cx - d * 0.5f, cy - d * 0.5f, d, d };
+    tvAvatar(ra, a);
+    if (fAv > 0.01f) gfx_vidro_borda((GfxRect){ ra.x - 3, ra.y - 3, ra.w + 6, ra.h + 6 }, 0.5f, .9f * fAv * a); }
+  if (ponteiro_ativo() && a > 0.5f) ponteiro_alvo(TOPO_X, TOPO_Y, TOPO_H, TOPO_H, ponteiroLinha, NULL, MENU_RODAPE, 0);
+  // Foco: veu claro com fio.
+  if (focos && topoFoc.a > 0.004f && topoFoc.w > 0.5f) {
+    GfxRect rf = { x0 + topoFoc.x, y, topoFoc.w, TOPO_PILULA_H };
+    float fa = limita01(topoFoc.a) * a;
+    gfx_cor(rf, 0.5f, 1.0f, 1.0f, 1.0f, 0.16f * fa);
+    gfx_vidro_borda(rf, 0.5f, 0.55f * fa);
+  }
+  // Pagina ativa: traco no acento sob o rotulo.
+  if (topoSel.a > 0.004f && topoSel.w > 0.5f) {
+    float tw = fminf(TS(34.0f), topoSel.w * 0.5f);
+    GfxRect rs = { x0 + topoSel.x + (topoSel.w - tw) * 0.5f, y + TOPO_PILULA_H + TS(5.0f), tw, TS(4.0f) };
+    gfx_cor(rs, 0.5f, ar, ag, ab, limita01(topoSel.a) * a);
+  }
+  for (k = 0; k < t.n; k++) {
+    GfxRect r = { x0 + topoPilulaX(&t, k), y, t.ws[k], TOPO_PILULA_H };
+    int i = t.ordem[k];
+    float px = topoPilulaX(&t, k), fm, sm, ta, cy = y + TOPO_PILULA_H * 0.5f;
+    fm = focos ? limita01(topoFoc.a) * topoCobre(px, t.ws[k], &topoFoc) : 0.0f;
+    sm = limita01(topoSel.a) * topoCobre(px, t.ws[k], &topoSel);
+    ta = a * anim_mistura(0.62f, 1.0f, fmaxf(sm, fm));
+    if (ponteiro_ativo() && a > 0.5f) ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroLinha, NULL, i, 0);
+    if (i == MENU_BUSCAR || t.modo == 0) {
+      iconeTraco(i, r.x + r.w * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
+    } else {
+      TxtLinha l = txt_linha_corta(TOPO_TXT * t.txtEscala, topoRotulo(i), 255, 255, 255, 255, t.rotMax);
+      float ix = r.x + t.pad + TOPO_ICONE * 0.5f;
+      iconeTraco(i, ix, cy, TOPO_ICONE * 0.88f, 0.953f, 0.949f, 0.937f, ta);
+      txt_desenhar_tom(l, r.x + t.pad + TOPO_ICONE + TOPO_ICON_VAO, y + (TOPO_PILULA_H - l.h) * 0.5f,
+                       0.953f, 0.949f, 0.937f, ta);
+    }
+  }
+}
+
 static void topoDesenhar(void) {
   TopoTira t;
   int k;
   float a, x0, y, fAv;
   int focos = aberto || desliza >= 0.002f || expande > 0.004f;
   MenuGeo g = { 0 }, gAv = { 0 };
+  if (topoPadrao()) { topoDesenharPadrao(); return; }
   topoMedir(&t);
-  x0 = floorf((NV_TELA_W - t.larg) * 0.5f);   // compacta e centrada na tela
+  x0 = topoX0(&t);   // Moderna: compacta e centrada; Padrao: a esquerda
   y = TOPO_CY - TOPO_PILULA_H * 0.5f;
   g.x = x0 - TOPO_TRILHA; g.y = TOPO_Y; g.w = t.larg + 2.0f * TOPO_TRILHA; g.h = TOPO_H; g.raio = TOPO_H * 0.5f;
   gAv.x = TOPO_X; gAv.y = TOPO_Y; gAv.w = gAv.h = TOPO_H; gAv.raio = TOPO_H * 0.5f;
