@@ -172,4 +172,13 @@ grep -q 'static void topoMedirPadrao' src/menu.c || falha "Padrao Icones e texto
 grep -q 'menu_topo_padrao_base()' src/home.c || falha "destaque da Padrao sem reserva do menu do topo"
 grep -q 'Preto puro: #000 absoluto' src/menu.c && grep -q 'gfx_tema_preto && padraoLado()' src/menu.c || falha "barras da Padrao sem preto absoluto"
 echo "ok etapa 4 (com correcoes da TCL): Padrao propria, Ajustes em Lista, Collections, ilhas, sem FPS, Explorar revertido"
+# 12. Etapa 5 (20/11 noite).
+! grep -q 'GFX_SOMBRA, 1.0f, 0, 0, 0.5f, 0, 0, 0, 0.55f \* a' src/menu.c || falha "faixa escura (sombra em retangulo) sob o topo da Padrao voltou"
+grep -A10 'FOCO DESCENTRADO NO "ICONES E TEXTOS" (TCL, 20/11): esta conta' src/menu.c | grep -q 'gfx_escala_sair(NV_MENU_ESCALA)' || falha "topo medido fora da escala do desenho (foco descentrado)"
+grep -q 'rq_quadro(&nvRitmo' src/main.c && grep -q 'NUVIO_DISPLAY_HZ' android/app/src/main/java/space/nuvio/nativelegacy/NuvioActivity.kt || falha "medicao de frame time/frequencia ausente"
+! grep -q 'SDL_GL_SetSwapInterval(2)\|eglPresentationTimeANDROID' src/main.c src/android.c || falha "limite artificial de FPS voltou"
+grep -q 'static int vidNivel = 1;' src/gfx.c || falha "ritmo do fundo do vidro ausente"
+grep -q 'menu_empurra()' src/app.c && grep -q 'void gfx_deslocar_base' src/gfx.c || falha "menu lateral volta a cobrir a tela"
+grep -q 'static void aj2DesenharPreviaLista' src/ajustes_ux_v2.inc && grep -q 'static void aj2DesenharColunaPagina' src/ajustes_ux_v2.inc || falha "Ajustes sem as duas colunas"
+echo "ok etapa 5: topo sem faixa, foco centrado, ritmo medido, vidro graduado, menu empurra, Ajustes em duas colunas"
 echo "tudo ok"

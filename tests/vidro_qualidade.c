@@ -148,9 +148,22 @@ int main(void) {
   roda(20, &t);
   confere(cap == 1 && fonte > 0, "Alta ignores the governor (frost)");
 
+  // ESCADA GRADUAL (World, 20/11): do nivel 1, duas janelas lentas seguidas
+  // sobem o vidro ao nivel 2 (fundo a cada 3 quadros, 1 passada) SEM prova do
+  // fume; o vidro continua fosco.
+  gfx_vidro_governar_zerar();
+  setenv("NUVIO_SHOT_VIDRO_QUAL", "0", 1); ajustes_teste_vidro_env();
+  confere(gfx_vidro_nivel() == 1, "governor: nivel 1 (padrao) no comeco");
+  janela(40.0); janela(40.0);
+  confere(gfx_vidro_nivel() == 2 && !gfx_vidro_degradado(), "governor: 2 janelas lentas -> nivel 2, ainda fosco");
+  for (i = 0; i < 3; i++) janela(40.0);
+  confere(!gfx_vidro_degradado(), "governor: no nivel 2, 3 janelas lentas ainda nao fazem a prova");
+  janela(40.0);
+  confere(gfx_vidro_degradado(), "governor: no nivel 2, a 4a janela lenta seguida faz a prova");
+
   // Slowness the glass did not cause: the trial window is as slow as before, so
   // the frost comes back and the governor stops for the session (no second trial).
-  gfx_vidro_governar_zerar();
+  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
   setenv("NUVIO_SHOT_VIDRO_QUAL", "0", 1); ajustes_teste_vidro_env();
   roda(20, &t);
   for (i = 0; i < 4; i++) janela(40.0);
@@ -166,7 +179,7 @@ int main(void) {
   // Workload changes (review P1). The governor only judges EQUIVALENT workloads.
   // (a) baseline: 3 janky windows on a busy screen, then a 4th on another screen
   //     does not start a trial.
-  gfx_vidro_governar_zerar();
+  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
   cena(6, 3000000, 0);
   for (i = 0; i < 3; i++) janela(40.0);
   cena(2, 400000, 0);
@@ -189,7 +202,7 @@ int main(void) {
   for (i = 0; i < 6; i++) janela(40.0);
   confere(!gfx_vidro_degradado(), "governor: the second interrupted trial stays ended");
   // (d) a window that mixes scenes proves nothing: 4 of them never start a trial.
-  gfx_vidro_governar_zerar();
+  gfx_vidro_governar_zerar(); gfx_vidro_nivel_definir(2);   // escada ja no nivel 2 (World 20/11): o que se testa abaixo e a prova
   for (i = 0; i < 6; i++) janela_mista(40.0, 6, 2);
   confere(!gfx_vidro_degradado(), "governor: windows mixing scenes never start a trial");
 
