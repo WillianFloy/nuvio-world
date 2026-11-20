@@ -891,7 +891,6 @@ static void desenharClimas(void) {
     if (a <= 0.01f) continue;
     ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroClimas, NULL, i, 0);
     if (i == clFoco) r = crescer(r, 0.03f * f);
-    if (c->n == 0 && !c->carregando) a *= 0.62f + 0.38f * f;   // clima vazio recua (continua focavel)
     painelComFoco(r, raio, f, a);
     ty = r.y + 20.0f;
     ty += txt_bloco_corta(TXT_HEADLINE, i18n(mapa_clima_nome(c->id)), 246, 246, 248, r.x + 24.0f, ty,
@@ -905,9 +904,8 @@ static void desenharClimas(void) {
       cartaz(&c->itens[k], p, 0.0f, a);
     }
     if (c->n == 0) {
-      // Vazio (World, 20/11): a frase inteira em ate duas linhas, sem reticencias.
-      txt_bloco_corta(TXT_CAPTION2, i18n("Nada deste clima no seu catálogo ainda"), 150, 154, 168,
-                      r.x + 24.0f, r.y + r.h - 76.0f, r.w - 48.0f, 30.0f, a, 2);
+      TxtLinha l = txt_linha_corta(TXT_CAPTION2, i18n("Nada deste clima no seu catálogo ainda"), 150, 154, 168, 255, r.w - 48.0f);
+      txt_desenhar_alpha(l, r.x + 24.0f, r.y + r.h - 50.0f, a);
     } else {
       float rx = r.x + r.w - 24.0f, ry = r.y + r.h - 20.0f;
       float larg = r.w - 48.0f - (EX_CL_PASSO * (float)((c->n < 3 ? c->n : 3) - 1) + EX_CL_PW) - 16.0f;
@@ -967,50 +965,6 @@ static void fileiraClima(int linha, float y, float w, float h, float a) {
 #endif
 }
 
-// O CLIMA ABERTO GANHA A CENA DO FOCO (World, 20/11: "Explorar ainda e uma
-// grade de cartazes sobre o ceu"). O backdrop do titulo em foco entra por tras
-// da pagina (palco de 1280, veus da esquerda e de baixo) e, no alto a direita,
-// o que ele e: tipo, ano, nota e duas linhas de sinopse. Troca de foco = troca
-// de cena por esvanecer, so quando a arte nova chegou (nunca um fundo vazio).
-static char exCenaUrl[200], exCenaAntUrl[200];
-static Uint32 exCenaEm;
-static void desenharCenaClima(const MapaObra *o, float a) {
-  Uint32 agora = SDL_GetTicks();
-  GLuint t = 0, tAnt = 0;
-  float k;
-  if (!o || !o->fundo[0] || gfx_efeitos_minimos()) return;
-  t = tex_obter_palco(o->fundo);
-  if (t && strcmp(exCenaUrl, o->fundo)) {
-    snprintf(exCenaAntUrl, sizeof exCenaAntUrl, "%s", exCenaUrl);
-    snprintf(exCenaUrl, sizeof exCenaUrl, "%s", o->fundo);
-    exCenaEm = agora;
-  }
-  if (!exCenaUrl[0]) return;
-  if (strcmp(exCenaUrl, o->fundo)) t = tex_obter_palco(exCenaUrl);   // a nova ainda vem: fica a de antes
-  k = ajustes_animacoes_reduzidas() ? 1.0f : suave((float)(agora - exCenaEm) / 380.0f);
-  if (k < 1.0f && exCenaAntUrl[0]) tAnt = tex_obter_palco(exCenaAntUrl);
-  { GfxRect r = { NV_TELA_W * 0.30f, 0, NV_TELA_W * 0.70f, NV_TELA_H * 0.78f };
-    if (tAnt) gfx_rect(r, tAnt, GFX_CARD, 0, 0, 0, 0, 1, 1, 1, 0.42f * (1.0f - k) * a);
-    if (t) gfx_rect(r, t, GFX_CARD, 0, 0, 0, 0, 1, 1, 1, 0.42f * k * a);
-    gfx_veu_css((GfxRect){ r.x - 2.0f, 0, r.w * 0.55f, r.h }, 2, 1.4f, 1.0f, 1.0f * a);
-    gfx_veu_css((GfxRect){ r.x, r.h * 0.45f, r.w, r.h * 0.55f + 2.0f }, 0, 1.4f, 1.0f, 1.0f * a); }
-}
-static void desenharInfoClima(const MapaObra *o, float a) {
-  char meta[120];
-  float xr = EX_DIR, w = 700.0f, y = 128.0f;
-  TxtLinha l;
-  if (!o) return;
-  metaObra(o, meta, sizeof meta);
-  l = txt_linha_corta(TXT_CAPTION, meta, 196, 200, 212, 255, w);
-  txt_desenhar_alpha(l, xr - l.w, y, a);
-  y += l.h + 8.0f;
-  if (o->sinopse[0]) {
-    float h = txt_bloco(TXT_CAPTION2, o->sinopse, 0, 0, 0, 0, -4000, w, 30.0f, 0, 2);
-    (void)h;
-    txt_bloco(TXT_CAPTION2, o->sinopse, 176, 180, 194, xr - w, y, w, 30.0f, 0.92f * a, 2);
-  }
-}
-
 static void desenharClima(void) {
 #ifdef NV_TOUCH_UI
   if (telefoneui_ativo()) { desenharClimaTelefone(); return; }
@@ -1020,10 +974,8 @@ static void desenharClima(void) {
   char s[120];
   if (clAberto < 0 || clAberto >= climas.n) return;
   c = &climas.c[clAberto];
-  desenharCenaClima(climaObraFocada(), a);
   desenharTitulo(NULL);
   rotuloEspacado(i18n("CLIMA"), x0, 140.0f, a);
-  if (!c->carregando) desenharInfoClima(climaObraFocada(), a);
 #ifdef NV_TOUCH_UI
   if (telefoneui_ativo()) {
     float y = 168, w = EX_DIR - x0;
