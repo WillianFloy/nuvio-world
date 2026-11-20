@@ -8,6 +8,7 @@ static const char *ajVisualIcone(int op) {
     case AJ_COL_ENTRADA: return "aj_sparkles";
     case AJ_TEMA_FUNDO: return "aj_moon";
     case AJ_ABERTURA_VIDEO: return "aj_clapperboard";
+    case AJ_FPS_MODO: return "aj_gauge";
     case AJ_HOME_LAYOUT: return "aj_layout-dashboard";
     case AJ_LANDSCAPE: return "aj_layout-dashboard";
     case AJ_HERO: return "aj_layout-dashboard";

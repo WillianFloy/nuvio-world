@@ -95,6 +95,7 @@
 #include "watchstate_envio.h"
 #include "ajustes.h"
 #include "navritmo.h"
+#include "ritmo.h"
 #include "perfiltv.h"
 #include "corviva.h"
 #include "catalogo.h"
@@ -2312,12 +2313,15 @@ int main(int argc, char **argv) {
       SDL_GL_SetSwapInterval(playerUi ? 0 : 1);
 #endif
       playerUiPrevious = playerUi;
+      ritmo_invalidar();   // o modo de desempenho volta a valer fora do player
     }
     if (!nvPrimeiroQuadroFeito) arranque_etapa("primeiro SwapWindow");
+    ritmo_antes_swap(win, playerUi, swapint_periodo(&swapInt));   // modo de desempenho (ritmo.c)
     SDL_GL_SwapWindow(win);
 #ifndef __EMSCRIPTEN__
     { unsigned wait = player_frame_wait(playerUi, SDL_GetTicks() - frameStarted);
       if (wait) SDL_Delay(wait); }
+    (void)ritmo_depois_swap(playerUi, swapint_periodo(&swapInt));
 #else
     (void)frameStarted;
 #endif
@@ -2411,7 +2415,9 @@ int main(int argc, char **argv) {
         } }
       { double sMed, sPior; int sN = swapint_colher(&swapInt, &sMed, &sPior);
         if (sN > 0) printf("[swap] periodo=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
-                           swapint_periodo(&swapInt), sMed, sPior, sN, swapint_limite_jank(&swapInt)); }
+                           swapint_periodo(&swapInt), sMed, sPior, sN, swapint_limite_jank(&swapInt));
+        // Modo de desempenho em vigor e como o 30 e feito (evidencia do aparelho, ritmo.c).
+        if (sN > 0) printf("[ritmo] modo=%d metodo=%s\n", ritmo_modo_aplicado(), ritmo_metodo()); }
       printf("FPS=%.1f pior=%.1fms janks=%d | pior-quadro: texto %.1fms em %d linhas"
              " | gpu-cache=%d %.1fMB tela=%d/%.1fMB fila-tex=%d tex-despejos=%d(q=%d) disco-direto=%d neg-arte=%d"
              " | despejos=%d | cache-arte=%ld/%ldB hit=%ld miss=%ld grav=%ld err=%ld essenciais=%ld/%ld"

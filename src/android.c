@@ -689,3 +689,75 @@ Java_space_nuvio_nativelegacy_NuvioActivity_nativeRecUrl(JNIEnv *env, jobject ac
 
 #endif
 
+
+// ----- RITMO DE QUADROS (World, 20/11; ritmo.c) -----------------------------
+// Sem cabecalhos do EGL: tudo por dlsym, como o hdr_native.inc. O que nao
+// existir nesta TV volta -1/0 e vai ao log; ritmo.c cai no ritmo so por CPU.
+#include <dlfcn.h>
+#include <time.h>
+#include <SDL2/SDL_syswm.h>
+typedef void *NvEglDpy;
+typedef void *NvEglSurf;
+typedef int64_t NvEglNs;
+static NvEglDpy (*nvEglDisplay)(void);
+static NvEglSurf (*nvEglSurface)(int);
+static const char *(*nvEglQuery)(NvEglDpy, int);
+static unsigned (*nvEglPresent)(NvEglDpy, NvEglSurf, NvEglNs);
+static int nvRitmoCarregado, nvRitmoPresentOk;
+
+double android_ritmo_agora_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1.0e6;
+}
+
+static void nvRitmoCarregar(void) {
+  void *egl, *(*gpa)(const char *);
+  if (nvRitmoCarregado) return;
+  nvRitmoCarregado = 1;
+  egl = dlopen("libEGL.so", RTLD_NOW | RTLD_LOCAL);
+  if (!egl) { printf("[ritmo] libEGL.so nao abriu\n"); fflush(stdout); return; }
+  nvEglDisplay = (NvEglDpy (*)(void))dlsym(egl, "eglGetCurrentDisplay");
+  nvEglSurface = (NvEglSurf (*)(int))dlsym(egl, "eglGetCurrentSurface");
+  nvEglQuery = (const char *(*)(NvEglDpy, int))dlsym(egl, "eglQueryString");
+  gpa = (void *(*)(const char *))dlsym(egl, "eglGetProcAddress");
+  if (gpa) nvEglPresent = (unsigned (*)(NvEglDpy, NvEglSurf, NvEglNs))gpa("eglPresentationTimeANDROID");
+  if (nvEglDisplay && nvEglQuery && nvEglPresent) {
+    const char *ext = nvEglQuery(nvEglDisplay(), 0x3055 /* EGL_EXTENSIONS */);
+    nvRitmoPresentOk = ext && strstr(ext, "EGL_ANDROID_presentation_time") != NULL;
+  }
+  printf("[ritmo] EGL_ANDROID_presentation_time=%s\n", nvRitmoPresentOk ? "sim" : "nao");
+  fflush(stdout);
+}
+
+// alvoMs < 0: so pergunta se da. Senao marca o instante de apresentacao do
+// proximo eglSwapBuffers (relogio monotonic).
+int android_ritmo_apresentar(double alvoMs) {
+  nvRitmoCarregar();
+  if (!nvRitmoPresentOk) return 0;
+  if (alvoMs < 0.0) return 1;
+  { NvEglDpy d = nvEglDisplay(); NvEglSurf s = nvEglSurface ? nvEglSurface(0x3059 /* EGL_DRAW */) : NULL;
+    if (!d || !s) return 0;
+    return nvEglPresent(d, s, (NvEglNs)(alvoMs * 1.0e6)) != 0; }
+}
+
+// ANativeWindow_setFrameRate (API 30+): 30 = FIXED_SOURCE; 0 = volta ao padrao.
+int android_ritmo_frame_rate(SDL_Window *win, float fps) {
+  static int (*setFr)(void *, float, int8_t);
+  static int carregou;
+  SDL_SysWMinfo info;
+  int rc;
+  if (!carregou) {
+    void *nw = dlopen("libnativewindow.so", RTLD_NOW | RTLD_LOCAL);
+    carregou = 1;
+    if (!nw) nw = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
+    if (nw && android_get_device_api_level() >= 30) setFr = (int (*)(void *, float, int8_t))dlsym(nw, "ANativeWindow_setFrameRate");
+  }
+  if (!setFr || !win) { printf("[ritmo] setFrameRate indisponivel\n"); fflush(stdout); return -1; }
+  SDL_VERSION(&info.version);
+  if (!SDL_GetWindowWMInfo(win, &info) || !info.info.android.window) return -1;
+  rc = setFr(info.info.android.window, fps, (int8_t)(fps > 0.0f ? 1 : 0));
+  printf("[ritmo] setFrameRate(%.0f) rc=%d\n", fps, rc);
+  fflush(stdout);
+  return rc;
+}
