@@ -117,6 +117,10 @@ static int vooDesenhado;         // o cartao ja foi desenhado neste quadro (dent
 static int vooLogoTem;           // a logo da pasta sai do hero da Home e vai ao cabecalho (mesma imagem)
 static GfxRect vooLogoDe;
 static char vooLogoTex[NV_TEX_URL_MAX];
+// World (19/11): sem logo, o NOME em texto faz o mesmo caminho (hero da Home -> cabecalho). Antes ele so
+// apagava com a Home e o cabecalho acendia pequeno depois: nada ligava os dois (o "so mudou a velocidade").
+static int vooNomeTem;
+static GfxRect vooNomeDe;
 static int vitBannerAtivo;       // D1: o banner da pasta e a camada de destaque ate o titulo entrar
 static Uint32 vitBannerSolta;    // quando a transformacao acabou (o titulo entra quando a arte dele chega)
 static Uint32 vitRevelaEm;       // quando a revelacao comecou (cartaz que chega depois entra com fade)
@@ -135,6 +139,7 @@ static unsigned char vitPreverTent[VIT_PREVER_MAX];
 static int vitPreverN, vitPreverI;
 static float vitPreverW;
 int home_pasta_logo(const ColFolder *f, GfxRect *r, const char **texUrl);   // home.c (2.0.45)
+int home_pasta_nome(const ColFolder *f, GfxRect *r);   // home.c (World, 19/11)
 static float vooP(void) { return tr_cartao(vitTr.p); }
 static GfxRect vooRect(void) {
   float g = vooP(), q = 1.0f - g, e = tr_escala(vitTr.p);
@@ -184,6 +189,15 @@ static int toqueNasAbas;
 #endif
 static char  titulo[96];
 static const ColFolder *collection;
+static const char *wordmarkServico(void);
+static int grupo(const char *g);
+// World (19/11): o titulo da pasta (logo ou nome) esta VOANDO para o cabecalho: a Home nao desenha a copia
+// dela (a copia da Home recua com a escala em torno do cartao e saia dupla, deslocada, no 1o quadro).
+// As MESMAS condicoes em que o cabecalho desenha o voo (logoMove / ramo do nome em texto): esconder a copia
+// da Home sem a Collection desenhar a dela faria o titulo sumir.
+static int vooLogoVoa(void) { return vooLogoTem && collection && grupo("Streaming") && collection->logo[0]; }
+static int vooNomeVoa(void) { return vooNomeTem && collection && !wordmarkServico()[0]; }
+int vertudo_voo_titulo_ativo(void) { return vooTem && !vooSaindo && (vooLogoVoa() || vooNomeVoa()); }
 static void vitCancelar(void);
 static void vitManualLiberarSlot(void);
 static int source, tabFocus, tabCursor, timeline, ranked;
@@ -782,7 +796,7 @@ void vertudo_colecao(const ColFolder *folder) {
   if(lay==VT_LAY_VITRINE)tabFocus=0;   // sem barra de abas: o foco nasce nas fileiras
   { const int anima = ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone();
     vooTem = anima && vooPedido;   // sem cartao de origem: so a revelacao da 2.0.43 (relogio vitEntradaT)
-    vooSaindo = 0; vitBannerAtivo = 0; vitRevelaEm = 0; vooLogoTem = 0;
+    vooSaindo = 0; vitBannerAtivo = 0; vitRevelaEm = 0; vooLogoTem = 0; vooNomeTem = 0;
     memset(vitCartEsc, 0, sizeof vitCartEsc); memset(vitCartChegou, 0, sizeof vitCartChegou);
     if (vooTem) {
       const float k = 1.0f / vtEscala();   // a origem chega em coordenadas da TELA; a Vitrine desenha na escala dela
@@ -796,6 +810,8 @@ void vertudo_colecao(const ColFolder *folder) {
       if (home_pasta_logo(folder, &lg, &lgTex) && lgTex) {
         vooLogoTem = 1; vooLogoDe = (GfxRect){ lg.x * k, lg.y * k, lg.w * k, lg.h * k };
         snprintf(vooLogoTex, sizeof vooLogoTex, "%s", lgTex);
+      } else if (home_pasta_nome(folder, &lg)) {
+        vooNomeTem = 1; vooNomeDe = (GfxRect){ lg.x * k, lg.y * k, lg.w * k, lg.h * k };
       }
       vitPreverN = 0;   // a pre-carga por permanencia acabou: daqui em diante e demanda
     } else { tr_parar(&vitTr); vitEntradaT = !anima ? 1.0e6f : HT_VOO_SEM_CARTAO_MS; }
@@ -4497,6 +4513,21 @@ static void vitDesenhar(float a, float x0) {
                                     NV_TELA_W - NV_ILHA_MARGEM_D - NV_ILHA_REP_W - 40.0f - ex);
       float ty = NV_ILHA_Y + (NV_ILHA_H - tt.h) * 0.5f, base = ty + tt.h * 0.8f;
       if (!grupo("Streaming")) txt_desenhar_alpha(eb, x0, base - eb.h * 0.8f, aCab * 0.85f);
+      if (vooNomeVoa() && vooTem && !vooSaindo && vooNomeDe.h > 1.0f && tt.h > 0) {
+        // O NOME VIAJA: sai do retangulo em que a Home o escreveu (TITULO1) e assenta no do cabecalho
+        // (TITULO3) em p = 0,60, como a logo. A linha grande e escalada no caminho e cede a do
+        // cabecalho no ultimo quarto (cruzam no mesmo retangulo: sem salto de nitidez).
+        float k = tr_saida(vitTr.p / 0.60f), sk = k;   // a mesma curva da logo
+        float fim = k <= 0.75f ? 0.0f : (k - 0.75f) / 0.25f;
+        fim = fim * fim * (3.0f - 2.0f * fim);
+        GfxRect rr = { vooNomeDe.x + (ex - vooNomeDe.x) * sk, vooNomeDe.y + (ty - vooNomeDe.y) * sk,
+                       vooNomeDe.w + ((float)tt.w - vooNomeDe.w) * sk, vooNomeDe.h + ((float)tt.h - vooNomeDe.h) * sk };
+        TxtLinha big = txt_linha_corta(TXT_TITULO1, titulo, 241, 243, 247, 255, vooNomeDe.w + 8.0f);
+        if (big.tex && fim < 0.999f)
+          gfx_rect(rr, big.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, a * (1.0f - fim));
+        if (tt.tex && fim > 0.001f)
+          gfx_rect(rr, tt.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, a * fim);
+      } else
       txt_desenhar_alpha(tt, ex, ty, aCab);
       cabEb = (GfxRect){ x0, base - eb.h * 0.8f, eb.w, eb.h }; cabTt = (GfxRect){ ex, ty, tt.w, tt.h };
     } }

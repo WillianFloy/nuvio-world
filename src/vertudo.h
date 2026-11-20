@@ -70,4 +70,5 @@ int  vertudo_opcao_ok(int i);   // 1 = fechar o painel
 // Posicao do cartao em foco na grade (testes: o foco volta ao mesmo cartao
 // depois do menu do cartaz).
 int  vertudo_foco(void);
+int vertudo_voo_titulo_ativo(void);   // World (19/11): a Home esconde a propria copia do titulo da pasta
 #endif

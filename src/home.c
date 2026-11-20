@@ -5169,6 +5169,8 @@ static unsigned long homeTesteNomePasta;
 static unsigned long homeTesteCartaoVazio;
 // 2.0.45: a logo da pasta desenhada no hero NESTE quadro (a Collection a leva ate o cabecalho).
 static const ColFolder *pastaLogoFolder; static GfxRect pastaLogoR; static char pastaLogoTex[NV_TEX_URL_MAX];
+// World (19/11): o NOME da pasta em texto (sem logo configurada, ou ela falhou) tambem viaja ao cabecalho.
+static const ColFolder *pastaNomeFolder; static GfxRect pastaNomeR;
 // 2.0.44: `logoT` = linha do tempo da LOGO configurada da pasta (ms desde que ela chegou). -1 = a camada
 // ainda nao foi desenhada; -2 = logo carregando (nada aparece, o espaco fica reservado); >= 0 = a logo
 // chegou e entra com fade; 1e6 = ja estava pronta na 1a vez (assentada). Nunca o nome no lugar dela.
@@ -5336,6 +5338,7 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
     if (logo && ap > 0 && logoF > 0.004f) {
       float w = NV_COLLECTION_HERO_LOGO_MAX_W, h = w / ap;
       if (h > NV_COLLECTION_HERO_LOGO_MAX_H) { h = NV_COLLECTION_HERO_LOGO_MAX_H; w = h * ap; }
+      if (!vertudo_voo_titulo_ativo())   // voando: a Collection desenha a logo (uma so)
       gfx_rect((GfxRect){x, NV_COLLECTION_HERO_LOGO_Y + dy[0], w, h}, logo,
                tex_marca_escura(urlFl) ? GFX_MARCA : GFX_TEXTO,
                0, 0, 0, 0, .96f, .97f, .98f, a0 * logoF);
@@ -5347,7 +5350,9 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
   } else {   // sem logo configurada, ou ela FALHOU de vez (tex_falhou): o nome em texto
     homeTesteNomePasta++;
     TxtLinha name = txt_linha_corta(TXT_TITULO1, folder->title, 241, 243, 247, 255, homeTextoLargura(700));
+    if (!vertudo_voo_titulo_ativo())   // voando: a Collection desenha o nome (um so)
     txt_desenhar_alpha(name, x, NV_COLLECTION_HERO_LOGO_Y + dy[0], a0);
+    if (a0 > 0.5f) { pastaNomeFolder = folder; pastaNomeR = (GfxRect){ x, NV_COLLECTION_HERO_LOGO_Y + dy[0], (float)name.w, (float)name.h }; }
   }
   char caption[96]; snprintf(caption, sizeof caption, i18n("%d %s · OK para explorar"), folder->nSources, i18n(folder->nSources == 1 ? "lista" : "listas"));
   TxtLinha sub = homeRetratoTelefone()
@@ -7521,6 +7526,13 @@ int home_pasta_logo(const ColFolder *f, GfxRect *r, const char **texUrl) {
   *texUrl = pastaLogoTex;
   return 1;
 }
+// World (19/11): o nome da pasta `f` desenhado em texto no hero no ultimo quadro (coordenadas da TELA).
+int home_pasta_nome(const ColFolder *f, GfxRect *r) {
+  float u = homeUnidade();
+  if (!f || f != pastaNomeFolder) return 0;
+  r->x = pastaNomeR.x * u; r->y = pastaNomeR.y * u; r->w = pastaNomeR.w * u; r->h = pastaNomeR.h * u;
+  return 1;
+}
 // A arte do destaque em tela cheia (a mesma camada da Home Moderna com o fundo
 // cheio). 1 se desenhou.
 int home_vitrine_arte(const CatItem *ci, float alfa) {
@@ -8195,7 +8207,7 @@ static void home_desenhar_(Uint32 agora) {
   // do hero apaga; a arte do hero fica (e o mesmo banner em que o cartao da pasta se transforma).
   float recTexto = 1.0f, recuo = vertudo_home_recuo(&recTexto);
   homeOcultaOrigem = vertudo_home_oculta_origem();
-  pastaLogoFolder = NULL;
+  pastaLogoFolder = NULL; pastaNomeFolder = NULL;
   const int vazioQr = homevazio_ativo(nFileiras);   // sem add-ons: o cartao com o QR no lugar da Home
   if ((ajustes_hero_ligado() || dinPalcoSplit() || palcoFundoModo != PALCO_ATUAL) &&
       !vazioQr && palcoFundoAlpha > 0.004f) {

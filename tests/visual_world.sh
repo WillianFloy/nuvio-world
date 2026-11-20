@@ -132,4 +132,14 @@ for t in src/home.c src/vertudo.c src/explorar.c src/biblioteca.c src/busca.c; d
   grep -q 'tex_previa_pedir(' "$t" || falha "$t sem previas"
 done
 echo "ok carregamento progressivo: Home, Collections, Explorar, Biblioteca, Busca"
+
+# 8. Etapa 2 (19/11): Ajustes, menus, Explorar, entrada da Collection.
+grep -q 'static float aj2PilulaEstado' src/ajustes_ux_desenho.inc && grep -q '#define AJ_SW_W 66.0f' src/ajustes_ux_desenho.inc || falha "interruptor dos Ajustes ausente"
+grep -q 'static int focoWorld(void) { return !topo(); }' src/menu.c || falha "foco World fora da Padrao"
+grep -q 'int escuro = emFoco && focoWorld();' src/menu.c || falha "rodape do menu volta a branco sobre branco"
+grep -q 'iconeTraco(d, cx, cy, s, r, g, b, a);' src/menu.c || falha "icones cheios voltaram ao menu"
+grep -q 'static int porqueCartao' src/explorar.c || falha "Explorar repete o motivo do grupo"
+grep -q 'int vertudo_voo_titulo_ativo(void)' src/vertudo.c && grep -q 'if (!vertudo_voo_titulo_ativo())' src/home.c || falha "titulo da pasta duplo no voo"
+grep -q 'home_pasta_nome(folder, &lg)' src/vertudo.c || falha "nome da pasta nao viaja ao cabecalho"
+echo "ok etapa 2: interruptor, foco World nas laterais, icones de traco, Explorar, voo do titulo"
 echo "tudo ok"
