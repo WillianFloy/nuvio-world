@@ -74,6 +74,7 @@ static int arqDiscoTem(const char *dst);
 #define MAX_FILA 128
 #define NV_TEX_STALE_FRAMES 8
 #define NV_TEX_STALE_MS 200
+#define NV_TEX_LA_VENCE_MS 1500
 #ifndef NV_TEX_UPLOAD_BUDGET_MS
 #define NV_TEX_UPLOAD_BUDGET_MS 5.0
 #endif
@@ -508,12 +509,24 @@ static SDL_cond *condLivre;
 // Logo 2*2+1 > tela cheia 1*2+1 > cartaz visivel 1 > especulativo 0.
 static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahead ? 0 : 1); }
 
+// NAVEGACAO RAPIDA (19/11): no MESMO nivel vence quem foi pedido no quadro mais
+// recente. Um cartaz visivel e pedido a cada quadro; o que a pessoa ja deixou
+// para tras para de ser pedido. Em FIFO, os cartazes por onde ela PASSOU
+// ficavam na frente dos que estao na tela agora (e o foco novo esperava toda a
+// trilha). Na pre-carga (nivel 0, sem quadro) vence o pedido MAIS NOVO: quando
+// a direcao muda, as previas do lado novo passam na frente das do lado velho
+// (que vencem em NV_TEX_LA_VENCE_MS). Empate: ordem de chegada.
+static unsigned long recenciaFila(const Item *it, int pr) {
+  return pr > 0 ? it->ultimoQuadro : (unsigned long)it->ultimoPedido;
+}
 static int tirarFila(int *f, int *ini, int fim) {
-  int p = *ini, achou = -1, idx, nivel = 0;
-  // O primeiro de maior prioridade vence; empate fica na ordem de chegada.
+  int p = *ini, achou = -1, idx, nivel = -1;
+  unsigned long recente = 0;
   while (p != fim) {
-    int pr = prioFila(&itens[f[p]]);
-    if (pr > nivel) { achou = p; nivel = pr; }
+    const Item *it = &itens[f[p]];
+    int pr = prioFila(it);
+    unsigned long rc = recenciaFila(it, pr);
+    if (pr > nivel || (pr == nivel && rc > recente)) { achou = p; nivel = pr; recente = rc; }
     p = (p + 1) % MAX_FILA;
   }
   if (achou < 0) {
@@ -647,7 +660,12 @@ static void desistir(int idx) {
     // (pedido obsoleto, sem slot, sem memoria). Insistir seria decodificar em
     // laco para jogar fora em laco. A versao pequena continua servindo, e o
     // proximo pedido com teto AINDA MAIOR volta a tentar.
-    itens[idx].tetoUsado = itens[idx].limite;
+    //
+    // EXCECAO: a PREVIA (19/11). A promocao de uma previa cai aqui sobretudo por
+    // pedido obsoleto (a pessoa passou correndo pela fileira); congelar o teto
+    // deixava o cartaz BORRADO para sempre na volta. Ele volta ao teto da
+    // previa e o proximo pedido do cartao tenta de novo.
+    itens[idx].tetoUsado = itens[idx].previa ? NV_TEX_PREVIA_LARG : itens[idx].limite;
     return;
   }
   itens[idx].estado = VAZIO;
@@ -670,9 +688,15 @@ static void amostrar(void);
 // no cache, e o LRU sabe despejar; jogar fora custa o decode inteiro outra vez.
 static int pedidoObsoleto(const Item *it) {
   Uint32 agora;
-  if (!it->ultimoPedido || !it->ultimoQuadro) return 0;
-  if (it->sup || it->lookahead) return 0;   /* ja decodificado: nao se joga fora o que custou */
+  if (it->sup) return 0;   /* ja decodificado: nao se joga fora o que custou */
   agora = SDL_GetTicks();
+  // PRE-CARGA VENCIDA (19/11): pre-busca e previa nao tem quadro (ultimoQuadro =
+  // 0) e nunca venciam: na navegacao rapida a fila guardava pedidos de lugares
+  // por onde a pessoa ja passou. Pedida ha mais de NV_TEX_LA_VENCE_MS e ainda
+  // nao baixada, ela sai da fila (o lugar novo pede as suas).
+  if (it->lookahead && !it->ultimoQuadro)
+    return it->ultimoPedido && agora - it->ultimoPedido >= NV_TEX_LA_VENCE_MS;
+  if (!it->ultimoPedido || !it->ultimoQuadro || it->lookahead) return 0;
   return quadroAtual > it->ultimoQuadro + NV_TEX_STALE_FRAMES &&
          agora - it->ultimoPedido >= NV_TEX_STALE_MS;
 }
@@ -785,6 +809,15 @@ static int emVoo(void) {
   for (int i = 0; i < nMax; i++)
     if (itens[i].estado == PENDENTE || itens[i].estado == DECODIFICADO) n++;
   return n;
+}
+
+// Ha arte de TELA (logo do titulo, fundo do destaque) pedida e ainda devendo?
+// Enquanto houver, nenhuma pre-carga nova entra (19/11): a logo que a pessoa
+// esta esperando nao divide rede nem decode com cartazes que ela ainda nao viu.
+static int urgenteDevendo(void) {
+  for (int i = 0; i < nMax; i++)
+    if (itens[i].urgente && (itens[i].estado == PENDENTE || itens[i].estado == DECODIFICADO)) return 1;
+  return 0;
 }
 
 static int despejar(int forcar);
@@ -4104,8 +4137,11 @@ int tex_lookahead_mover(TexLookahead *s) {
 }
 
 // Pede a PREVIA de um cartaz que ainda nao esta na tela (estagio 1). Mais
-// permissivo que tex_lookahead_pedir porque uma previa custa ~1/7 de um cartaz:
-// pode pedir com ate 2 em voo e com o cache ate 85 % do orcamento (cartaz cheio:
+// permissivo que tex_lookahead_pedir porque uma previa custa ~1/5 de um cartaz:
+// pede TAMBEM EM MOVIMENTO (ate 8 em voo e 8 na fila; 19/11), porque fica no
+// nivel mais baixo da fila (nunca atrasa um cartaz da tela), o mais novo passa
+// na frente (troca de direcao) e vence em NV_TEX_LA_VENCE_MS. Nada entra com
+// logo ou fundo de tela devendo. Cache ate 85 % do orcamento (cartaz cheio:
 // so ocioso e ate 75 %). Pressao de memoria ou reproducao em curso: nada. Na TV
 // de orcamento curto (<= 64 MB) o teto de previas adiantadas e menor.
 int tex_previa_pedir(const char *caminho, float largCartao) {
@@ -4122,7 +4158,7 @@ int tex_previa_pedir(const char *caminho, float largCartao) {
   int tetoAdiante = orcamento <= 64L * 1024 * 1024 ? 36 : 60;
   int pode = i < 0 && livre > 2 && adiante < tetoAdiante &&
              !pressaoAtiva() && !pressaoPlayLigada && bytesUsados < orcamento * 85 / 100 &&
-             emVoo() < 2 && (filaFim - filaIni + MAX_FILA) % MAX_FILA < 4;
+             emVoo() < 8 && (filaFim - filaIni + MAX_FILA) % MAX_FILA < 8 && !urgenteDevendo();
   SDL_UnlockMutex(mtx);
   if (!pode) return 0;
   pedidoQuadro = quadroAtual;

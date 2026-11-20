@@ -4461,6 +4461,47 @@ static int heroNomeLogo(const CatItem *ci, const char *url, int loaded,
   return same && strncmp(ci->logoIdioma, language, 2) != 0;
 }
 
+// NOME ENQUANTO A LOGO NAO CHEGA (19/11). Com a URL da logo conhecida e o
+// arquivo ainda a caminho, o espaco do titulo ficava VAZIO: na Collection,
+// arte e animacao trocavam e o nome so aparecia segundos depois, com a logo.
+// Agora: a logo atrasada mais de HERO_LOGO_TOLERA_MS -> o nome em texto entra
+// no mesmo lugar (mesma base, a altura do bloco e reservada); a logo chegando,
+// cruza com ele em HERO_LOGO_CRUZA_MS. Logo que chega dentro da tolerancia
+// (disco, cache) entra direto, sem piscar o nome. Estado por URL, 8 recentes
+// (as camadas da troca da Vitrine desenham dois titulos ao mesmo tempo).
+#define HERO_LOGO_TOLERA_MS 150u
+#define HERO_LOGO_CRUZA_MS 250u
+typedef struct { unsigned long h; Uint32 pend, chegou; int temPend, temChegou, texto; } HeroLogoEstado;
+static HeroLogoEstado heroLogoEst[8];
+static int heroLogoEstProx;
+static HeroLogoEstado *heroLogoEstDe(const char *url) {
+  unsigned long h = 5381;
+  for (const unsigned char *c = (const unsigned char *)url; *c; c++) h = h * 33u ^ *c;
+  for (int i = 0; i < 8; i++) if (heroLogoEst[i].h == h) return &heroLogoEst[i];
+  HeroLogoEstado *e = &heroLogoEst[heroLogoEstProx]; heroLogoEstProx = (heroLogoEstProx + 1) % 8;
+  memset(e, 0, sizeof *e); e->h = h;
+  return e;
+}
+// aTexto: opacidade do nome (0..1); devolve o multiplicador da logo.
+static float heroLogoCruza(const char *url, GLuint tlogo, float *aTexto) {
+  Uint32 agora = SDL_GetTicks();
+  HeroLogoEstado *e = heroLogoEstDe(url);
+  *aTexto = 0.0f;
+  if (!tlogo) {
+    e->temChegou = 0;
+    if (!e->temPend) { e->temPend = 1; e->pend = agora; }
+    if (agora - e->pend >= HERO_LOGO_TOLERA_MS) { e->texto = 1; *aTexto = 1.0f; }
+    return 0.0f;
+  }
+  if (!e->texto) return 1.0f;                 // chegou dentro da tolerancia: direto
+  if (!e->temChegou) { e->temChegou = 1; e->chegou = agora; }
+  { float k = (float)(agora - e->chegou) / (float)HERO_LOGO_CRUZA_MS;
+    if (k >= 1.0f) { e->texto = 0; e->temPend = 0; return 1.0f; }
+    k = k * k * (3.0f - 2.0f * k);
+    *aTexto = 1.0f - k;
+    return k; }
+}
+
 static float heroSinEntrelinha(void) {
   return ajustes_hero_sinopse_grande() ? 39.0f : NV_LD_HERO_SIN;   // 29 px x 1,35
 }
@@ -4789,6 +4830,11 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   int mostraNomeLogo = heroNomeLogo(ci, urlLogo && tex_falhou(urlLogo) ? NULL : urlLogo,
                                     tlogo != 0, desc_tmdb_idioma());
   int caption = mostraNomeLogo && urlLogo && !tex_falhou(urlLogo) && ci && ci->titulo[0];
+  // Logo a caminho (URL conhecida, sem falha, sem a legenda de idioma): o nome
+  // cobre a espera e cruza com ela (heroLogoCruza).
+  float aNomeEspera = 0.0f, aLogoMul = 1.0f;
+  if (urlLogo && urlLogo[0] && !mostraNomeLogo && !tex_falhou(urlLogo) && ci && ci->titulo[0])
+    aLogoMul = heroLogoCruza(urlLogo, tlogo, &aNomeEspera);
   float captionH = caption ? txt_bloco_corta(TXT_HERO_META, ci->titulo, 255, 255, 255,
                                             -1, 0, sinW, NV_LD_HERO_META, 0, 1) : 0;
   // Padrão has a shorter banner: fit the logo into the measured remaining
@@ -4876,8 +4922,15 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
       // OLED: com a opcao ligada o logo some enquanto o trailer toca (cin = 1) em vez
       // de ficar parado no canto; volta quando o trailer para.
       gfx_rect(rl, tlogo, m, 0, 0, 0, 0.0f, 1, 1, 1,
-               aLogoImg * (ajustes_esconder_logo_trailer() ? 1.0f - cin : 1.0f)); }
-  } else if (mostraNomeLogo && !caption) {
+               aLogoMul * aLogoImg * (ajustes_esconder_logo_trailer() ? 1.0f - cin : 1.0f)); }
+  }
+  if (aNomeEspera > 0.004f && !caption && ci && ci->titulo[0]) {
+    // O nome na espera da logo: mesma base e mesmo estilo do nome sem logo.
+    TxtLinha tit = heroCompactoTelefone() ? txt_linha_corta(TXT_TITULO2, ci->titulo, 255, 255, 255, 255, maxWLogo)
+                                          : heroTituloTexto(ci->titulo, maxWLogo);
+    txt_desenhar_alpha(tit, x, logoY + logoH - (float)tit.h + dyL, aNomeEspera * aLogoTxt * (1.0f - cin));
+  }
+  if (!tlogo && mostraNomeLogo && !caption) {
     // .legacy-webos .home-hero-title-text: 76px (components.css:19164), nao os
     // 56 do tema padrao.
     // Sem titulo NAO se inventa titulo. Aqui havia uma lista de demonstracao
@@ -8800,6 +8853,15 @@ static void home_desenhar_(Uint32 agora) {
               (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado),
               lw);
           }
+          // NAVEGACAO RAPIDA (19/11): mais 4 adiante, so como PREVIA (nivel mais
+          // baixo da fila, vence em 1,5 s, a direcao nova passa na frente). Com
+          // toques seguidos o cartaz entra na borda ja com imagem.
+          for (int k = 1; k <= 4; k++) {
+            int c3 = c2 + d * k;
+            if (c3 < 0 || c3 >= fileiras[r].n) break;
+            if (tex_previa_pedir(arte_por_identidade(fileiraItemIndice(&fileiras[r], c3),
+                  (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado), lw)) break;
+          }
         }
       }
       gfx_opacidade_grupo = grupoFil;
@@ -8898,6 +8960,32 @@ static void home_desenhar_(Uint32 agora) {
   if (!focoHero && foco.fileira == laFilAnt && laColAnt >= 0 && foco.coluna != laColAnt)
     laDirH = foco.coluna > laColAnt ? 1 : -1;
   laColAnt = focoHero ? -1 : foco.coluna; laFilAnt = focoHero ? -1 : foco.fileira;
+  // ROLAGEM VERTICAL EM CURSO (19/11): a fileira que vai entrar pela borda, no
+  // sentido da rolagem, ganha PREVIAS (a de repouso abaixo so roda parada).
+  if (!parado && pd <= 0.001f && cinema <= 0.001f) {
+    int primeira = -1, ultima = -1;
+    float fy = topoFil - scrollY + bordaPag.x;
+    for (int r = 0; r < nFileiras; r++) {
+      if (fy < NV_TELA_H && fy + NV_LEGACY_ROW_HEAD_H + alturaFil(r) > 0) { if (primeira < 0) primeira = r; ultima = r; }
+      fy += NV_LEGACY_ROW_HEAD_H + alturaTotalFil(r) + fileiraGap();
+    }
+    int r = adiante.direcao < 0 ? primeira - 1 : ultima + 1;
+    if (primeira >= 0 && r >= 0 && r < nFileiras && fileiras[r].tipo != FILEIRA_SOCIAL &&
+        fileiras[r].tipo != FILEIRA_CATALOGOS && !fileiraEhCanal(&fileiras[r])) {
+      TipoFileira tipo = fileiras[r].tipo;
+      float lw = larguraFil(r);
+      int deitado = editorial(tipo) || tipo == FILEIRA_LARGA || tipo == FILEIRA_HEROI ||
+                    (tipo != FILEIRA_TOP10_NUM && tipo != FILEIRA_TOP10 &&
+                     tipo != FILEIRA_CONTINUE && tipo != FILEIRA_POSTER_GRANDE && tipo != FILEIRA_HEROI_DIVIDIDO &&
+                     ajustes_posteres_deitados());
+      for (int c = 0; c < fileiras[r].n; c++) {
+        float x = homeFileiraX(r, c);
+        if (x < -lw || x > NV_TELA_W) continue;
+        if (tex_previa_pedir(arte_por_identidade(fileiraItemIndice(&fileiras[r], c),
+              (tipo == FILEIRA_CONTINUE || tipo == FILEIRA_RETORNO) ? 3 : deitado), lw)) break;
+      }
+    }
+  }
   if (parado && pd <= 0.001f && cinema <= 0.001f) {
     // 1o) ATE 5 CARTAZES ALEM DA JANELA na fileira em foco, no sentido em que a
     // pessoa anda: o proximo foco provavel. tex_lookahead_pedir so pede com o
