@@ -176,6 +176,14 @@ int main(int argc, char **argv) {
   nq = 50;
   snprintf(nome, sizeof nome, "%s-menu.bmp", saida);
   captura(nome, w);
+  // Foco no RODAPE (perfil): sob a pilula branca do World o nome tem de sair
+  // escuro (ficava branco sobre branco). So nas barras laterais.
+  if (!getenv("NUVIO_SHOT_TOPO")) {
+    int p;
+    for (p = 0; p < 12; p++) tecla(SDLK_DOWN);
+    snprintf(nome, sizeof nome, "%s-rodape.bmp", saida);
+    captura(nome, w);
+  }
   menu_fechar();
   // NUVIO_SHOT_SO_MENU=1: so o menu (sem a folha de faixas), para comparar com
   // os mockups do Glass UI sem gravar o que nao vai ser olhado.

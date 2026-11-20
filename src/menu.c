@@ -282,9 +282,13 @@ static GfxRect linhaRect(const MenuGeo *g, float y, float h, float e) {
 // BRANCA cheia com icone e rotulo escuros; a pagina atual e uma barra vertical no
 // acento. Mesma geometria, mesmas teclas, mesma mola de abrir/fechar.
 static int world(void) { return !padrao() && !topo(); }
+// A LINGUAGEM DE FOCO DO WORLD (pilula branca, icone e rotulo escuros, barra
+// no acento na pagina atual) vale nas duas barras laterais: a coluna da
+// Moderna e a ilha da Padrao. A ilha continua sendo ilha (material, deslize).
+static int focoWorld(void) { return !topo(); }
 static void focoLinha(GfxRect r, float f, float alpha) {
   if (f <= 0.01f || alpha <= 0.01f) return;
-  if (world()) {
+  if (focoWorld()) {
     // A pilula nasce do proprio tamanho (sem deslocar a linha): 96 % de largura
     // e altura indo a 100 % com o foco, opacidade junto.
     float k = 0.96f + 0.04f * f;
@@ -413,10 +417,11 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
     // estado). Aberto, a 6 px da ponta esquerda da linha, no meio da altura
     // (.it.ativo::after); na rail, 8 px acima da base do circulo, centrado
     // (mockup 2). O ponto anda entre os dois lugares junto com a largura.
-    if (atual && world()) {
-      // Pagina atual: barra vertical no acento, colada a esquerda da linha.
-      float bh = MK(26.0f);
-      gfx_cor((GfxRect){ linhaR.x - MK(12.0f), cy - bh * 0.5f, MK(4.0f), bh }, 0.5f, ar, ag, ab, a * (1.0f - 0.6f * f));
+    if (atual && focoWorld()) {
+      // Pagina atual: barra vertical no acento, colada a esquerda da linha
+      // (na ilha da Padrao, dentro dela: a borda esquerda e a da tela).
+      float bh = MK(26.0f), bx = world() ? linhaR.x - MK(12.0f) : fmaxf(linhaR.x - MK(12.0f), g.x + MK(4.0f));
+      gfx_cor((GfxRect){ bx, cy - bh * 0.5f, MK(4.0f), bh }, 0.5f, ar, ag, ab, a * (1.0f - 0.6f * f));
     } else if (atual) {
       float px = anim_mistura(icx - MK(2.5f), linhaR.x + MK(6.0f), ec);
       float py = anim_mistura(y + NV_MENU_ITEM_H - MK(8.0f + 5.0f), cy - MK(2.5f), ec);
@@ -436,8 +441,8 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
       float tr = anim_mistura(NV_MENU_FG_R, 1.0f, bw), tg = anim_mistura(NV_MENU_FG_G, 1.0f, bw),
             tb = anim_mistura(NV_MENU_FG_B, 1.0f, bw);
       // World: os inativos mais recolhidos (60 %) e, sob a pilula branca, icone escuro.
-      if (world()) {
-        if (!atual) op = anim_mistura(0.60f, 1.0f, f);
+      if (focoWorld()) {
+        if (!atual && world()) op = anim_mistura(0.60f, 1.0f, f);
         tr = anim_mistura(tr, 0.07f, f); tg = anim_mistura(tg, 0.07f, f); tb = anim_mistura(tb, 0.08f, f);
       }
       iconeTraco(i, icx, cy, NV_MENU_ICONE, tr, tg, tb, op * a);
@@ -446,7 +451,7 @@ static void desenhaBarra(float e, float a, int focos, float entrada) {
         // opacidade anda com ela.
         int emFoco = f > 0.5f;
         TxtLinha l = emFoco
-          ? (world() ? txt_linha_corta(TXT_BODY, ROTULOS[i], 18, 18, 20, 255, NV_MENU_ROTULO_MAX)
+          ? (focoWorld() ? txt_linha_corta(TXT_BODY, ROTULOS[i], 18, 18, 20, 255, NV_MENU_ROTULO_MAX)
                      : txt_linha_corta(TXT_BODY, ROTULOS[i], 255, 255, 255, 255, NV_MENU_ROTULO_MAX))
           : txt_linha_corta(TXT_BODY, ROTULOS[i], 243, 242, 239, 255, NV_MENU_ROTULO_MAX);
         txt_desenhar_alpha(l, g.x + NV_MENU_ROTULO_X, cy - l.h * 0.5f, aRot * op);
@@ -658,22 +663,18 @@ void menu_atualizar(float dt, Uint32 agora) {
   }
 }
 
-// Mesmos vetores do sidebar oficial, rasterizados no build e tintados pelo shader.
-static void icone(int d, float cx, float cy, float s, float r, float g, float b, float a) {
-  // `portal` ja e um SVG embarcado e le como entrada para uma descoberta;
-  // manter o icone real evita inventar um glifo SDF e duplicar o de Busca.
-  static const char *nomes[MENU_N] = {"menu_home", "portal", "menu_guide", "menu_search", "menu_library", "menu_agenda", "menu_profile", "menu_settings"};
-  if (d < 0 || d >= MENU_N) return;
-  gfx_icone((GfxRect){cx-s*.5f, cy-s*.5f, s, s}, nomes[d], r, g, b, a);
-}
-
-
-// Os icones da barra CLASSICA: os de traco do mockup (tools/icones-menu.sh).
-// A Dinamica continua chamando icone(), com os menu_*.png de sempre.
+// ICONES DO MENU, UMA FAMILIA SO (World, 19/11): os de TRACO (Lucide, 2 px,
+// cantos redondos; tools/icones-menu.sh) em todos os estilos. A Dinamica, a
+// pilula dela e a barra no topo usavam os menu_*.png cheios do sidebar
+// oficial; na barra do topo a Busca ja era de traco e o resto cheio, duas
+// familias lado a lado. `icone` fica como nome para os chamadores de sempre.
 static void iconeTraco(int d, float cx, float cy, float s, float r, float g, float b, float a) {
   static const char *nomes[MENU_N] = {"mt_inicio", "mt_explorar", "mt_guia", "mt_busca", "mt_biblioteca", "mt_agenda", "mt_perfil", "mt_ajustes"};
   if (d < 0 || d >= MENU_N) return;
   gfx_icone((GfxRect){cx-s*.5f, cy-s*.5f, s, s}, nomes[d], r, g, b, a);
+}
+static void icone(int d, float cx, float cy, float s, float r, float g, float b, float a) {
+  iconeTraco(d, cx, cy, s, r, g, b, a);
 }
 
 // Cor do avatar a partir do "#RRGGBB" que a conta guarda. Sem cor legivel, o
@@ -749,10 +750,14 @@ static void desenhaRodape(const MenuGeo *g, float e, float alpha, float foco, fl
     // 16 px para a acao; TXT_CAPTION2 (21) a 90 % da 19 na tela, o mais perto
     // dele que o piso de leitura do app a 3 m ainda aceita para uma frase.
     int emFoco = foco > 0.5f;
-    int c = emFoco ? 255 : 243;
+    // Sob a pilula BRANCA do foco World o texto vai a tinta escura: em branco
+    // ele sumia (nome e acao invisiveis com o foco no rodape).
+    int escuro = emFoco && focoWorld();
+    int c = escuro ? 18 : emFoco ? 255 : 243;
     TxtLinha nome = txt_linha_corta(TXT_BODY, p ? p->nome : "Sua conta", c, c - (emFoco ? 0 : 1),
                                     c - (emFoco ? 0 : 4), 255, txMax);
-    TxtLinha acao = txt_linha_corta(TXT_CAPTION2, "Trocar de perfil", 243, 242, 239, 255, txMax);
+    TxtLinha acao = escuro ? txt_linha_corta(TXT_CAPTION2, "Trocar de perfil", 18, 18, 20, 255, txMax)
+                           : txt_linha_corta(TXT_CAPTION2, "Trocar de perfil", 243, 242, 239, 255, txMax);
     float alto = nome.h + MK(2.0f) + acao.h, y0 = cy - alto * 0.5f;
     txt_desenhar_alpha(nome, tx, y0, aTexto);
     txt_desenhar_alpha(acao, tx, y0 + nome.h + MK(2.0f), aTexto * (emFoco ? .62f : .45f));

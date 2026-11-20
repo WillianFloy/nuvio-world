@@ -1104,26 +1104,34 @@ static float aj2PilulaOn(int op, int ligado) {
   if (op < 0 || op >= AJ_N) return ligado ? 1.0f : 0.0f;
   return 1.0f - ajMov(op, uxValorAtual(op));   // valor 1 = Desligado (ver lig())
 }
+// INTERRUPTOR (World, 19/11): trilho com botao deslizante, como no Google TV e
+// no tvOS, e o estado ESCRITO ao lado (a 3 m o botao sozinho nao diz "ligado"
+// para todo mundo). Era a pilula de texto da v3 ("● Ligado" cheia / "○
+// Desligado" vazada). Ligado: trilho no acento e botao na tinta do acento
+// (escuro nos acentos claros: Branco, Grafite, Dourado); desligado: trilho a
+// 16% com fio e botao claro a esquerda. `on` anima tudo junto (aj2PilulaOn).
+#define AJ_SW_W 66.0f
+#define AJ_SW_H 36.0f
 static float aj2PilulaEstado(int op, float xDir, float yc, int ligado, float a) {
-  float on = aj2PilulaOn(op, ligado);
-  TxtLinha tOff = ajTxt(TXT_V3_PILL, "Desligado");
-  TxtLinha tOn = txt_linha(TXT_V3_PILL, "Ligado", 22, 22, 26, 255);
-  // As DUAS strings sao desenhadas em crossfade: a largura nao pode seguir so
-  // uma delas (pulo de varios pixels no meio do voo, com os dois textos
-  // meio visiveis). A pilula mistura as duas larguras com o mesmo `on`.
-  float h = 50.0f, w = 20.0f + 12.0f + 10.0f + anim_mistura((float)tOff.w, (float)tOn.w, on) + 22.0f;
-  GfxRect r = { xDir - w, yc - h * 0.5f, w, h }, d = { r.x + 20.0f, yc - 6.0f, 12.0f, 12.0f };
-  if (on < 0.995f) {
-    gfx_anel(r, 0.5f, 2.0f, 1, 1, 1, 0.28f * (1.0f - on) * a);
-    gfx_anel(d, 0.5f, 2.0f, 1, 1, 1, 0.55f * (1.0f - on) * a);
-    txt_desenhar_alpha(tOff, d.x + 22.0f, yc - tOff.h * 0.5f, 0.62f * (1.0f - on) * a);
-  }
-  if (on > 0.005f) {
-    gfx_cor(r, 0.5f, 0.953f, 0.949f, 0.937f, on * a);
-    gfx_cor(d, 0.5f, 0.086f, 0.086f, 0.102f, on * a);
-    txt_desenhar_alpha(tOn, d.x + 22.0f, yc - tOn.h * 0.5f, on * a);
-  }
-  return w;
+  float on = aj2PilulaOn(op, ligado), ar, ag, ab, tinta = ajTinta() / 255.0f;
+  TxtLinha tOff = ajTxt(TXT_V3_VAL, "Desligado");
+  TxtLinha tOn = ajTxt(TXT_V3_VAL, "Ligado");
+  GfxRect tr = { xDir - AJ_SW_W, yc - AJ_SW_H * 0.5f, AJ_SW_W, AJ_SW_H };
+  float kd = AJ_SW_H - 8.0f, kx = anim_mistura(tr.x + 4.0f, tr.x + AJ_SW_W - 4.0f - kd, on);
+  float tw = anim_mistura((float)tOff.w, (float)tOn.w, on), tx = tr.x - 16.0f;
+  ajustes_acento(&ar, &ag, &ab);
+  // Trilho: desligado (vazado) por baixo, acento por cima no `on`.
+  gfx_cor(tr, 0.5f, 1, 1, 1, 0.16f * (1.0f - on) * a);
+  gfx_anel(tr, 0.5f, 2.0f, 1, 1, 1, 0.30f * (1.0f - on) * a);
+  if (on > 0.005f) gfx_cor(tr, 0.5f, ar, ag, ab, on * a);
+  // Botao: claro desligado, na tinta do acento ligado (mistura no `on`).
+  { float kr = anim_mistura(0.92f, tinta, on);
+    GfxRect k = { kx, yc - kd * 0.5f, kd, kd };
+    gfx_rect((GfxRect){ k.x - 4, k.y - 1, k.w + 8, k.h + 10 }, 0, GFX_SOMBRA, 1.0f, 0, 0, 0.5f, 0, 0, 0, 0.30f * a);
+    gfx_cor(k, 0.5f, kr, kr, kr * (tinta > 0.5f ? 1.0f : 1.05f), a); }
+  if (on < 0.995f) txt_desenhar_alpha(tOff, tx - tOff.w, yc - tOff.h * 0.5f, 0.62f * (1.0f - on) * a);
+  if (on > 0.005f) txt_desenhar_alpha(tOn, tx - tOn.w, yc - tOn.h * 0.5f, 0.92f * on * a);
+  return AJ_SW_W + 16.0f + tw;
 }
 static float aj2SegLargura(int op, int n) {
   float w = 10.0f;
@@ -1391,25 +1399,26 @@ static void ajDesenharLinha(int item, float y, float f, float a) {
 // A3: margem 20 e 8 embaixo (era 26 e 12); o nome continua 26/800 a 100%.
 #define AJ2_GRUPO_H (20.0f + 31.2f + 8.0f + 2.0f + 2.0f)
 // 2.0.2: sem a contagem a direita (so a nota de um ROTS, "para quem faz o app").
+// World (19/11): o nome do grupo em CAIXA ALTA espacejada, como os grupos do
+// indice ("ASSISTIR"), encostado nas linhas que ele nomeia (10 acima da
+// primeira) e sem o fio de 2 px na largura toda, que cortava a folha em faixas.
+// A altura do bloco (AJ2_GRUPO_H) e a mesma: rolagem e geometria nao mudam.
 static void ajDesenharGrupo(int item, float y, float a) {
   GfxRect fr = aj2ListaR();
-  float x = fr.x + 18.0f, w = fr.w - 36.0f, yc = y + 20.0f + 15.6f;
-  TxtLinha t;
+  float x = fr.x + 18.0f, w = fr.w - 36.0f, kh = (float)ajTxt(TXT_V2_KICK, "A").h;
+  float ty = y + AJ2_GRUPO_H - 10.0f - kh, larg;
+  char b[200];
   a *= aj2TextoLista;
   if (a <= 0.004f) return;
   { int sec = secDoItem[item];
     // Depois do MAIS(): "Mais opcoes · Escolha da fonte" (mockup v3, tela 07).
-    if (maisItem[sec] >= 0 && item > maisItem[sec]) {
-      char b[200];
-      snprintf(b, sizeof b, i18n("Mais opções · %s"), i18n(TELA[item].titulo));
-      t = ajTxtC(TXT_V3_GRP, b, w - 44.0f);
-    } else t = ajTxt(TXT_V3_GRP, TELA[item].titulo); }
-  txt_desenhar_alpha(t, x + 22, yc - t.h * 0.5f, a);
+    if (maisItem[sec] >= 0 && item > maisItem[sec]) snprintf(b, sizeof b, i18n("Mais opções · %s"), i18n(TELA[item].titulo));
+    else snprintf(b, sizeof b, "%s", TELA[item].titulo); }
+  larg = ajCapsC(TXT_V2_KICK, b, 2.5f, x + 22, ty, 0.62f * a, w - 44.0f);
   if (TELA[item].sub && TELA[item].sub[0]) {
-    TxtLinha c = ajTxtC(TXT_V2_24, TELA[item].sub, w - 44.0f - t.w - 24.0f);
-    txt_desenhar_alpha(c, x + w - 22 - c.w, yc - c.h * 0.5f + 1.0f, 0.60f * a);
+    TxtLinha c = ajTxtC(TXT_V2_24, TELA[item].sub, w - 44.0f - larg - 24.0f);
+    txt_desenhar_alpha(c, x + w - 22 - c.w, ty + (kh - c.h) * 0.5f, 0.60f * a);
   }
-  gfx_cor((GfxRect){ x, y + 20.0f + 31.2f + 8.0f, w, 2 }, 0, 1, 1, 1, 0.18f * a);
 }
 
 // Cabecalho da folha: kicker + titulo 40/700 + sub. Devolve onde a lista comeca.
