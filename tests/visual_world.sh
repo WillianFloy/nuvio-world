@@ -135,7 +135,7 @@ echo "ok carregamento progressivo: Home, Collections, Explorar, Biblioteca, Busc
 
 # 8. Etapa 2 (19/11): Ajustes, menus, Explorar, entrada da Collection.
 grep -q 'static float aj2PilulaEstado' src/ajustes_ux_desenho.inc && grep -q '#define AJ_SW_W 66.0f' src/ajustes_ux_desenho.inc || falha "interruptor dos Ajustes ausente"
-grep -q 'static int focoWorld(void) { return !topo(); }' src/menu.c || falha "foco World fora da Padrao"
+grep -q 'static int focoWorld(void) { return !topo() && !padrao(); }' src/menu.c || falha "foco World/Padrao trocados"
 grep -q 'int escuro = emFoco && focoWorld();' src/menu.c || falha "rodape do menu volta a branco sobre branco"
 grep -q 'iconeTraco(d, cx, cy, s, r, g, b, a);' src/menu.c || falha "icones cheios voltaram ao menu"
 grep -q 'static int porqueCartao' src/explorar.c || falha "Explorar repete o motivo do grupo"
@@ -157,4 +157,15 @@ grep -q 'V_HOME_LAYOUT, 2)' src/ajustes.c || falha "layout Dinamica voltou ao se
 grep -q 'recenciaFila' src/tex_cache.c && grep -q 'NV_TEX_LA_VENCE_MS' src/tex_cache.c || falha "fila de imagens sem recencia/vencimento"
 grep -q 'heroLogoEntra' src/home.c && ! grep -q 'aNomeEspera' src/home.c || falha "destaque: logo existente nao pode virar nome por demora (20/11)"
 echo "ok etapa 3: barra lateral, ordem, menu do topo, perfil, Preto puro, fila e logo"
+# 10. Etapa 4 (20/11): produto proprio.
+grep -q 'static void topoDesenharPadrao(void)' src/menu.c && grep -q 'static int gaveta(void)' src/menu.c || falha "Padrao sem menu do topo/gaveta proprios"
+grep -q 'AJ_FPS_MODO' src/ajustes.c && grep -q 'eglPresentationTimeANDROID' src/android.c && grep -q 'ritmo_antes_swap(win' src/main.c || falha "modo de desempenho/30 estavel ausente"
+! grep -q '"45"' src/ajustes.c || falha "modo 45 nao existe (cadencia irregular em 60 Hz)"
+grep -q '"ajustesLayoutListaLocal"' src/ajustes.c && grep -q '1, /\* Settings layout' src/ajustes_ux_padrao.inc || falha "Lista nao e o padrao dos Ajustes"
+grep -q 'static int aj2TopoCompacto' src/ajustes_ux_v2.inc || falha "pilulas do indice voltam a cortar"
+grep -q 'static float vitLinEntradaTr' src/vertudo.c || falha "fileiras da Collection voltaram ao relogio fixo"
+grep -q 'home_vitrine_logo_pronta(it)' src/vertudo.c && grep -q 'tex_logo_prebuscar' src/tex_cache.c || falha "logo da Collection sem espera/adiantamento"
+grep -q 'ASSINATURA WORLD' src/ilha.c || falha "ilha crescida sem assinatura World"
+grep -q 'static void desenharCenaClima' src/explorar.c || falha "clima do Explorar sem cena"
+echo "ok etapa 4: Padrao propria, desempenho, Ajustes em Lista, Collections, ilhas, Explorar"
 echo "tudo ok"

@@ -42,7 +42,7 @@ if [ -n "${NV_STAGE_PAIR:-}" ] || [ -n "${NV_STAGE_SCALE:-}" ]; then
   NV_STAGE_SCALE=1 "$NUVIO_DADOS/shot" "$saida/h-100" "${2:-0}"
   NV_STAGE_SCALE=0.85 "$NUVIO_DADOS/shot" "$saida/h-85" "${2:-0}"
 else
-  "$NUVIO_DADOS/shot" "$saida/h" "${2:-012}"
+  "$NUVIO_DADOS/shot" "$saida/h" "${2:-01}"
   if [ "${NV_DINPALCO:-}" = matrix ]; then
     for mode in 0 1 2; do
       NV_DINPALCO_GLASS="$((mode % 2))" NV_DINPALCO_BACKGROUND="$mode" \

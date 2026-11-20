@@ -283,8 +283,8 @@ int layout_modo_mobile(void);
 #define NV_PAD_BANNER_H   528.0f   // termina 16 px antes do titulo da fileira
 #define NV_PAD_TOPO_FIL   544.0f
 #define NV_PAD_TEXTO_BASE  72.0f   // do fim do botao ate a base do banner
-#define NV_PAD_LOGO_H     116.0f
-#define NV_PAD_LOGO_MAX_W 380.0f
+#define NV_PAD_LOGO_H     126.0f   // World 20/11: a logo da Padrao lia pequena no banner (era 116; o topo do bloco nao pode subir sob o menu do topo)
+#define NV_PAD_LOGO_MAX_W 460.0f   // World 20/11 (era 380)
 #define NV_PAD_SIN_W      760.0f
 #define NV_PAD_FILEIRA_GAP 80.0f  // vao entre fileiras (a home original respira mais)
 // Cartaz em pe do Padrao: 260x390 (2:3), o tamanho da referencia (a home

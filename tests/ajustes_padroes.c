@@ -373,7 +373,8 @@ int main(void) {
   assert(valor[AJ_ESTAT_LADO] == 0 && ajustes_estat_lado() == 0);
   valor[AJ_ESTAT_LADO] = 1; assert(ajustes_estat_lado() == 1); valor[AJ_ESTAT_LADO] = 0;
   // 13/10: o layout "Apple TV" se chama Dinamica; o valor gravado nao muda.
-  assert(HOME_LAYOUT_DINAMICA == 2 && HOME_LAYOUT_N == 3 && OPCOES[AJ_HOME_LAYOUT].n == 3);
+  // World 20/11: a Dinamica saiu do seletor (o valor 2 existe e migra para Moderna).
+  assert(HOME_LAYOUT_DINAMICA == 2 && HOME_LAYOUT_N == 3 && OPCOES[AJ_HOME_LAYOUT].n == 2);
   assert(!strcmp(V_HOME_LAYOUT[HOME_LAYOUT_DINAMICA], "Dinâmica"));
   assert(!strcmp(i18n(V_HOME_LAYOUT[HOME_LAYOUT_DINAMICA]), "Dynamic"));
   // Legacy manual choices migrate once; later choices survive repeated loads.
