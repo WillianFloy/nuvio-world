@@ -4177,6 +4177,33 @@ int tex_previa_pedir(const char *caminho, float largCartao) {
   return 1;
 }
 
+// LOGO ADIANTADA (World, 20/11): a logo do titulo que PROVAVELMENTE recebe o
+// foco (vizinhos na fileira) e pedida antes, no tamanho do destaque, no nivel
+// mais baixo da fila e sem fura-fila (nao e a logo da tela). Quando o foco
+// chega, o pedido do destaque so a promove a urgente — se ja nao estiver
+// pronta. Pode em movimento (fila < 12), 1 por quadro, sem player, sem
+// pressao, ate 85 % do orcamento. Vence como as outras pre-cargas.
+int tex_logo_prebuscar(const char *caminho, float larg) {
+  static unsigned long pedidoQuadro;
+  if (!mtx || !caminho || !*caminho || (pedidoQuadro && quadroAtual - pedidoQuadro < 1u)) return 0;
+  SDL_LockMutex(mtx);
+  int i = acharIndice(caminho, hashCaminho(caminho)), livre = 0;
+  for (int j = 0; j < nMax; j++) if (itens[j].estado == VAZIO) livre++;
+  int pode = i < 0 && livre > 2 && !pressaoAtiva() && !pressaoPlayLigada &&
+             bytesUsados < orcamento * 85 / 100 && (filaFim - filaIni + MAX_FILA) % MAX_FILA < 12;
+  SDL_UnlockMutex(mtx);
+  if (!pode) return 0;
+  pedidoQuadro = quadroAtual;
+  { int foraAntes = pedidoFora; pedidoFora = 0;
+    (void)tex_obter_limite(caminho, larg > 1.0f ? capDeLargura(larg) : NV_TEX_LARG_MAX, 0, 0);
+    pedidoFora = foraAntes; }
+  SDL_LockMutex(mtx);
+  i = acharIndice(caminho, hashCaminho(caminho));
+  if (i >= 0 && itens[i].estado != PRONTO) { itens[i].lookahead = 1; itens[i].ultimoQuadro = 0; }
+  SDL_UnlockMutex(mtx);
+  return 1;
+}
+
 int tex_previa_em_uso(const char *caminho) {
   int r = 0;
   if (!mtx || !caminho || !*caminho) return 0;

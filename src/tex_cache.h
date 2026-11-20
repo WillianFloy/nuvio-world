@@ -189,6 +189,7 @@ int tex_lookahead_pedir(const char *caminho, float largura);
 int tex_previa_pedir(const char *caminho, float largCartao);
 // 1 = a textura atual deste caminho e a previa (o tamanho do cartao ainda vem).
 int tex_previa_em_uso(const char *caminho);
+int tex_logo_prebuscar(const char *caminho, float larg);   // World 20/11: logo do provavel proximo foco
 
 // RECUSA NO PONTO DO PEDIDO (item 4 da pesquisa plx). A grade declara uma vez
 // por quadro se esta em movimento (`tex_grade_movendo`), a direcao dela em

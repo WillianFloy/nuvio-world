@@ -1,8 +1,9 @@
-// NOME NA ESPERA DA LOGO (19/11), com o home.c de verdade (heroLogoCruza):
-//   1. logo que chega dentro de 150 ms entra direto (o nome nao pisca);
-//   2. logo atrasada: o nome aparece a partir de 150 ms, no mesmo lugar;
-//   3. logo chegando: cruza em 250 ms (nome 1->0, logo 0->1, soma ~1), sem quadro vazio;
-//   4. depois do cruzamento, so a logo.
+// LOGO DO DESTAQUE (World, 20/11), com o home.c de verdade (heroLogoEntra):
+//   1. logo pronta na primeira vez que a cena a pede: entra inteira (1);
+//   2. logo a caminho: 0 (espaco vazio) por quanto tempo for -- NUNCA o nome no
+//      lugar por demora (o substituto de 150 ms da etapa 3 saiu);
+//   3. logo que chega atrasada entra em ~250 ms, crescente, sem salto;
+//   4. outro titulo comeca do zero.
 #include "../src/home.c"
 #include <assert.h>
 #include <stdio.h>
@@ -10,37 +11,31 @@ static int falhas;
 #define OK(c, m) do { if (c) printf("PASS: %s\n", m); else { printf("FAIL: %s\n", m); falhas++; } } while (0)
 int main(void) {
   assert(SDL_Init(SDL_INIT_TIMER) == 0);
-  float aT, aL;
-  // 1. rapida
-  aL = heroLogoCruza("https://x/logo-rapida.png", 0, &aT);
-  SDL_Delay(60);
-  aL = heroLogoCruza("https://x/logo-rapida.png", 0, &aT);
-  OK(aT == 0.0f && aL == 0.0f, "logo pendente ha 60 ms: nada ainda (sem piscar o nome)");
-  aL = heroLogoCruza("https://x/logo-rapida.png", 7, &aT);
-  OK(aT == 0.0f && aL == 1.0f, "logo que chega dentro de 150 ms entra direto");
-  // 2. atrasada
-  aL = heroLogoCruza("https://x/logo-lenta.png", 0, &aT);
-  SDL_Delay(170);
-  aL = heroLogoCruza("https://x/logo-lenta.png", 0, &aT);
-  OK(aT == 1.0f && aL == 0.0f, "logo atrasada (170 ms): o nome em texto ja esta na tela");
-  // 3. cruzamento
-  int vazio = 0, quadros = 0; float somaMin = 2.0f;
-  for (int t = 0; t < 40; t++) {
-    aL = heroLogoCruza("https://x/logo-lenta.png", 7, &aT);
-    if (aT + aL < 0.98f) vazio++;
-    if (aT + aL < somaMin) somaMin = aT + aL;
-    quadros++;
-    if (aT == 0.0f && aL == 1.0f) break;
+  OK(heroLogoEntra("https://x/pronta.png", 7) == 1.0f, "logo ja pronta: entra inteira, sem rampa");
+  float a = 1.0f;
+  for (int t = 0; t < 30; t++) { a = heroLogoEntra("https://x/lenta.png", 0); SDL_Delay(10); }
+  OK(a == 0.0f, "logo a caminho ha 300 ms: area vazia (sem nome no lugar)");
+  int q = 0, mono = 1; float ant = -1.0f, v = 0.0f;
+  for (int t = 0; t < 60; t++) {
+    v = heroLogoEntra("https://x/lenta.png", 7); q++;
+    if (v < ant - 1e-6f) mono = 0;
+    ant = v;
+    if (v >= 1.0f) break;
     SDL_Delay(16);
   }
-  printf("  cruzamento: %d quadros, soma minima %.3f\n", quadros, somaMin);
-  OK(quadros >= 10 && quadros <= 24, "a troca nome -> logo dura ~250 ms (nao e corte seco)");
-  OK(vazio == 0, "nenhum quadro do cruzamento fica sem titulo (nome + logo >= 98%)");
-  aL = heroLogoCruza("https://x/logo-lenta.png", 7, &aT);
-  OK(aT == 0.0f && aL == 1.0f, "depois do cruzamento, so a logo");
-  // 4. outra URL nao herda estado
-  aL = heroLogoCruza("https://x/outra.png", 0, &aT);
-  OK(aT == 0.0f, "titulo novo comeca do zero (tolerancia de novo)");
+  printf("  entrada: %d quadros\n", q);
+  OK(q >= 10 && q <= 24 && mono, "logo atrasada entra em ~250 ms, sempre crescente");
+  OK(heroLogoEntra("https://x/lenta.png", 7) == 1.0f, "depois, inteira");
+  OK(heroLogoEntra("https://x/outra.png", 0) == 0.0f, "titulo novo comeca do zero");
+  // Guardas de codigo: o substituto textual saiu e a cena espera a logo.
+  { FILE *f = fopen("src/home.c", "rb"); static char buf[1 << 23]; size_t n = f ? fread(buf, 1, sizeof buf - 1, f) : 0;
+    if (f) fclose(f); buf[n] = 0;
+    OK(!strstr(buf, "aNomeEspera") && !strstr(buf, "heroLogoCruza("), "nenhum nome por demora no desenho do destaque");
+    OK(strstr(buf, "int home_vitrine_logo_pronta(const CatItem *ci)") != NULL, "Vitrine sabe se a logo esta resolvida"); }
+  { FILE *f = fopen("src/vertudo.c", "rb"); static char buf[1 << 23]; size_t n = f ? fread(buf, 1, sizeof buf - 1, f) : 0;
+    if (f) fclose(f); buf[n] = 0;
+    OK(strstr(buf, "int logoOk = home_vitrine_logo_pronta(it) || parado >= 1200;") && strstr(buf, "home_vitrine_logo_prebuscar(vz)"),
+       "troca de cena espera a logo e as logos vizinhas sao pedidas antes"); }
   if (falhas) return 1;
   puts("hero_logo_espera: ok");
   return 0;

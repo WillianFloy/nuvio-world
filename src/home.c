@@ -4466,17 +4466,16 @@ static int heroNomeLogo(const CatItem *ci, const char *url, int loaded,
   return same && strncmp(ci->logoIdioma, language, 2) != 0;
 }
 
-// NOME ENQUANTO A LOGO NAO CHEGA (19/11). Com a URL da logo conhecida e o
-// arquivo ainda a caminho, o espaco do titulo ficava VAZIO: na Collection,
-// arte e animacao trocavam e o nome so aparecia segundos depois, com a logo.
-// Agora: a logo atrasada mais de HERO_LOGO_TOLERA_MS -> o nome em texto entra
-// no mesmo lugar (mesma base, a altura do bloco e reservada); a logo chegando,
-// cruza com ele em HERO_LOGO_CRUZA_MS. Logo que chega dentro da tolerancia
-// (disco, cache) entra direto, sem piscar o nome. Estado por URL, 8 recentes
-// (as camadas da troca da Vitrine desenham dois titulos ao mesmo tempo).
-#define HERO_LOGO_TOLERA_MS 150u
-#define HERO_LOGO_CRUZA_MS 250u
-typedef struct { unsigned long h; Uint32 pend, chegou; int temPend, temChegou, texto; } HeroLogoEstado;
+// LOGO DO TITULO: SO A LOGO QUANDO ELA EXISTE (World, 20/11, dono). O nome em
+// texto so aparece quando o titulo NAO TEM logo (sem URL, ou o cache ja provou
+// a falha: tex_falhou). Logo a caminho NAO e logo ausente: nada de nome no
+// lugar por demora (o substituto de 150 ms da etapa 3 saiu). A troca de cena
+// da Vitrine espera a logo (home_vitrine_logo_pronta) e as logos vizinhas sao
+// pedidas antes (home_vitrine_logo_prebuscar). Se mesmo assim a logo chegar
+// depois da cena, ela ENTRA em HERO_LOGO_ENTRA_MS em vez de aparecer de uma vez.
+// Estado por URL, 8 recentes (as camadas da troca desenham dois titulos).
+#define HERO_LOGO_ENTRA_MS 250u
+typedef struct { unsigned long h; Uint32 chegou; int temChegou, esperou; } HeroLogoEstado;
 static HeroLogoEstado heroLogoEst[8];
 static int heroLogoEstProx;
 static HeroLogoEstado *heroLogoEstDe(const char *url) {
@@ -4487,24 +4486,17 @@ static HeroLogoEstado *heroLogoEstDe(const char *url) {
   memset(e, 0, sizeof *e); e->h = h;
   return e;
 }
-// aTexto: opacidade do nome (0..1); devolve o multiplicador da logo.
-static float heroLogoCruza(const char *url, GLuint tlogo, float *aTexto) {
+// Multiplicador da logo: 0 enquanto ela nao chegou; 1 se ja estava pronta na
+// primeira vez que a cena a pediu; a rampa so quando ela chegou ATRASADA.
+static float heroLogoEntra(const char *url, GLuint tlogo) {
   Uint32 agora = SDL_GetTicks();
   HeroLogoEstado *e = heroLogoEstDe(url);
-  *aTexto = 0.0f;
-  if (!tlogo) {
-    e->temChegou = 0;
-    if (!e->temPend) { e->temPend = 1; e->pend = agora; }
-    if (agora - e->pend >= HERO_LOGO_TOLERA_MS) { e->texto = 1; *aTexto = 1.0f; }
-    return 0.0f;
-  }
-  if (!e->texto) return 1.0f;                 // chegou dentro da tolerancia: direto
+  if (!tlogo) { e->esperou = 1; e->temChegou = 0; return 0.0f; }
+  if (!e->esperou) return 1.0f;
   if (!e->temChegou) { e->temChegou = 1; e->chegou = agora; }
-  { float k = (float)(agora - e->chegou) / (float)HERO_LOGO_CRUZA_MS;
-    if (k >= 1.0f) { e->texto = 0; e->temPend = 0; return 1.0f; }
-    k = k * k * (3.0f - 2.0f * k);
-    *aTexto = 1.0f - k;
-    return k; }
+  { float k = (float)(agora - e->chegou) / (float)HERO_LOGO_ENTRA_MS;
+    if (k >= 1.0f) { e->esperou = 0; return 1.0f; }
+    return k * k * (3.0f - 2.0f * k); }
 }
 
 static float heroSinEntrelinha(void) {
@@ -4835,11 +4827,11 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   int mostraNomeLogo = heroNomeLogo(ci, urlLogo && tex_falhou(urlLogo) ? NULL : urlLogo,
                                     tlogo != 0, desc_tmdb_idioma());
   int caption = mostraNomeLogo && urlLogo && !tex_falhou(urlLogo) && ci && ci->titulo[0];
-  // Logo a caminho (URL conhecida, sem falha, sem a legenda de idioma): o nome
-  // cobre a espera e cruza com ela (heroLogoCruza).
-  float aNomeEspera = 0.0f, aLogoMul = 1.0f;
-  if (urlLogo && urlLogo[0] && !mostraNomeLogo && !tex_falhou(urlLogo) && ci && ci->titulo[0])
-    aLogoMul = heroLogoCruza(urlLogo, tlogo, &aNomeEspera);
+  // Logo a caminho: espaco vazio (a troca de cena ja a esperou); se chegar
+  // depois, entra suave (heroLogoEntra). Nunca o nome no lugar por demora.
+  float aLogoMul = 1.0f;
+  if (urlLogo && urlLogo[0] && !mostraNomeLogo && !tex_falhou(urlLogo))
+    aLogoMul = heroLogoEntra(urlLogo, tlogo);
   float captionH = caption ? txt_bloco_corta(TXT_HERO_META, ci->titulo, 255, 255, 255,
                                             -1, 0, sinW, NV_LD_HERO_META, 0, 1) : 0;
   // Padrão has a shorter banner: fit the logo into the measured remaining
@@ -4928,12 +4920,6 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
       // de ficar parado no canto; volta quando o trailer para.
       gfx_rect(rl, tlogo, m, 0, 0, 0, 0.0f, 1, 1, 1,
                aLogoMul * aLogoImg * (ajustes_esconder_logo_trailer() ? 1.0f - cin : 1.0f)); }
-  }
-  if (aNomeEspera > 0.004f && !caption && ci && ci->titulo[0]) {
-    // O nome na espera da logo: mesma base e mesmo estilo do nome sem logo.
-    TxtLinha tit = heroCompactoTelefone() ? txt_linha_corta(TXT_TITULO2, ci->titulo, 255, 255, 255, 255, maxWLogo)
-                                          : heroTituloTexto(ci->titulo, maxWLogo);
-    txt_desenhar_alpha(tit, x, logoY + logoH - (float)tit.h + dyL, aNomeEspera * aLogoTxt * (1.0f - cin));
   }
   if (!tlogo && mostraNomeLogo && !caption) {
     // .legacy-webos .home-hero-title-text: 76px (components.css:19164), nao os
@@ -5661,6 +5647,15 @@ static void desenhaHero(Uint32 agora, float saida) {
     if (!artePronta && SDL_GetTicks() - heroDesejadoEm >= NV_HERO_ESPERA_MS) {
       artePronta = 1;
       heroEstourou = 1;
+    }
+    // A LOGO TAMBEM (World, 20/11): o destaque so troca com a logo resolvida
+    // (pronta ou inexistente), ate 1200 ms; depois disso ela entra suave quando
+    // chegar (heroLogoEntra). O nome nunca ocupa o lugar de uma logo que existe.
+    if (artePronta && SDL_GetTicks() - heroDesejadoEm < 1200u) {
+      const CatItem *cQ = cat_item_exato(heroDesejado);
+      const char *uQ = cQ ? artehero_logo_sessao(cQ) : NULL;
+      if (uQ && uQ[0] && !tex_falhou(uQ) && !tex_obter_logo_larg_qualquer(uQ, heroLogoMaxW(lay, cheio)))
+        artePronta = 0;
     }
     if (artePronta) {
       // A ESPERA REAL, medida e nao suposta. E o intervalo entre o foco parar
@@ -7542,6 +7537,23 @@ int home_vitrine_cartao_aquecer(const CatItem *ci, float w) {
 int home_vitrine_arte_ok(const CatItem *ci) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;
   return a && a[0] && tex_obter_hero(a) != 0;
+}
+// A LOGO do destaque da Vitrine esta RESOLVIDA: pronta, ou o titulo nao tem
+// logo (sem URL / falha provada). Chamar ja pede a logo (fura-fila de logo).
+// Mesma URL e mesma largura do desenho (desenhaCopiaHero, principal = 0).
+int home_vitrine_logo_pronta(const CatItem *ci) {
+  int lay = home_vitrine_layout();
+  const char *u = ci ? artehero_logo_sessao(ci) : NULL;
+  if (!u || !u[0] || tex_falhou(u)) return 1;
+  return tex_obter_logo_larg_qualquer(u, heroLogoMaxW(lay, lay == HOME_LAYOUT_MODERNA)) != 0;
+}
+// A logo de um titulo que deve receber o foco em seguida (vizinho), pedida sem
+// fura-fila (tex_logo_prebuscar). 1 se pediu agora.
+int home_vitrine_logo_prebuscar(const CatItem *ci) {
+  int lay = home_vitrine_layout();
+  const char *u = ci ? artehero_logo_sessao(ci) : NULL;
+  if (!u || !u[0] || tex_falhou(u)) return 0;
+  return tex_logo_prebuscar(u, heroLogoMaxW(lay, lay == HOME_LAYOUT_MODERNA));
 }
 int home_vitrine_arte_pronta(const CatItem *ci) {
   const char *a = ci ? arte_hero_do_item(ci) : NULL;

@@ -155,6 +155,6 @@ grep -q 'confTrocar = 1; confFoco = 1;' src/menu.c || falha "troca de perfil sem
 grep -q 'if (gfx_tema_preto && !video)' src/gfx.c || falha "Preto puro sem vidro preto (menu do topo, relogio)"
 grep -q 'V_HOME_LAYOUT, 2)' src/ajustes.c || falha "layout Dinamica voltou ao seletor"
 grep -q 'recenciaFila' src/tex_cache.c && grep -q 'NV_TEX_LA_VENCE_MS' src/tex_cache.c || falha "fila de imagens sem recencia/vencimento"
-grep -q 'heroLogoCruza' src/home.c || falha "destaque sem o nome na espera da logo"
+grep -q 'heroLogoEntra' src/home.c && ! grep -q 'aNomeEspera' src/home.c || falha "destaque: logo existente nao pode virar nome por demora (20/11)"
 echo "ok etapa 3: barra lateral, ordem, menu do topo, perfil, Preto puro, fila e logo"
 echo "tudo ok"

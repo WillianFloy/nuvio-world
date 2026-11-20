@@ -2613,7 +2613,13 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     if (des != vitHeroDes) { vitHeroDes = des; vitHeroDesde = agora; }
     if (it && des != vitHeroAtual) {
       Uint32 parado = agora - vitHeroDesde;
-      if (vitHeroAtual < 0 || (parado >= 140 && (home_vitrine_arte_pronta(it) || parado >= 700))) {
+      // World (20/11): a cena so troca com a ARTE e a LOGO resolvidas (pronta ou
+      // inexistente), para o fundo novo nunca chegar com a area da logo vazia.
+      // Tetos: arte 700 ms (como antes), logo 1200 ms (rede travada); passou o
+      // teto da logo, ela entra suave quando chegar (heroLogoEntra), sem nome no lugar.
+      int arteOk = home_vitrine_arte_pronta(it) || parado >= 700;
+      int logoOk = home_vitrine_logo_pronta(it) || parado >= 1200;
+      if (vitHeroAtual < 0 || (parado >= 140 && arteOk && logoOk)) {
         // Empilha: o que estava na tela continua com o progresso que tinha.
         // Se ja eram 3 camadas, a de baixo sai e a seguinte termina na hora
         // (so no toque rapidissimo; no ritmo normal a de baixo ja acabou).
@@ -2635,7 +2641,16 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       if (vooTem) { seguraTitulo = 1; if (h0 && vitTr.fase >= TR_REVELA) (void)home_vitrine_arte_pronta(h0); }
       // Sem teto aqui de proposito: com o banner por baixo nada fica vazio, e soltar o titulo antes da arte
       // faria a arte dele aparecer de uma vez quando chegasse (tela cheia). Falha conta como resolvida.
-      else if (h0 && !home_vitrine_arte_pronta(h0)) seguraTitulo = 1;
+      else if (h0 && (!home_vitrine_arte_pronta(h0) || !home_vitrine_logo_pronta(h0))) seguraTitulo = 1;
+    }
+    // LOGOS ADIANTADAS: os vizinhos do foco na fileira (+-1, +-2), sem fura-fila.
+    // Quando o foco chega neles, a logo ja esta pronta e a cena troca inteira.
+    if (vitFR >= 0 && vitFR < vitN) {
+      static const int VIZ[4] = { 1, -1, 2, -2 };
+      for (int k = 0; k < 4; k++) {
+        CatItem *vz = vitItem(vitFR, vitFC + VIZ[k]);
+        if (vz && home_vitrine_logo_prebuscar(vz)) break;
+      }
     }
     if (seguraTitulo) vitHeroEntra = 0.0f;
     else if (vitHeroEntra < 1.0f) {
