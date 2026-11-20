@@ -124,6 +124,10 @@ int main(int argc, char **argv) {
         if (lay && *lay) fprintf(f, "homeLayoutLocal %d\n", atoi(lay)); }
       // NUVIO_SHOT_TOPO=1: a barra no topo (menuTopoLocal, #461).
       if (getenv("NUVIO_SHOT_TOPO")) fputs("menuTopoLocal 1\n", f);
+      { const char *tam = getenv("NUVIO_SHOT_TOPO_TAM");   // 0 Pequeno, 1 Medio, 2 Grande
+        if (tam && *tam) fprintf(f, "menuTopoTamanhoLocal %d\n", atoi(tam)); }
+      { const char *mo = getenv("NUVIO_SHOT_TOPO_MODO");   // 0 Somente icones, 1 Icones e textos
+        if (mo && *mo) fprintf(f, "menuTopoModoLocal %d\n", atoi(mo)); }
       shot_arte_material(f);
       fclose(f);
       // O perfil do mockup (avatar roxo com a inicial e o nome), pelo mesmo

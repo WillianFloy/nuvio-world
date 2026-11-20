@@ -1894,7 +1894,17 @@ static void topoAtualizar(float dt) {
     if (pousa) { topoMixAlfa[k] = alvo; topoMixVel[k] = 0.0f; }
     else topoMixAlfa[k] = anim_mola2(&topoMixVel[k], topoMixAlfa[k], alvo, dt, TOPO_K_MISTOS);
   }
-  topoMedir(&t);
+  // FOCO DESCENTRADO NO "ICONES E TEXTOS" (TCL, 20/11): esta conta corria na
+  // escala do app (Tamanho da interface), mas o desenho corre na escala FIXA
+  // do menu (NV_MENU_ESCALA, menu_desenhar) -- e a fonte rasteriza diferente
+  // em cada uma: os rotulos mediam 1-3 px a mais aqui do que no desenho. A
+  // capsula (fundo do foco) mirava a pilula medida AQUI e o rotulo era
+  // desenhado na pilula medida LA: a sobra acumulava item a item (ate 10 px
+  // em Grande, crescendo para a direita). Mede na mesma escala do desenho.
+  { float ant = gfx_escala();
+    gfx_escala_sair(NV_MENU_ESCALA);
+    topoMedir(&t);
+    gfx_escala_sair(ant); }
   topoCapsulaPasso(&topoSel, &t, topoIndice(t.ordem, t.n, destino), pousa, dt);
   if (t.modo == 1 && !topoPadrao()) {
     int idx = aberto ? topoIndice(t.ordem, t.n, linha) : -1;
@@ -1929,7 +1939,10 @@ void menu_topo_geo(MenuTopoGeo *o) {
   TopoTira t;
   float e = NV_MENU_ESCALA, x0;
   int k;
-  topoMedir(&t);
+  { float ant = gfx_escala();   // na escala do desenho (ver topoAtualizar)
+    gfx_escala_sair(NV_MENU_ESCALA);
+    topoMedir(&t);
+    gfx_escala_sair(ant); }
   memset(o, 0, sizeof *o);
   x0 = topoX0(&t);
   o->n = t.n; o->cortado = t.cortado;
@@ -1966,6 +1979,16 @@ static void topoCapsula(const TopoCapsula *c, float x0, float y, int foco, float
 //  - contraste: o veu do alto e mais denso com o menu aberto (arte clara nao
 //    engole o rotulo) e o texto nunca fica abaixo de 62 %.
 // O avatar abre a linha sem circulo de vidro: so a foto, com aro e zoom no foco.
+// NUVIO_TOPO_GEO=1 (testes): a geometria DESENHADA do item em foco -- o fundo
+// do foco (capsula) e o grupo icone+rotulo -- para medir a centragem.
+static float topoGeoRx, topoGeoRw;
+static void topoGeoLog(int id, float capX, float capW, float cobre, float cx, float cw) {
+  static int liga = -1;
+  if (liga < 0) liga = getenv("NUVIO_TOPO_GEO") != NULL;
+  if (!liga || cobre < 0.98f) return;
+  printf("[topogeo] id=%d pilula=%.1f+%.1f cap=%.1f+%.1f conteudo=%.1f+%.1f esq=%.1f dir=%.1f\n", id, topoGeoRx, topoGeoRw, capX, capW, cx, cw,
+         cx - capX, capX + capW - (cx + cw));
+}
 static void topoDesenharPadrao(void) {
   TopoTira t;
   int k, focos = aberto || desliza >= 0.002f || expande > 0.004f;
@@ -1980,13 +2003,12 @@ static void topoDesenharPadrao(void) {
   }
   ajustes_acento(&ar, &ag, &ab);
   // A faixa: preto do alto ate ~2,6x a altura da barra, curva suave.
-  gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, TOPO_Y + TOPO_H * 2.6f }, 1, 1.6f, 1.0f,
-              a * (0.50f + 0.28f * anim_suave(desliza)));
-  // CONTRASTE SOBRE ARTE CLARA (TCL, 20/11): uma sombra difusa so atras das
-  // abas (mancha, sem borda nem retangulo), que segue a largura da tira. O
-  // veu do alto continua leve; e a mancha que garante o rotulo legivel.
-  gfx_rect((GfxRect){ x0 - TS(70.0f), y - TS(26.0f), t.larg + TS(140.0f), TOPO_PILULA_H + TS(52.0f) }, 0,
-           GFX_SOMBRA, 1.0f, 0, 0, 0.5f, 0, 0, 0, 0.55f * a);
+  // A FAIXA PRETA SOB O MENU (TCL, 20/11 tarde): era a "sombra difusa" atras
+  // das abas (GFX_SOMBRA num retangulo): a borda de baixo dela virava uma
+  // linha escura logo abaixo dos rotulos. Saiu. O contraste vem de um degrade
+  // so (alto da tela, sem borda: termina em zero) e da sombra do proprio texto.
+  gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, TOPO_Y + TOPO_H * 3.2f }, 1, 1.5f, 1.0f,
+              a * (0.58f + 0.24f * anim_suave(desliza)));
   if (aberto) ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroFora, 0, 0);
   // Perfil.
   fAv = focos ? animFoco[MENU_RODAPE] : 0.0f;
@@ -2022,11 +2044,23 @@ static void topoDesenharPadrao(void) {
       iconeTraco(i, r.x + r.w * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
     } else {
       TxtLinha l = txt_linha_corta(topoEstiloTxt(t.txtEscala), topoRotulo(i), 255, 255, 255, 255, r.w - 2.0f * t.pad + 1.0f);
-      float tx = r.x + t.pad;
+      // FOCO DESCENTRADO NO "ICONES E TEXTOS" (TCL, 20/11 tarde): o conteudo
+      // saia de r.x + pad, mas a largura da pilula vem de txt_largura (avanco
+      // da fonte) e o rotulo desenhado tem a largura do TxtLinha -- a sobra
+      // ficava toda a direita (na captura: 25 px a esquerda, 18 a direita, e
+      // variando por item). Agora o grupo icone+rotulo e CENTRADO na pilula
+      // com a largura real do que se desenha, entao o foco (que e a pilula)
+      // fica centrado em qualquer item e tamanho.
+      float cw = (t.semIcone ? 0.0f : TOPO_ICONE + TOPO_ICON_VAO) + l.w;
+      float tx = r.x + floorf((r.w - cw) * 0.5f);
+      topoGeoRx = r.x; topoGeoRw = r.w;
+      topoGeoLog(i, x0 + topoFoc.x, topoFoc.w, fm, tx, cw);
       if (!t.semIcone) {
-        iconeTraco(i, r.x + t.pad + TOPO_ICONE * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
+        iconeTraco(i, tx + TOPO_ICONE * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
         tx += TOPO_ICONE + TOPO_ICON_VAO;
       }
+      { TxtLinha sb = txt_linha_corta(topoEstiloTxt(t.txtEscala), topoRotulo(i), 0, 0, 0, 255, r.w - 2.0f * t.pad + 1.0f);
+        txt_desenhar_borda(sb, tx, y + (TOPO_PILULA_H - l.h) * 0.5f, 2, 0.55f * ta); }   // sombra do rotulo, sobre arte clara
       txt_desenhar_tom(l, tx, y + (TOPO_PILULA_H - l.h) * 0.5f, 0.953f, 0.949f, 0.937f, ta);
     }
   }
@@ -2097,11 +2131,17 @@ static void topoDesenhar(void) {
     } else {
       float m = limita01(topoMixAlfa[i]);
       TxtLinha l = txt_linha_corta(topoEstiloTxt(t.txtEscala), topoRotulo(i), 255, 255, 255, 255, t.rotMax);
-      float centro = r.x + r.w * 0.5f;
-      float ix = anim_mistura(centro, r.x + t.pad + TOPO_ICONE * 0.5f, m);
+      // Grupo icone+rotulo CENTRADO na pilula com a largura real do rotulo
+      // (que cresce com m): em m = 0 e o icone no centro, em m = 1 o par
+      // inteiro centrado -- o foco nunca fica com sobra de um lado so.
+      float cw = TOPO_ICONE + (TOPO_ICON_VAO + l.w) * m;
+      float x0g = r.x + floorf((r.w - cw) * 0.5f);
+      topoGeoRx = r.x; topoGeoRw = r.w;
+      topoGeoLog(i, x0 + topoFoc.x, topoFoc.w, fm, x0g, cw);
+      float ix = x0g + TOPO_ICONE * 0.5f;
       icone(i, ix, y + TOPO_PILULA_H * 0.5f, TOPO_ICONE, tr, tg, tb, ta);
       if (m > 0.001f) {
-        float tx = r.x + t.pad + TOPO_ICONE + TOPO_ICON_VAO;
+        float tx = x0g + TOPO_ICONE + TOPO_ICON_VAO;
         txt_desenhar_tom(l, tx, y + (TOPO_PILULA_H - l.h) * 0.5f, tr, tg, tb, ta * m);
       }
     }
