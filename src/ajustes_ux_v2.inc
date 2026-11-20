@@ -945,9 +945,9 @@ static const char *aj2LDesc(int sec) {
   return sec < (int)(sizeof SECAO_AJUDA / sizeof *SECAO_AJUDA) ? SECAO_AJUDA[sec] : TELA[secIni[sec]].sub;
 }
 // A frase medida na largura que ela tem (ate o valor nao: ela mora embaixo dele).
+static float aj2LLinhaW(void);
 static float aj2LDescH(int sec) {
-  GfxRect g = aj2GradeR();
-  float w = g.w - 2 * AJ2_G_PAD - (22.0f + AJ2_L_ICO + 26.0f) - 60.0f;
+  float w = aj2LLinhaW() - (22.0f + AJ2_L_ICO + 26.0f) - 60.0f;
   float h = txt_bloco(TXT_V3_SUB, aj2LDesc(sec), 0, 0, 0, 0, -4000, w, AJ2_L_DLH, 0, 2);
   return h < 1.0f ? 0.0f : (h > 2 * AJ2_L_DLH ? 2 * AJ2_L_DLH : h) + 6.0f;
 }
@@ -967,9 +967,21 @@ static float aj2LYRel(int sec, float *total) {
   if (total) *total = y;
   return ys;
 }
+// AJUSTES EM DUAS COLUNAS (World, 20/11: "um menu de Configuracoes proprio,
+// em lista, com categorias bem organizadas e conteudo ao lado"). Na Lista em
+// paisagem o indice vira a COLUNA DAS CATEGORIAS (46% da largura) e, a direita,
+// a PREVIA VIVA da categoria em foco: o que ela e e as opcoes dela com o valor
+// de agora (aj2DesenharPreviaLista). Andar na coluna troca a previa na hora; OK
+// (ou a direita) entra -- a navegacao e a de sempre, so a tela mudou.
+static int aj2DuasColunas(void) { return aj2Lista() && !ajRetrato(); }
+static float aj2LLinhaW(void) {
+  GfxRect g = aj2GradeR();
+  float w = g.w - 2 * AJ2_G_PAD;
+  return aj2DuasColunas() ? floorf(w * 0.46f) : w;
+}
 static GfxRect aj2LLinhaR(int sec) {
   GfxRect g = aj2GradeR();
-  return (GfxRect){ g.x + AJ2_G_PAD, aj2LTopo() + aj2LYRel(sec, NULL) - aj2LRol, g.w - 2 * AJ2_G_PAD, aj2LLinhaH(sec) };
+  return (GfxRect){ g.x + AJ2_G_PAD, aj2LTopo() + aj2LYRel(sec, NULL) - aj2LRol, aj2LLinhaW(), aj2LLinhaH(sec) };
 }
 // A altura da linha fechada se ajusta ao que sobra (a 80% tudo cabe sem rolar);
 // sem lugar, fica na minima e a lista rola mantendo o foco no terco de cima.
@@ -1045,6 +1057,55 @@ static void aj2LLinha(int sec, float f, float a) {
   }
   gfx_opacidade_grupo = grupo;
 }
+// A PREVIA DA CATEGORIA (coluna da direita do indice em Lista): ladrilho do
+// icone no acento, grupo, nome, a frase da categoria e as opcoes dela com o
+// valor de agora (as visiveis, na ordem da tela; avancadas so com a pilula
+// ligada). Nao e focavel: e para LER antes de entrar. Sem vidro e sem caixa:
+// um fio a esquerda separa as colunas.
+static void aj2DesenharPreviaLista(int sec, GfxRect r, float a) {
+  float ar, ag, ab, tinta = ajTinta() / 255.0f, y = r.y + 8.0f, x = r.x + 40.0f, w = r.w - 40.0f;
+  float grupo = gfx_opacidade_grupo, tile = 72.0f;
+  int i, j = sec + 2, mostradas = 0, resto = 0;
+  if (r.w < 300.0f || a <= 0.004f) return;
+  ajustes_acento(&ar, &ag, &ab);
+  gfx_opacidade_grupo = grupo * a;
+  gfx_cor((GfxRect){ r.x, r.y, 1, r.h }, 0, 1, 1, 1, 0.08f);
+  { GfxRect tr = { x, y, tile, tile };
+    gfx_cor(tr, 20.0f / tile, ar, ag, ab, 1);
+    gfx_icone((GfxRect){ tr.x + 17, tr.y + 17, 38, 38 }, aj2MenuIcone(j), tinta, tinta, tinta, 1); }
+  ajKickerAcento(i18n(aj2GrupoNome(aj2Grupo(sec))), x + tile + 24.0f, y + 6.0f, 1);
+  { TxtLinha t = ajTxtC(TXT_V2_TIT, aj2MenuTitulo(j), w - tile - 24.0f); txt_desenhar(t, x + tile + 24.0f, y + 26.0f); }
+  y += tile + 26.0f;
+  { float h = txt_bloco(TXT_V3_SUB, aj2LDesc(sec), 196, 200, 212, x, y, w, AJ2_L_DLH, 0.80f, 3);
+    y += (h > 0 ? h : 0) + 30.0f; }
+  ajCaps(TXT_V2_KICK, "Nesta categoria", 2.52f, x, y, 0.45f);
+  y += 40.0f;
+  for (i = secIni[sec] + 1; i < secFim(sec); i++) {
+    int op;
+    const char *v, *ic;
+    TxtLinha lr, lv;
+    if (TELA[i].tipo != IT_OPC || !visivel(i)) continue;
+    op = TELA[i].op;
+    if (!ajOpcaoDisponivel(op) || (uxAvancada(op) && !lig(AJ_AVANCADAS))) continue;
+    if (y + 52.0f > r.y + r.h - 20.0f) { resto++; continue; }
+    ic = ajVisualIcone(op);
+    if (ic) ajIcone(ic, x, y + 4.0f, 26.0f, 0.55f);
+    v = ajTipo(op) == AJL_ACAO || ajTipo(op) == AJL_LER ? ajEstadoAcao(op) : textoValor(op);
+    lv = ajTxtC(TXT_V2_24, v ? v : "", w * 0.40f);
+    lr = ajTxtC(TXT_V2_26, rotuloOpcao(op), w - 48.0f - (v && v[0] ? lv.w + 24.0f : 0.0f));
+    txt_desenhar_alpha(lr, x + 44.0f, y + 17.0f - lr.h * 0.5f, 0.92f);
+    if (v && v[0]) txt_desenhar_alpha(lv, x + w - lv.w, y + 17.0f - lv.h * 0.5f, 0.60f);
+    gfx_cor((GfxRect){ x + 44.0f, y + 46.0f, w - 44.0f, 1 }, 0, 1, 1, 1, 0.05f);
+    y += 52.0f; mostradas++;
+  }
+  if (resto > 0) {
+    char b[64];
+    snprintf(b, sizeof b, i18n(resto == 1 ? "e mais %d opção" : "e mais %d opções"), resto);
+    { TxtLinha l = ajTxt(TXT_V2_24, b); txt_desenhar_alpha(l, x + 44.0f, y + 6.0f, 0.50f); }
+  }
+  (void)mostradas;
+  gfx_opacidade_grupo = grupo;
+}
 static void aj2DesenharIdxLista(void) {
   GfxRect g = aj2GradeR();
   int n = nSecoes > AJ2_NMENU - 2 ? AJ2_NMENU - 2 : nSecoes, s, foco = focoIndice && uxTopo < 0 ? uxIndice - 2 : -1;
@@ -1067,6 +1128,15 @@ static void aj2DesenharIdxLista(void) {
   if (foco >= 0 && foco < n) { GfxRect r = aj2LLinhaR(foco); aj2LLinha(foco, aj2GF[foco + 2], aj2LMascara(r.y + aj2LRh * 0.5f)); }
   gfx_sem_recorte();
   if (ajRetrato()) return;
+  if (aj2DuasColunas()) {
+    // A previa segue a ultima categoria em foco (nas pilulas do alto, a de antes).
+    static int ultSec;
+    if (foco >= 0 && foco < n) ultSec = foco;
+    if (ultSec >= 0 && ultSec < n) {
+      float x0 = g.x + AJ2_G_PAD + aj2LLinhaW() + 48.0f;
+      aj2DesenharPreviaLista(ultSec, (GfxRect){ x0, topo, g.x + g.w - AJ2_G_PAD - x0, base - topo }, foco >= 0 ? 1.0f : 0.55f);
+    }
+  }
   // O pe: um fio, o que o alvo do alto faz (a esquerda) e as teclas (a direita).
   { AjDica d[2] = { { "OK", "Abrir" }, { "Voltar", "Sair dos ajustes" } };
     float yc = g.y + g.h - AJ2_L_PE * 0.5f - 4.0f, x = g.x + AJ2_G_PAD + 24.0f, fim = g.x + g.w - AJ2_G_PAD - 24.0f;
@@ -1215,6 +1285,39 @@ static void aj2PonteiroCabLayout(int a, int b) {
   if (ajLayoutSelecionavel() && !uxEditor && uxIndice >= 2) { focoIndice = 0; uxCabLayout = 1; }
 }
 #endif
+// A COLUNA DAS CATEGORIAS NA PAGINA (Lista): a mesma coluna do indice em
+// versao compacta -- icone e nome, a atual no acento com o traco a esquerda.
+// So orienta (nao e focavel): Voltar/esquerda leva ao indice, que e ela mesma
+// em tamanho cheio, com a categoria atual em foco.
+static void aj2DesenharColunaPagina(float a) {
+  GfxRect l = aj2ListaR();
+  int s, n = nSecoes > AJ2_NMENU - 2 ? AJ2_NMENU - 2 : nSecoes, atual = uxIndice - 2;
+  float x = l.x - AJ2_PAG_COL, y = l.y + 8.0f, ar, ag, ab, lh = 54.0f, base = l.y + l.h - 10.0f;
+  float grupo = gfx_opacidade_grupo;
+  if (!ajustes_layout_lista() || a <= 0.004f) return;
+  ajustes_acento(&ar, &ag, &ab);
+  gfx_opacidade_grupo = grupo * a;
+  // Com categorias demais para a altura, a janela segue a atual.
+  { float total = n * lh, ini = 0.0f;
+    if (total > base - y && atual >= 0) { ini = atual * lh - (base - y) * 0.4f; if (ini < 0) ini = 0; if (ini > total - (base - y)) ini = total - (base - y); }
+    gfx_recorte(x, y, AJ2_PAG_COL - 30.0f, base - y);
+    for (s = 0; s < n; s++) {
+      float yy = y + s * lh - ini, yc = yy + lh * 0.5f;
+      int j = s + 2, eu = s == atual;
+      TxtLinha t;
+      if (yy + lh < y || yy > base) continue;
+      if (eu) {
+        gfx_cor((GfxRect){ x, yy + 6.0f, AJ2_PAG_COL - 46.0f, lh - 12.0f }, 0.5f, ar, ag, ab, 0.16f);
+        gfx_cor((GfxRect){ x, yy + 14.0f, 4.0f, lh - 28.0f }, 0.5f, ar, ag, ab, 1.0f);
+      }
+      ajIcone(aj2MenuIcone(j), x + 18.0f, yc - 13.0f, 26.0f, eu ? 1.0f : 0.50f);
+      t = ajTxtC(TXT_V2_26, aj2MenuTitulo(j), AJ2_PAG_COL - 46.0f - 60.0f);
+      txt_desenhar_alpha(t, x + 58.0f, yc - t.h * 0.5f, eu ? 1.0f : 0.55f);
+    }
+    gfx_sem_recorte(); }
+  gfx_cor((GfxRect){ l.x - 24.0f, l.y, 1, l.h }, 0, 1, 1, 1, 0.08f);
+  gfx_opacidade_grupo = grupo;
+}
 static void aj2DesenharPagina(float t) {
   GfxRect h = aj2PaginaR(), c = uxIndice >= 2 ? aj2IdxCartao(uxIndice - 2) : aj2TopoR(AJ2_T_DIF);
   float k = aj2Suave(t < 0 ? 0 : t > 1 ? 1 : t), ar, ag, ab, tinta = ajTinta() / 255.0f;
@@ -1289,6 +1392,7 @@ static void aj2DesenharPagina(float t) {
   { TxtLinha tt = ajTxtC(TXT_V2_TIT, nome, direita - x);
     txt_desenhar(tt, x, meio - 18.0f); }
   gfx_opacidade_grupo = grupo;
+  if (uxIndice >= 2 && !ajRetrato()) aj2DesenharColunaPagina(conteudo * (t > 1 ? 1 : t));
 }
 
 static void aj2Atualizar(float dt) {

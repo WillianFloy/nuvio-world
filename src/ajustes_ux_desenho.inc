@@ -401,12 +401,16 @@ static float aj2InspRetratoH(void) {
   float w = fminf(560.0f, NV_VTELA_W - AJ2_MARGEM - aj2ArteX());
   return w * 9.0f / 16.0f + 124.0f;
 }
+#define AJ2_PAG_COL 330.0f   // a coluna das categorias na pagina da Lista
 static GfxRect aj2ListaR(void) {
   if (ajRetrato()) {
     float x = aj2ArteX(), y = AJ2_CORPO + (aj2TemInsp() ? aj2InspRetratoH() + 24.0f : 0.0f);
     return (GfxRect){x, y, NV_VTELA_W - AJ2_MARGEM - x, NV_VTELA_H - y - AJ2_MARGEM};
   }
   float x = !aj2TemInsp() ? aj2ArteX() : aj2ArteX() + aj2ArteW() + 36.0f / gfx_escala_txt();
+  // Lista (World, 20/11): a coluna das categorias fica a esquerda da pagina
+  // (aj2DesenharColunaPagina), entao as opcoes comecam depois dela.
+  if (ajustes_layout_lista()) x += AJ2_PAG_COL;
   return (GfxRect){ x, AJ2_CORPO, NV_VTELA_W - AJ2_MARGEM - x, NV_VTELA_H - AJ2_CORPO - AJ2_MARGEM };
 }
 static float ajTopoLista(void) { return aj2ListaR().y + AJ_A3_CAB; }
