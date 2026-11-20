@@ -125,6 +125,13 @@ static GfxRect vooNomeDe;
 static int vitBannerAtivo;       // D1: o banner da pasta e a camada de destaque ate o titulo entrar
 static Uint32 vitBannerSolta;    // quando a transformacao acabou (o titulo entra quando a arte dele chega)
 static Uint32 vitRevelaEm;       // quando a revelacao comecou (cartaz que chega depois entra com fade)
+// World (20/11): CADA FILEIRA ENTRA QUANDO A DELA ESTA PRONTA. A cascata de 40 ms
+// por fileira era um relogio fixo: a 2a fileira entrava vazia (so o titulo) se
+// os cartazes dela ainda vinham. Agora, depois da revelacao, a fileira r acende
+// no instante em que os primeiros cartazes visiveis dela chegaram (cheios ou
+// previa de 128 px) -- nunca antes da anterior + 40 ms, para manter a ordem.
+#define VIT_LIN_ESPERA_MAX 6
+static Uint32 vitLinProntaEm[VIT_LIN_ESPERA_MAX];
 // Cartazes das 3 primeiras fileiras revelados pela transformacao: o que ainda nao chegou fica FORA (nunca um
 // cartao vazio) e entra sozinho com fade quando chega; passado VIT_CART_SEGURA_MS volta o esqueleto de sempre.
 #define VIT_CART_FIL 3
@@ -798,6 +805,7 @@ void vertudo_colecao(const ColFolder *folder) {
   { const int anima = ajustes_col_entrada() && !ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone();
     vooTem = anima && vooPedido;   // sem cartao de origem: so a revelacao da 2.0.43 (relogio vitEntradaT)
     vooSaindo = 0; vitBannerAtivo = 0; vitRevelaEm = 0; vooLogoTem = 0; vooNomeTem = 0;
+    memset(vitLinProntaEm, 0, sizeof vitLinProntaEm);
     memset(vitCartEsc, 0, sizeof vitCartEsc); memset(vitCartChegou, 0, sizeof vitCartChegou);
     if (vooTem) {
       const float k = 1.0f / vtEscala();   // a origem chega em coordenadas da TELA; a Vitrine desenha na escala dela
@@ -2512,6 +2520,40 @@ static int vitTrPronto(void) {
   }
   gfx_escala_sair(esc);
   return ok;
+}
+// A fileira r tem o que mostrar: lista resolvida e os 3 primeiros cartazes
+// visiveis (ou todos, se forem menos) chegaram ou falharam.
+static int vitLinhaPronta(int r, float w, float passo) {
+  const VitLin *l = &vitLin[r];
+  int cols, vis = 0, prontos = 0;
+  if (!l->n) return !(l->estado == VIT_PEND || l->estado == VIT_CARREGANDO);
+  cols = (int)ceilf((NV_TELA_W - vitAncora(w, passo)) / passo) + 1;
+  for (int c = 0; c < l->n && c < cols && vis < 3; c++) { vis++; prontos += home_vitrine_cartao_pronto(vitItem(r, c), w); }
+  return prontos >= vis;
+}
+// 0..1 da entrada da fileira r na transformacao (substitui tr_fileira).
+static float vitLinEntradaTr(int r, Uint32 agora, float w, float passo) {
+  Uint32 piso;
+  if (r >= VIT_LIN_ESPERA_MAX) return tr_fileira(r, vitTr.r);
+  if (!vitRevelaEm) return 0.0f;
+  agora = SDL_GetTicks();   // o relogio de agora (vitAgora e o do quadro anterior aqui)
+  if (agora < vitRevelaEm) return 0.0f;
+  if (!vitLinProntaEm[r]) {
+    // Passado o teto do cartaz (VIT_CART_SEGURA_MS), entra de qualquer jeito: o
+    // cartaz que faltar volta ao esqueleto de sempre, nunca a fileira presa.
+    if (vitLinhaPronta(r, w, passo) || agora - vitRevelaEm >= VIT_CART_SEGURA_MS) vitLinProntaEm[r] = agora ? agora : 1u;
+    else return 0.0f;
+  }
+  piso = vitRevelaEm + (Uint32)(TR_LIN_PASSO_MS * (float)(r < TR_LIN_MAX ? r : TR_LIN_MAX));
+  if (r > 0 && r - 1 < VIT_LIN_ESPERA_MAX && vitLinProntaEm[r - 1]) {
+    Uint32 ant = vitLinProntaEm[r - 1] + (Uint32)TR_LIN_PASSO_MS;
+    if (ant > piso) piso = ant;
+  } else if (r > 0) return 0.0f;   // a de cima ainda nao entrou: a ordem fica
+  { Uint32 ini = vitLinProntaEm[r] > piso ? vitLinProntaEm[r] : piso;
+    if (agora <= ini) return 0.0f;
+    // Fileira que chega depois da cena assentada entra mais devagar (320 ms):
+    // ela aparece sozinha sobre a Vitrine parada, sem o movimento em volta.
+    return tr_suave((float)(agora - ini) / (ini - vitRevelaEm > (Uint32)TR_REVELA_MS ? 320.0f : TR_LIN_MS)); }
 }
 // D2 (2.0.45): PRE-CARGA POR PERMANENCIA. So o que o colcache ja tem (memoria ou disco, sem rede) das 3
 // primeiras fontes; os cartazes visiveis vao para uma lista que vitPreverPasso pede um por quadro, so com o
@@ -4360,7 +4402,8 @@ static void vitDesenhar(float a, float x0) {
     // TV: a fileira entra subindo 28 px e acendendo quando os cartazes chegam;
     // a saida da troca de Collection desce 20 px.
     float ent = vtTelefone() || !vitLin[r].n ? 1.0f : fmaxf(0.0f, fminf(1.0f, vitLinEntra[r]));
-    float ee = vooTem ? (vooSaindo ? 1.0f : tr_fileira(r, vitTr.r))   // 2.0.45: so quando o conteudo esta pronto
+    // World 20/11: na transformacao (e depois dela, ate a fileira entrar) cada fileira acende quando a dela esta pronta.
+    float ee = (vooTem || (vitRevelaEm && r < VIT_LIN_ESPERA_MAX)) ? (vooSaindo ? 1.0f : vitLinEntradaTr(r, vitAgora, w, passo))
              : vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_lin(r, vitEntradaT);   // 2.0.43: entrada da Collection
     float y = topo + r * pas - vitScroll + 28.0f * (1.0f - ent) + 20.0f * sai + HT_ENT_LIN_PX * (1.0f - ee), cy = y + VIT_TITULO_H;
     float ac = a * ee * (vtTelefone() ? (r == vitFR ? 1.0f : 0.78f) : fmaxf(0.0f, fminf(1.0f, vitLinAlfa[r])) * ent);

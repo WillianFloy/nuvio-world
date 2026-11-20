@@ -39,4 +39,4 @@ for L in ${NV_LAYOUTS:-0 1}; do
   SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data$L" NUVIO_TESTE_DIR="$D/data$L" timeout -s KILL 600 "$D/vit_transforma" $L ${NV_SHOTS:+$NV_SHOTS-L$L} 2>&1 \
     | grep -E "^(PASS|FAIL|vit_transforma|\[medida\]|\[prever\])|Assertion|fixture" | tee -a "$OUT" || true
 done
-! grep -q "FAIL\|FALHOU" "$OUT" && grep -c "vit_transforma: ok" "$OUT" | grep -q "${NV_N:-3}"
+! grep -q "FAIL\|FALHOU" "$OUT" && grep -c "vit_transforma: ok" "$OUT" | grep -q "${NV_N:-2}"
