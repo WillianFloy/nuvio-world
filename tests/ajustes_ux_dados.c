@@ -665,10 +665,10 @@ int main(void) {
   assert(somenteDesteAparelho(AJ_FONTE_PREPARAR) && !dePerfil(AJ_FONTE_PREPARAR));
   { int vz = 0, k; for (k = 0; k < AJ_N_TELA; k++) if (TELA[k].tipo == IT_OPC && TELA[k].op == AJ_FONTE_PREPARAR) vz++; assert(vz == 1); }
   assert(indiceResultado(AJ_FONTE_PREPARAR, ajustes_buscar("preparar fonte", resultados, AJ_N)) >= 0);
-  // #339: Settings layout. Local, last, default Painel (today's grid), once on screen, findable.
+  // #339: Settings layout. Local, last, default Lista since World 20/11, once on screen, findable.
   assert(AJ_LAYOUT_AJUSTES == AJ_BUSCA_ORIGEM + 1 && AJ_LAYOUT_AJUSTES == AJ_P2P_LIMITE - 1);
-  assert(!strcmp(CHAVE[AJ_LAYOUT_AJUSTES], "ajustesLayoutLocal") && OPCOES[AJ_LAYOUT_AJUSTES].n == 2);
-  assert(valorPadrao[AJ_LAYOUT_AJUSTES] == 0 && !ajustes_layout_lista());
+  assert(!strcmp(CHAVE[AJ_LAYOUT_AJUSTES], "ajustesLayoutListaLocal") && OPCOES[AJ_LAYOUT_AJUSTES].n == 2);
+  assert(valorPadrao[AJ_LAYOUT_AJUSTES] == 1 && ajustes_layout_lista());   /* World 20/11: Lista e o padrao */
   assert(somenteDesteAparelho(AJ_LAYOUT_AJUSTES) && !dePerfil(AJ_LAYOUT_AJUSTES));
   { int vz = 0, k; for (k = 0; k < AJ_N_TELA; k++) if (TELA[k].tipo == IT_OPC && TELA[k].op == AJ_LAYOUT_AJUSTES) vz++; assert(vz == 1); }
   assert(indiceResultado(AJ_LAYOUT_AJUSTES, ajustes_buscar("lista", resultados, AJ_N)) >= 0);

@@ -1719,7 +1719,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Próximo episódio no Continuar",   V_LIGA, 2),   // por perfil: cwProximoLocal
   ESC("Resultados do catálogo do Nuvio na busca", V_BUSCA_NUVIO, 3), // local: buscaNuvioLocal
   ESC("Mostrar a fonte nos resultados da busca", V_LIGA, 2),   // local: buscaOrigemLocal
-  ESC("Layout dos Ajustes",              V_LAYOUT_AJUSTES, 2),   // local: ajustesLayoutLocal (#339)
+  ESC("Layout dos Ajustes",              V_LAYOUT_AJUSTES, 2),   // local: ajustesLayoutListaLocal (#339; World 20/11)
   ESC("Limite de espaço do P2P",         V_P2P_LIMITE, 5),   // local: p2pLimiteLocal (#334)
   ESC("Cache do P2P",                    V_P2P_DESTINO, 2),   // local: p2pDestinoLocal (#205)
   ESC("Ordem das fontes", V_FONTE_ORDEM_ADDON, 2), // local (#400)
@@ -2109,7 +2109,7 @@ static const char *CHAVE[] = {
   "fontePrepararLocal",
   "cwProximoLocal",
   "buscaNuvioLocal", "buscaOrigemLocal",
-  "ajustesLayoutLocal",
+  "ajustesLayoutListaLocal",   // World 20/11: chave nova = Lista para todos uma vez (a antiga, Painel, fica sem leitor)
   "p2pLimiteLocal",
   "p2pDestinoLocal",
   "fonteOrdemLocal",

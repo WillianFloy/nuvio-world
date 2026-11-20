@@ -305,7 +305,16 @@ int main(void) {
     valor[AJ_AVANCADAS] = 1; assert(!visivel(ti));
     for (i = 0; i < AJ_N_TELA; i++) if (TELA[i].tipo == IT_OPC && uxAvancada(TELA[i].op)) assert(!visivel(i));
     valor[AJ_AVANCADAS] = 0;
-    for (i = 0; i < AJ_N_TELA; i++) if (TELA[i].tipo == IT_OPC && uxAvancada(TELA[i].op)) assert(visivel(i) || TELA[i].op == AJ_ICONE_APP);
+    for (i = 0; i < AJ_N_TELA; i++) if (TELA[i].tipo == IT_OPC && uxAvancada(TELA[i].op)) {
+    // World 20/11: o desfoque da barra moderna nao tem leitor e as opcoes do
+    // menu superior/barra lateral aparecem conforme a posicao do menu.
+    int op = TELA[i].op;
+    if (!visivel(i) && op != AJ_ICONE_APP && op != AJ_RAIL_BLUR && op != AJ_MENU_TOPO_TAMANHO && op != AJ_MENU_TOPO_FIXO
+        && op != AJ_MENU_TOPO_FOCO_EXPANDIDO && op != AJ_RAIL && op != AJ_MENU_TOPO_MODO)
+      fprintf(stderr, "advanced hidden: %s\n", OPCOES[op].rotulo);
+    assert(visivel(i) || op == AJ_ICONE_APP || op == AJ_RAIL_BLUR || op == AJ_MENU_TOPO_TAMANHO || op == AJ_MENU_TOPO_FIXO
+           || op == AJ_MENU_TOPO_FOCO_EXPANDIDO || op == AJ_RAIL || op == AJ_MENU_TOPO_MODO);
+  }
     focoIndice = 1; }   // focus on the index: the row rests (no hover)
   // 2.0.2: the index is a GRID. Top row: Buscar, Diferentes, Avancadas (one row,
   // each over a column); below, one column per group. Up/Down inside a column,
@@ -315,7 +324,8 @@ int main(void) {
   // discovery cards (O que o Nuvio faz? over Assistir+Telas, Resolver um
   // problema over Conta e sistema); then one column per group (Assistir, Telas,
   // Conta e sistema).
-  { focoIndice = 1; uxTopo = AJ2_T_BUSCA;
+  { valor[AJ_LAYOUT_AJUSTES] = 0;   // a GRADE e o Painel; a Lista (padrao desde World 20/11) e testada abaixo
+    focoIndice = 1; uxTopo = AJ2_T_BUSCA;
     key(SDLK_RIGHT); assert(uxTopo == AJ2_T_AV);
     key(SDLK_RIGHT); assert(uxTopo == AJ2_T_PERFIL);
     key(SDLK_RIGHT); assert(uxTopo == AJ2_T_DIF);                               // Diferentes do padrao is reachable from Perfil
@@ -431,14 +441,15 @@ int main(void) {
   valor[AJ_GUIA_FONTE]=0;assert(gravar());
 
   // Keep coverage for every explicit icon, including the new Live TV rows.
+  int faltaIcone = 0;
   // Unchanged upstream cc87bec3 already uses the generic icon for these two
   // unrelated settings; a Live TV fixture must not require changing their UI.
   for (i=0;i<AJ_N_TELA;i++) if (TELA[i].tipo == IT_OPC) {
     int op=TELA[i].op;
     if(op==AJ_MENU_CARTAZ || op==AJ_TRAILER_AUDIO)continue;
-    if(!strcmp(ajVisualIcone(op),"aj_settings-2"))fprintf(stderr,"Missing icon: %s\n",OPCOES[op].rotulo);
-    assert(strcmp(ajVisualIcone(op), "aj_settings-2"));
+    if(!strcmp(ajVisualIcone(op),"aj_settings-2")){fprintf(stderr,"Missing icon: %s\n",OPCOES[op].rotulo);faltaIcone++;}
   }
+  assert(!faltaIcone);
 
   // Apoiar o projeto: OK abre o painel dos QRs, o foco fica na linha, Voltar e OK fecham.
   assert(apoio_n() > 0);

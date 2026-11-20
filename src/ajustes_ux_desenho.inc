@@ -1205,6 +1205,15 @@ static void aj2CartoesFundo(GfxRect ln, float y, float a) {
     } else txt_desenhar_alpha(t, cx + 10, y + 10 + mh + 10 + (29 - t.h) * 0.5f, 0.6f * a);
   }
 }
+static const char *ajVisualIcone(int op);
+// LISTA (World, 20/11: a Lista virou o padrao e ganhou hierarquia): cada opcao
+// abre com o proprio icone Lucide numa coluna fixa (o mesmo da previa e da
+// busca), entao o olho acha a linha pelo desenho antes de ler. So na Lista e
+// fora do Guia; a coluna entra no recuo, entao rotulo, beneficio e ajuda
+// andam juntos.
+#define AJ_LN_ICO 30.0f
+#define AJ_LN_ICO_COL 48.0f
+static float ajLinhaIconeCol(int op) { return ajustes_layout_lista() && op != AJ_GUIA ? AJ_LN_ICO_COL : 0.0f; }
 static void ajDesenharLinha(int item, float y, float f, float a) {
   int op = TELA[item].op, tipo = ajTipo(op);
   float h = ajLinhaH(item);
@@ -1214,7 +1223,7 @@ static void ajDesenharLinha(int item, float y, float f, float a) {
   int sub = op == AJ_GUIA, aviso = ajLinhaAviso(item), filha = ajLinhaFilha(item);
   int abre = h > AJ2_LN_SUB + 0.5f && !aviso && !(aj2TemInsp() && aj2FocoNaLista(item) && op != AJ_FUNDO && !(ajPaleta(op) && ed));
   int beneficio = !sub && !aviso && aj2TemInsp() && aj2FocoNaLista(item) && op != AJ_FUNDO && !(ajPaleta(op) && ed) && h > AJ2_LN_H + 0.5f;
-  float recuo = filha ? 34.0f : 0.0f;
+  float icoCol = ajLinhaIconeCol(op), recuo = (filha ? 34.0f : 0.0f) + icoCol;
   float aT = a * (desligada ? 0.45f : 1.0f), aTx = a * aj2TextoLista;
   float xDir = ln.x + ln.w - 22.0f, yc = (abre || beneficio || aviso) ? y + AJ2_LN_LINHA1 * 0.5f : y + h * 0.5f;
   float cauda = 0;
@@ -1322,6 +1331,15 @@ static void ajDesenharLinha(int item, float y, float f, float a) {
     gfx_cor((GfxRect){ cx, y + 10.0f, 2.0f, yc - y - 10.0f }, 0, 1, 1, 1, 0.30f * aTx);
     gfx_cor((GfxRect){ cx, yc - 1.0f, 14.0f, 2.0f }, 0, 1, 1, 1, 0.30f * aTx);
   }
+  if (icoCol > 0.0f) {
+    // So o icone PROPRIO da opcao: repetir o da categoria em toda linha era
+    // ruido (capturas de 20/11); sem um proprio, a coluna fica vazia e o
+    // rotulo continua alinhado.
+    const char *ic = ajVisualIcone(op), *icSec = TELA[secIni[secDoItem[item]]].icone;
+    float ix = ln.x + 22.0f + (filha ? 34.0f : 0.0f);
+    if (ic && (!icSec || strcmp(ic, icSec)) && strcmp(ic, "aj_settings-2"))
+      ajIcone(ic, ix, yc - AJ_LN_ICO * 0.5f, AJ_LN_ICO, (emFoco ? 0.95f : 0.55f) * aT * aj2TextoLista);
+  }
   { float tx = ln.x + 22.0f + recuo, maxW = ln.w - 44.0f - recuo - cauda - 16.0f, tyc = yc;
     TxtLinha r = ajTxtC(emFoco ? TXT_V3_LN_B : TXT_V3_LN, rotuloOpcao(op), maxW);
     float rx;
@@ -1420,6 +1438,11 @@ static void ajDesenharGrupo(int item, float y, float a) {
   if (TELA[item].sub && TELA[item].sub[0]) {
     TxtLinha c = ajTxtC(TXT_V2_24, TELA[item].sub, w - 44.0f - larg - 24.0f);
     txt_desenhar_alpha(c, x + w - 22 - c.w, ty + (kh - c.h) * 0.5f, 0.60f * a);
+  } else if (ajustes_layout_lista()) {
+    // Lista (World, 20/11): o grupo continua num fio ate a borda, no meio do
+    // kicker — a secao se le como bloco sem caixa em volta.
+    float fx = x + 22 + larg + 18.0f;
+    if (x + w - 22 - fx > 40.0f) gfx_cor((GfxRect){ fx, ty + kh * 0.5f, x + w - 22 - fx, 1 }, 0, 1, 1, 1, 0.10f * a);
   }
 }
 

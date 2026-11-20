@@ -256,7 +256,7 @@
   1, /* prepare the source when a title opens (2.0.2): Desligado */
   0, /* next episode in Continue watching (#203): Ligado */
   0, 0, /* search (#311): Nuvio results First; show the source on result groups: Ligado */
-  0, /* Settings layout (#339): Painel = the card grid and the art beside the list */
+  1, /* Settings layout (#339): Lista is the default since World 20/11 (Painel stays selectable) */
   0, /* P2P space limit (#334): Automatico */
   0, /* P2P cache location (#205): Interno */
   0, /* Source display order (#400): Por qualidade, local */

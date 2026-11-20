@@ -704,8 +704,15 @@ static GfxRect aj2GradeCartao(int s) {
   return (GfxRect){ g.x + AJ2_G_PAD + (float)aj2Grupo(s) * (cw + AJ2_G_VAO), y0 + (float)aj2GradeLinha(s) * (ch + AJ2_G_VAO_V), cw, ch };
 }
 // O texto de cada pilula; a da Avancadas e "Avancadas" + " · Escondidas".
+// COMPACTO (World, 20/11: as pilulas saiam "Avancadas ·..." e "Perfil:..."
+// cortadas na TV): quando a linha nao cabe, a Avancadas perde o detalhe (o olho
+// aberto/riscado ja diz) e o Perfil mostra so o nome (o icone ja diz "perfil")
+// — antes de qualquer pilula encolher e cortar o texto.
+static int aj2TopoCompacto;
 static void aj2TopoTexto(int t, char *b, size_t n, char *det, size_t nd) {
   det[0] = 0;
+  if (aj2TopoCompacto && t == AJ2_T_AV) { snprintf(b, n, "%s", i18n("Avançadas")); return; }
+  if (aj2TopoCompacto && t == AJ2_T_PERFIL) { snprintf(b, n, "%s", textoLeitura(AJ_PERFIL_ATIVO)); return; }
   if (t == AJ2_T_BUSCA) snprintf(b, n, "%s", i18n("Buscar"));
   else if (t == AJ2_T_AV) {
     snprintf(b, n, "%s", i18n("Avançadas"));
@@ -745,9 +752,14 @@ static GfxRect aj2TopoR(int t) {
   if (ajRetrato()) return aj2TopoRetratoR(t);
   GfxRect g = aj2GradeR();
   float cw = aj2GradeColW(), x = g.x + AJ2_G_PAD, y = aj2GradeChipY(), fim = g.x + g.w - AJ2_G_PAD;
-  float wb = cw + (cw + AJ2_G_VAO) / 3.0f, wa = aj2TopoLargura(AJ2_T_AV), wp = aj2TopoLargura(AJ2_T_PERFIL);
-  float wl = ajLayoutSelecionavel() ? aj2TopoLargura(AJ2_T_LAYOUT) : 0.0f, wd = aj2TopoLargura(AJ2_T_DIF);
-  float gap = ajLayoutSelecionavel() ? 80.0f : 60.0f;
+  float wb, wa, wp, wl, wd, gap = ajLayoutSelecionavel() ? 80.0f : 60.0f;
+  aj2TopoCompacto = 0;
+  wb = cw + (cw + AJ2_G_VAO) / 3.0f; wa = aj2TopoLargura(AJ2_T_AV); wp = aj2TopoLargura(AJ2_T_PERFIL);
+  wl = ajLayoutSelecionavel() ? aj2TopoLargura(AJ2_T_LAYOUT) : 0.0f; wd = aj2TopoLargura(AJ2_T_DIF);
+  if (300.0f + gap + wa + wp + wd + wl > fim - x) {
+    aj2TopoCompacto = 1;
+    wa = aj2TopoLargura(AJ2_T_AV); wp = aj2TopoLargura(AJ2_T_PERFIL);
+  }
   // Search yields first when localized labels do not fit; layout may be hidden.
   if (wb + gap + wa + wp + wd + wl > fim - x) { wb = fim - x - gap - wa - wp - wd - wl; if (wb < 300) wb = 300; }
   if (wb + gap + wa + wp + wd + wl > fim - x) { float k = (fim - x - gap - wb) / (wa + wp + wd + wl); wa *= k; wp *= k; wd *= k; wl *= k; }
