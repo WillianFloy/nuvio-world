@@ -904,8 +904,10 @@ static void desenharClimas(void) {
       cartaz(&c->itens[k], p, 0.0f, a);
     }
     if (c->n == 0) {
-      TxtLinha l = txt_linha_corta(TXT_CAPTION2, i18n("Nada deste clima no seu catálogo ainda"), 150, 154, 168, 255, r.w - 48.0f);
-      txt_desenhar_alpha(l, r.x + 24.0f, r.y + r.h - 50.0f, a);
+      // Vazio: a frase inteira em ate duas linhas, sem reticencias (unico ajuste
+      // da etapa 4 mantido no Explorar; a cena do foco foi revertida, TCL 20/11).
+      txt_bloco_corta(TXT_CAPTION2, i18n("Nada deste clima no seu catálogo ainda"), 150, 154, 168,
+                      r.x + 24.0f, r.y + r.h - 76.0f, r.w - 48.0f, 30.0f, a, 2);
     } else {
       float rx = r.x + r.w - 24.0f, ry = r.y + r.h - 20.0f;
       float larg = r.w - 48.0f - (EX_CL_PASSO * (float)((c->n < 3 ? c->n : 3) - 1) + EX_CL_PW) - 16.0f;

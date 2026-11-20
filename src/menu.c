@@ -408,7 +408,9 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
     // Aberta, a cena recua um pouco (o rotulo nao briga com o titulo do hero).
     if (ab > 0.002f) gfx_cor((GfxRect){ 0, 0, NV_TELA_W + 4.0f, NV_TELA_H + 4.0f }, 0.0f, 0, 0, 0, 0.40f * ab * a);
     gfx_veu_css((GfxRect){ d.x + d.w, 0, MK(70.0f), NV_TELA_H }, 2, 1.8f, 1.0f, 0.30f * a);
-    if (ajustes_vidro()) { gfx_vidro_camada = 1; gfx_vidro_material(d, 0.0f, anim_mistura(.84f, .90f, ab), a); gfx_vidro_camada = 0; }
+    if (gfx_tema_preto) {   // Preto puro: #000 absoluto, sem vidro (TCL, 20/11)
+      gfx_rect(d, 0, GFX_COR, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f, a);
+    } else if (ajustes_vidro()) { gfx_vidro_camada = 1; gfx_vidro_material(d, 0.0f, anim_mistura(.84f, .90f, ab), a); gfx_vidro_camada = 0; }
     else gfx_cor(d, 0.0f, 21.0f / 255.0f, 22.0f / 255.0f, 26.0f / 255.0f, a);
     gfx_cor((GfxRect){ d.x + d.w - MK(1.0f), 0, MK(1.0f), NV_TELA_H }, 0.0f, 1, 1, 1, 0.08f * a);
     return;
@@ -424,6 +426,13 @@ static void desenhaMaterial(const MenuGeo *g, float a) {
     GfxRect s = { r.x - b, r.y + dy - b, r.w + 2.0f * b, r.h + 2.0f * b };
     gfx_sombra_sob(s, 1.0f, b * 1.41f * gfx_escala(), (g->raio + b) / s.h,
                    0, 0, 0, (topo() ? 0.34f : vidro ? 0.36f : 0.45f) * a, r, g->raio, vidro ? 0.0f : a); }
+  // Preto puro na ilha colada da Padrao: #000 absoluto com o fio claro de
+  // sempre (o contorno separa o preto da cena escura).
+  if (gfx_tema_preto && padraoLado()) {
+    gfx_rect(r, 0, GFX_COR, 0, 0, 0, raio, 0.0f, 0.0f, 0.0f, a);
+    gfx_anel(r, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.14f * a);
+    return;
+  }
   if (topo()) { gfx_vidro_camada = 1; gfx_chrome(r, raio, a); gfx_vidro_camada = 0; }
   else if (ajustes_vidro()) {
     // Fechada, os .80 do mockup (a rail fica sobre a arte do destaque).
@@ -1640,7 +1649,21 @@ static float topoEscalaTexto(void) {
 #define TOPO_Y         (TOPO_CY - TOPO_H * 0.5f)
 #define TOPO_VAO_MIN   TS(1.0f)
 #define TOPO_PAD_MIN   TS(10.0f)
-#define TOPO_TXT       (TXT_BODY * topoEscalaTexto())
+// O ESTILO DO ROTULO DAS ABAS. Era o enum TXT_BODY vezes a escala: TxtEstilo
+// e um ENUM (TXT_BODY = 4), entao a conta escolhia OUTRO estilo — Pequeno
+// (4 x 0,72 = 2) virava TXT_TITULO3 (48 px), Grande (4 x 1,3 = 5) virava o
+// CALLOUT e o aperto (x 0,6...) caia em TITULO/HEADLINE. Era o "Icones e textos
+// desconfigurado em todos os tamanhos" (TCL, 20/11). Agora: um estilo real por
+// tamanho (Pequeno 23, Medio 25, Grande 28 px) e, apertando, o degrau abaixo.
+static TxtEstilo topoEstiloTxt(float aperto) {
+  static const TxtEstilo EST[4] = { TXT_CALLOUT, TXT_BODY, TXT_CAPTION, TXT_CAPTION2 };
+  static const float PX[4] = { NV_FT_CALLOUT, NV_FT_BODY, NV_FT_CAPTION, NV_FT_CAPTION2 };
+  int tam = ajustes_menu_topo_tamanho(), k;
+  float alvo = (tam == 0 ? NV_FT_CAPTION2 : tam == 2 ? NV_FT_CALLOUT : NV_FT_BODY) * (aperto > 0.0f ? aperto : 1.0f);
+  for (k = 0; k < 3; k++) if (PX[k] <= alvo + 0.01f) return EST[k];
+  return EST[3];
+}
+#define TOPO_TXT       topoEstiloTxt(1.0f)
 #define TOPO_RELOGIO   ((NV_ILHA_MARGEM_D * gfx_escala_ui_base() + ilha_relogio_largura() + 16.0f) / NV_MENU_ESCALA)
 
 // AS CAPSULAS VIAJAM entre as pilulas (Capsule::step deles): mola criticamente
@@ -1692,7 +1715,7 @@ static const char *topoRotulo(int i) {
 // o vao entre elas e a largura da area das pilulas (sem a trilha), tudo em px
 // da tela da barra. tab_metrics_from + tab_content_w deles, com o aperto no
 // lugar da rolagem: a nossa tira nunca rola.
-typedef struct { int n, ordem[NV_MENU_FOCOS], cortado, modo; float ws[NV_MENU_FOCOS], vao, pad, rotMax, larg, txtEscala; } TopoTira;
+typedef struct { int n, ordem[NV_MENU_FOCOS], cortado, modo, semIcone; float ws[NV_MENU_FOCOS], vao, pad, rotMax, larg, txtEscala; } TopoTira;
 _Static_assert(MENU_N == AJ_MENU_TOPO_ORDEM_N, "top menu order must cover every navigation destination");
 
 // MENU DO TOPO DA PADRAO (World, 20/11): abas de TEXTO, sem ilha. Com
@@ -1701,15 +1724,49 @@ _Static_assert(MENU_N == AJ_MENU_TOPO_ORDEM_N, "top menu order must cover every 
 // Paramount+; "Somente icones" continua so icones. A Moderna segue com as
 // pilulas e o rotulo so na focada.
 static int topoPadrao(void) { return padrao(); }
-static float topoMix(int id) {
-  if (topoPadrao() && ajustes_menu_topo_modo() == 1 && id != MENU_BUSCAR) return 1.0f;
-  return topoMixAlfa[id];
-}
+static float topoMix(int id) { return topoMixAlfa[id]; }
 // Onde a tira comeca: centrada na Moderna; na Padrao alinhada a esquerda,
 // logo depois do avatar (o perfil abre a linha, como nas faixas de streaming).
 static float topoX0(const TopoTira *t) {
   if (topoPadrao()) return floorf(TOPO_X + TOPO_H + TS(30.0f));
   return floorf((NV_TELA_W - t->larg) * 0.5f);
+}
+// A TIRA DA PADRAO COM "ICONES E TEXTOS" (TCL, 20/11: "desconfigurado em
+// todos os tamanhos"). Antes ela reusava a conta da Moderna, feita para UMA
+// aba aberta por vez: com as oito abertas o respiro zerava, a fonte encolhia e
+// a tira (alinhada a esquerda) passava por baixo do relogio. Conta propria,
+// larguras fixas, no espaco entre o avatar e a ilha do relogio:
+//   1. icone + rotulo com respiro de 16;  2. respiro de 10;
+//   3. so o rotulo (o icone sai, a Busca fica);  4. a fonte desce ate 70 %.
+static float topoPadraoW(const TopoTira *t, int id, float txtEsc) {
+  float tw = (float)txt_largura(topoEstiloTxt(txtEsc), topoRotulo(id));
+  if (id == MENU_BUSCAR) return TOPO_PILULA_H;
+  return 2.0f * t->pad + (t->semIcone ? 0.0f : TOPO_ICONE + TOPO_ICON_VAO) + tw;
+}
+static void topoMedirPadrao(TopoTira *t) {
+  float disp = NV_TELA_W - TOPO_RELOGIO - TS(24.0f) - topoX0(t), soma = 0.0f, fixo = 0.0f, txt = 0.0f;
+  int k, passo;
+  t->vao = TS(6.0f);
+  for (passo = 0; passo < 3; passo++) {
+    t->pad = passo == 0 ? TS(16.0f) : TS(10.0f);
+    t->semIcone = passo == 2;
+    soma = t->n > 1 ? (t->n - 1) * t->vao : 0.0f;
+    for (k = 0; k < t->n; k++) soma += topoPadraoW(t, t->ordem[k], 1.0f);
+    if (soma <= disp) break;
+  }
+  if (soma > disp) {
+    fixo = t->n > 1 ? (t->n - 1) * t->vao : 0.0f;
+    for (k = 0; k < t->n; k++) {
+      int id = t->ordem[k];
+      if (id == MENU_BUSCAR) { fixo += TOPO_PILULA_H; continue; }
+      fixo += 2.0f * t->pad;
+      txt += (float)txt_largura(TOPO_TXT, topoRotulo(id));
+    }
+    t->txtEscala = fmaxf(0.70f, fminf(1.0f, (disp - fixo) / fmaxf(1.0f, txt)));
+    t->cortado = (disp - fixo) / fmaxf(1.0f, txt) < 0.70f;
+  }
+  t->larg = t->n > 1 ? (t->n - 1) * t->vao : 0.0f;
+  for (k = 0; k < t->n; k++) { t->ws[k] = topoPadraoW(t, t->ordem[k], t->txtEscala); t->larg += t->ws[k]; }
 }
 static void topoMedir(TopoTira *t) {
   int k;
@@ -1720,7 +1777,9 @@ static void topoMedir(TopoTira *t) {
   t->rotMax = 1e6f;
   t->cortado = 0;
   t->vao = TOPO_VAO;
-  t->pad = topoPadrao() ? TS(16.0f) : TOPO_PAD;
+  t->semIcone = 0;
+  t->pad = TOPO_PAD;
+  if (topoPadrao() && t->modo == 1) { t->rotMax = 1e6f; topoMedirPadrao(t); return; }
   disp = NV_TELA_W - 2.0f * TOPO_RELOGIO - 2.0f * TOPO_TRILHA;
   base = t->n * TOPO_PILULA_H + (t->n > 1 ? (t->n - 1) * t->vao : 0.0f);
 
@@ -1778,7 +1837,7 @@ static void topoMedir(TopoTira *t) {
       t->ws[k] = TOPO_PILULA_H;
     } else {
       float m = t->modo == 1 ? limita01(topoMix(id)) : 0.0f;
-      TxtLinha l = txt_linha_corta(TOPO_TXT * t->txtEscala, topoRotulo(id),
+      TxtLinha l = txt_linha_corta(topoEstiloTxt(t->txtEscala), topoRotulo(id),
                                    255, 255, 255, 255, t->rotMax);
       float cheia = fmaxf(TOPO_PILULA_H, 2.0f * t->pad + TOPO_ICONE + TOPO_ICON_VAO + l.w);
       t->ws[k] = TOPO_PILULA_H + m * (cheia - TOPO_PILULA_H);
@@ -1857,6 +1916,15 @@ static void topoAtualizar(float dt) {
   }
 }
 
+float menu_topo_padrao_base(void) {
+  float esc, b;
+  if (!topo() || !padrao()) return 0.0f;
+  // TOPO_CY + meia pilula no maior zoom do foco (1,045) + o traco da pagina ativa.
+  esc = topoEscalaTamanho() / (topoFocoEscala > 0.0f ? topoFocoEscala : 1.0f);
+  b = TK(NV_CHROME_TOP + NV_CHROME_H * 0.5f) + TK(NV_CHROME_H - 2.0f * NV_CHROME_INSET) * esc * 1.045f * 0.5f
+    + TK(9.0f) * esc;
+  return b * NV_MENU_ESCALA;
+}
 void menu_topo_geo(MenuTopoGeo *o) {
   TopoTira t;
   float e = NV_MENU_ESCALA, x0;
@@ -1914,6 +1982,11 @@ static void topoDesenharPadrao(void) {
   // A faixa: preto do alto ate ~2,6x a altura da barra, curva suave.
   gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, TOPO_Y + TOPO_H * 2.6f }, 1, 1.6f, 1.0f,
               a * (0.50f + 0.28f * anim_suave(desliza)));
+  // CONTRASTE SOBRE ARTE CLARA (TCL, 20/11): uma sombra difusa so atras das
+  // abas (mancha, sem borda nem retangulo), que segue a largura da tira. O
+  // veu do alto continua leve; e a mancha que garante o rotulo legivel.
+  gfx_rect((GfxRect){ x0 - TS(70.0f), y - TS(26.0f), t.larg + TS(140.0f), TOPO_PILULA_H + TS(52.0f) }, 0,
+           GFX_SOMBRA, 1.0f, 0, 0, 0.5f, 0, 0, 0, 0.55f * a);
   if (aberto) ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroFora, 0, 0);
   // Perfil.
   fAv = focos ? animFoco[MENU_RODAPE] : 0.0f;
@@ -1927,8 +2000,9 @@ static void topoDesenharPadrao(void) {
   if (focos && topoFoc.a > 0.004f && topoFoc.w > 0.5f) {
     GfxRect rf = { x0 + topoFoc.x, y, topoFoc.w, TOPO_PILULA_H };
     float fa = limita01(topoFoc.a) * a;
-    gfx_cor(rf, 0.5f, 1.0f, 1.0f, 1.0f, 0.16f * fa);
-    gfx_vidro_borda(rf, 0.5f, 0.55f * fa);
+    // Preto puro: o foco e preto absoluto com o fio claro (nada de cinza).
+    if (gfx_tema_preto) { gfx_rect(rf, 0, GFX_COR, 0, 0, 0, 0.5f, 0.0f, 0.0f, 0.0f, 0.85f * fa); gfx_anel(rf, 0.5f, 1.5f, 1, 1, 1, 0.70f * fa); }
+    else { gfx_cor(rf, 0.5f, 1.0f, 1.0f, 1.0f, 0.16f * fa); gfx_vidro_borda(rf, 0.5f, 0.55f * fa); }
   }
   // Pagina ativa: traco no acento sob o rotulo.
   if (topoSel.a > 0.004f && topoSel.w > 0.5f) {
@@ -1942,16 +2016,18 @@ static void topoDesenharPadrao(void) {
     float px = topoPilulaX(&t, k), fm, sm, ta, cy = y + TOPO_PILULA_H * 0.5f;
     fm = focos ? limita01(topoFoc.a) * topoCobre(px, t.ws[k], &topoFoc) : 0.0f;
     sm = limita01(topoSel.a) * topoCobre(px, t.ws[k], &topoSel);
-    ta = a * anim_mistura(0.62f, 1.0f, fmaxf(sm, fm));
+    ta = a * anim_mistura(0.74f, 1.0f, fmaxf(sm, fm));
     if (ponteiro_ativo() && a > 0.5f) ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroLinha, NULL, i, 0);
     if (i == MENU_BUSCAR || t.modo == 0) {
       iconeTraco(i, r.x + r.w * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
     } else {
-      TxtLinha l = txt_linha_corta(TOPO_TXT * t.txtEscala, topoRotulo(i), 255, 255, 255, 255, t.rotMax);
-      float ix = r.x + t.pad + TOPO_ICONE * 0.5f;
-      iconeTraco(i, ix, cy, TOPO_ICONE * 0.88f, 0.953f, 0.949f, 0.937f, ta);
-      txt_desenhar_tom(l, r.x + t.pad + TOPO_ICONE + TOPO_ICON_VAO, y + (TOPO_PILULA_H - l.h) * 0.5f,
-                       0.953f, 0.949f, 0.937f, ta);
+      TxtLinha l = txt_linha_corta(topoEstiloTxt(t.txtEscala), topoRotulo(i), 255, 255, 255, 255, r.w - 2.0f * t.pad + 1.0f);
+      float tx = r.x + t.pad;
+      if (!t.semIcone) {
+        iconeTraco(i, r.x + t.pad + TOPO_ICONE * 0.5f, cy, TOPO_ICONE, 0.953f, 0.949f, 0.937f, ta);
+        tx += TOPO_ICONE + TOPO_ICON_VAO;
+      }
+      txt_desenhar_tom(l, tx, y + (TOPO_PILULA_H - l.h) * 0.5f, 0.953f, 0.949f, 0.937f, ta);
     }
   }
 }
@@ -2020,7 +2096,7 @@ static void topoDesenhar(void) {
       icone(i, r.x + r.w * 0.5f, y + TOPO_PILULA_H * 0.5f, TOPO_ICONE, tr, tg, tb, ta);
     } else {
       float m = limita01(topoMixAlfa[i]);
-      TxtLinha l = txt_linha_corta(TOPO_TXT * t.txtEscala, topoRotulo(i), 255, 255, 255, 255, t.rotMax);
+      TxtLinha l = txt_linha_corta(topoEstiloTxt(t.txtEscala), topoRotulo(i), 255, 255, 255, 255, t.rotMax);
       float centro = r.x + r.w * 0.5f;
       float ix = anim_mistura(centro, r.x + t.pad + TOPO_ICONE * 0.5f, m);
       icone(i, ix, y + TOPO_PILULA_H * 0.5f, TOPO_ICONE, tr, tg, tb, ta);

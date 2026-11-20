@@ -918,6 +918,9 @@ static float dinHeroY(void) {
   float y = -(scrollY + empurraHero());
   return y > 0.0f ? 0.0f : y;
 }
+// Com o menu do topo na Padrao o bloco do destaque desce 24 px (botao a 48 px
+// da base do banner, nao 72): o respiro sai de baixo, nao do logo nem da sinopse.
+static float padTextoBase(void) { return menu_topo_padrao_base() > 0.0f ? NV_PAD_TEXTO_BASE - 24.0f : NV_PAD_TEXTO_BASE; }
 static GfxRect padBannerRect(void) {
   float y = ANC(NV_PAD_BANNER_Y);
 #ifdef NV_TOUCH_UI
@@ -4838,7 +4841,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   // space when every real information line exists, including a caption.
   float minTop = 24.0f;
   if (lay == HOME_LAYOUT_PADRAO)
-    minTop = base - ANC(NV_PAD_BANNER_H - NV_PAD_TEXTO_BASE) + 24.0f;
+    minTop = base - ANC(NV_PAD_BANNER_H - padTextoBase()) + 24.0f;
   else if (lay == HOME_LAYOUT_DINAMICA)
     minTop = base - ANC(NV_DIN_HERO_H - NV_DIN_TEXTO_BASE) + 54.0f;
   if (!heroCompactoTelefone() && !homeRetratoTelefone() && sinopse[0])
@@ -4847,10 +4850,21 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
   int temAmigos = ci && ci->imdb[0] && amigostitulo_obter(ci->imdb, &amigos);
   float friendsH = temAmigos ? NV_AMIGOS_HERO_H : 0.0f;
   if (vitTeto > minTop) minTop = vitTeto;
+  // MENU DO TOPO NA PADRAO (TCL, 20/11: "a barra fica por cima do logo, da
+  // sinopse e dos botoes"). A faixa do menu e reservada: o bloco do destaque
+  // nunca sobe acima da base das abas + 28 px. Sem espaco, o mesmo ajuste da
+  // Vitrine: o logo encolhe (ate 88 px) e a sinopse perde linhas. Reserva FIXA
+  // enquanto o menu do topo estiver ligado (aparecer/sumir nao refaz o bloco).
+  float menuTeto = 0.0f;
+  if (lay == HOME_LAYOUT_PADRAO && !heroCompactoTelefone()) {
+    float mb = menu_topo_padrao_base();
+    if (mb > 0.0f) menuTeto = mb / gfx_escala() + 28.0f;
+  }
+  if (menuTeto > minTop) minTop = menuTeto;
   HeroCopyLayout copy = heroCopyLayout(base, hSin, metaLinha[0] != 0, temSec,
                                       captionH, logoH, btnH, btnGap, minTop, slot, friendsH);
   TxtLinha tituloTelefone = {0};
-  if (vitTeto > 0.0f && !heroCompactoTelefone()) {
+  if ((vitTeto > 0.0f || menuTeto > 0.0f) && !heroCompactoTelefone()) {
     // VITRINE DA COLECAO: o bloco nao sobe no cabecalho (anel, seletor). O
     // logo encolhe ate 88 px (o nome, ate a altura dele); faltando espaco a
     // sinopse perde linhas, depois a linha de amigos.
@@ -4866,7 +4880,8 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     sinLinhas = (int)ceilf(hSin / heroSinEntrelinha());
     float fundo = copy.logo + copy.logoHeight;
     copy.logoHeight = fminf(logoH, fmaxf(minLogo, fundo - minTop));
-    copy.logo = vitTopoBloco = fundo - copy.logoHeight;
+    copy.logo = fundo - copy.logoHeight;
+    if (vitTeto > 0.0f) vitTopoBloco = copy.logo;
   }
   if (heroCompactoTelefone()) {
     float minLogo = 48.0f;
@@ -4876,7 +4891,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     }
     minTop = 132.0f;
     if (lay == HOME_LAYOUT_PADRAO)
-      minTop += base - ANC(NV_PAD_BANNER_H - NV_PAD_TEXTO_BASE);
+      minTop += base - ANC(NV_PAD_BANNER_H - padTextoBase());
     else if (lay == HOME_LAYOUT_DINAMICA)
       minTop += base - (alturaTextoHeroDin() - ANC(NV_DIN_TEXTO_BASE));
     copy = heroCopyTelefone(base, &hSin, metaLinha[0] != 0, temSec, &captionH,
@@ -4999,7 +5014,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
     }
   }
 
-  if (sinopse[0] && (!(heroCompactoTelefone() || vitTeto > 0.0f) || hSin > 0.0f) && aSin > 0.004f)
+  if (sinopse[0] && (!(heroCompactoTelefone() || vitTeto > 0.0f || menuTeto > 0.0f) || hSin > 0.0f) && aSin > 0.004f)
     txt_bloco_corta(heroSinEstilo(), sinopse, 255, 255, 255, x, ySin + dyS, sinW,
                     heroSinEntrelinha(), aSin, sinLinhas);
   return copy.action;
@@ -5050,7 +5065,7 @@ static GfxRect heroArtworkOverlayRect(GfxRect r, GfxRect hero) {
 }
 
 static float heroBaseCopia(int lay, GfxRect r, float empurra, float descida) {
-  if (lay == HOME_LAYOUT_PADRAO) return r.y + r.h - ANC(NV_PAD_TEXTO_BASE) + descida;
+  if (lay == HOME_LAYOUT_PADRAO) return r.y + r.h - ANC(padTextoBase()) + descida;
   if (lay == HOME_LAYOUT_DINAMICA) return r.y + alturaTextoHeroDin() - ANC(NV_DIN_TEXTO_BASE) + descida;
   return ANC(NV_SHELF_TOP - NV_HERO_COPY_GAP - 24.0f) + empurra + descida;
 }

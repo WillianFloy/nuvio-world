@@ -102,7 +102,10 @@ int  menu_pediu_spotlight(void);
 // interface; tudo o que esta API devolve ja vem em px da tela REAL.
 #define NV_MENU_MODERNA_X 28.0f   // px da tela REAL (eram 48: "distante demais", dono 20/11)
 float menu_barra_borda(void);
-float menu_rail_borda(void);   // World 20/11: borda da rail recolhida (px REAIS), 0 sem rail
+float menu_rail_borda(void);
+// Padrao com o menu do topo: base das abas (com o traco da pagina ativa), em
+// px REAIS; 0 fora disso. Medida de repouso (sem o zoom do foco).
+float menu_topo_padrao_base(void);   // World 20/11: borda da rail recolhida (px REAIS), 0 sem rail
 // Barra no topo: a geometria da tira como desenhada agora, em px da tela REAL
 // (retangulos x, y, w, h). `sel`/`foc` sao as capsulas de selecao e de foco
 // (x, w, alfa); `foco[k]` e quanto a de foco cobre a pilula k (a tinta do

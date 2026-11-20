@@ -4364,7 +4364,10 @@ void gfx_chrome_dens(float out[3]) {
   out[0] = 0.125f / (k * k); out[1] = 0.72f * k; out[2] = 0.82f * k;
 }
 void gfx_chrome(GfxRect r, float raio, float a) {
-  if (ajustes_vidro()) { gfx_vidro(r, raio, GFX_VIDRO_BARRA, 0.0f, 0.0f, a); return; }
+  // PRETO PURO (World, 20/11, TCL): fora do video o chrome (relogio, abas) e
+  // #000 de verdade, nao o vidro fume (que sobre arte clara lia grafite). Com
+  // video na tela (furo do plano de video) segue o vidro, translucido de proposito.
+  if (ajustes_vidro() && !(gfx_tema_preto && !foscoBloq && vidroNFuros == 0)) { gfx_vidro(r, raio, GFX_VIDRO_BARRA, 0.0f, 0.0f, a); return; }
   // Preto puro: o chrome solido e preto (o #1A1C21 mapeado ainda saia grafite).
   if (gfx_tema_preto) gfx_rect(r, 0, GFX_COR, 0, 0, 0, raio, 0.0f, 0.0f, 0.0f, a);
   else gfx_cor(r, raio, 0x1a / 255.0f, 0x1c / 255.0f, 0x21 / 255.0f, a);
