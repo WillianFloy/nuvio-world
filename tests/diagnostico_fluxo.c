@@ -47,7 +47,7 @@ int main(void) {
   assert(SDL_Init(SDL_INIT_TIMER) == 0);
   dados_iniciar(dir);
   assert(tex_iniciar(64));
-  assert(orcamento() == 96 && tex_fios_rede() == 4 && tex_teto_heroi() == 1920);
+  assert(orcamento() == 96 && tex_fios_rede() == 8 && tex_teto_heroi() == 1920);
 
   // 0. OK NA APRESENTACAO (issue #113): grava a marca de "vista". Com a trava
   // de verdade (NV_DADOS_TRAVA_TESTE, a do Tizen), a trava dupla abortava aqui.
@@ -72,9 +72,9 @@ int main(void) {
   assert(d.perfCand.texMb == 160); // continua sendo o candidato, nao o ativo
   conferePerfilResultado(0);
   montarRelatorio();
-  assert(strstr(d.relatorio, "perfil_candidato=160|4|1920\n"));
-  assert(strstr(d.relatorio, "perfil_testado=160|4|1920\n"));
-  assert(strstr(d.relatorio, "perfil_ativo=96|4|1920\n"));
+  assert(strstr(d.relatorio, "perfil_candidato=160|8|1920\n"));
+  assert(strstr(d.relatorio, "perfil_testado=160|8|1920\n"));
+  assert(strstr(d.relatorio, "perfil_ativo=96|8|1920\n"));
   assert(strstr(d.relatorio, "perfil_aprovado=none\n"));
   assert(strstr(d.relatorio, "tex_orcamento_origem=automatic\n"));
   assert(strstr(d.relatorio, "tex_orcamento_auto_mb=96\n"));
@@ -92,7 +92,7 @@ int main(void) {
   concluirComparacao();
   assert(d.aplicacao == DA_RUIDO && d.motivo);
   assert(!strcmp(aplicacaoNome(d.aplicacao), "mantido_ruido"));
-  assert(tex_fios_rede() == 4 && tex_teto_heroi() == 1920 && orcamento() == 96);
+  assert(tex_fios_rede() == 8 && tex_teto_heroi() == 1920 && orcamento() == 96);
   assert(atomic_load(&d.experimento) == 0);
   assert(!dados_ler("diagnostico-otimizacao.checkpoint"));
   assert(!dados_ler("diagnostico-otimizacao.cfg"));
@@ -137,7 +137,7 @@ int main(void) {
   // 3. Restaurar anterior (botao): volta ao que valia e apaga o perfil.
   restaurarManual();
   assert(d.aplicacao == DA_RESTAURADO_MANUAL);
-  assert(tex_fios_rede() == 4 && tex_teto_heroi() == 1920);
+  assert(tex_fios_rede() == 8 && tex_teto_heroi() == 1920);
   conferePerfilResultado(0);
   assert(!dados_ler("diagnostico-otimizacao.cfg"));
   puts("ok  restaurar anterior desfaz o perfil mantido");
@@ -148,7 +148,7 @@ int main(void) {
   d.medAntes = med(1000, 0);
   d.medDepois = med(500, 1);
   concluirComparacao();
-  assert(d.aplicacao == DA_RESTAURADO_AUTO && tex_fios_rede() == 4);
+  assert(d.aplicacao == DA_RESTAURADO_AUTO && tex_fios_rede() == 8);
   conferePerfilResultado(0);
   puts("ok  falha a mais no reteste restaura");
 
@@ -200,7 +200,7 @@ int main(void) {
   dados_gravar("diagnostico-otimizacao.cfg", "versao=2\nmodo=qualidade\ntex_mb=999\nfios_rede=9\nheroi=3840\n");
   dados_gravar("diagnostico-otimizacao.checkpoint", "versao=2\nestado=experiment_pending\n");
   diagnostico_recuperar_checkpoint();
-  assert(orcamento() == 160 && tex_fios_rede() == 4 && tex_teto_heroi() == 1920);
+  assert(orcamento() == 160 && tex_fios_rede() == 8 && tex_teto_heroi() == 1920);
   assert(!dados_ler("diagnostico-otimizacao.checkpoint"));
   puts("ok  perfil do disco limitado pela RAM; experimento interrompido descartado");
 

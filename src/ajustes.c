@@ -3,6 +3,11 @@
 // cancela. A lista mostra valor e chevron, a ficha explica alcance e padrao.
 // IDs, chaves persistidas e indices de valores continuam os legados.
 #include "ajustes.h"
+// World: sem vidro no Android (ver ajustes_vidro). As capturas do vidro
+// (NV_VIDRO_TESTE) continuam podendo liga-lo.
+#if defined(NV_ANDROID) && !defined(NV_VIDRO_TESTE) && !defined(NV_SEM_VIDRO)
+#define NV_SEM_VIDRO 1
+#endif
 #include "configtransfer.h"
 #include "menu.h"
 #include "diaglog.h"
@@ -3006,7 +3011,16 @@ int ajustes_cor_logo(void) { return lig(AJ_COR_LOGO); }
 int ajustes_vidro(void) { return 1; }
 #else
 int ajustes_vidro(void) {
+#ifdef NV_SEM_VIDRO
+  // World (20/11/2026, decisao do dono): o vidro sai. Nos logs da TCL ele
+  // custava 8-12 fps e deixava as fileiras de Collections em 25 fps; o
+  // material passa a ser o do modo sem vidro (preto, transparencia sem
+  // desfoque, cor). O valor salvo fica intocado: o codigo do vidro sai depois
+  // da validacao na TV.
+  return 0;
+#else
   return (lig(AJ_VIDRO) || (valor[AJ_VIDRO] == 2 && !gpun_efeito_ativo(4))) && !SEGURO;
+#endif
 }
 int ajustes_fundo(void) {
 #ifdef NV_TIZEN3_LITE
@@ -3030,6 +3044,11 @@ int ajustes_vidro_fosco(void) {
   return valor[AJ_VIDRO_FOSCO] == 1 || (valor[AJ_VIDRO_FOSCO] == 2 && !gpun_fosco_vetado());
 }
 int ajustes_efeitos_automaticos(void) {
+#ifdef NV_SEM_VIDRO
+  // Sem vidro, os degraus do vidro na escada (qualidade, vidro automatico)
+  // nao existem: so o fosco e as animacoes seguem automaticos.
+  return (valor[AJ_VIDRO_FOSCO] == 2 ? 2 : 0) | (valor[AJ_ANIM] == 2 ? 4 : 0);
+#endif
   return ((valor[AJ_VIDRO_QUALIDADE] == 0 && valor[AJ_VIDRO] != 1) ? 1 : 0) |
          (valor[AJ_VIDRO_FOSCO] == 2 ? 2 : 0) |
          (valor[AJ_ANIM] == 2 ? 4 : 0) | (valor[AJ_VIDRO] == 2 ? 8 : 0);
@@ -3121,6 +3140,12 @@ float ajustes_tamanho_ajustes(void) {
 // The phone always uses List. Keep the stored TV preference unchanged.
 static int ajLayoutSelecionavel(void) { return !telefoneui_ativo(); }
 static int ajOpcaoDisponivel(int op) {
+#ifdef NV_SEM_VIDRO
+  // O vidro saiu (ver ajustes_vidro): a opcao e as que dependem dela somem da
+  // tela, da busca e do "abrir ajuste".
+  if (op == AJ_VIDRO || op == AJ_VIDRO_CONTORNO || op == AJ_FOCO_ACENTO ||
+      op == AJ_VIDRO_OPAC || op == AJ_VIDRO_FOSCO || op == AJ_VIDRO_QUALIDADE) return 0;
+#endif
   if (op == AJ_AMPLIAR_UI)
     return painel4k() && !telefoneui_ativo();
   if (op == AJ_ARTE_TOM) return valor[AJ_TEMA] == AJ_TEMA_DINAMICA;

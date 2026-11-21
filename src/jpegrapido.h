@@ -36,4 +36,14 @@ SDL_Surface *jpeg_rapido_carregar(const char *caminho, int largMax,
 #include <stddef.h>
 SDL_Surface *jpeg_rapido_carregar_mem(const unsigned char *dados, size_t n, int largMax,
                                       int *larguraOriginal, int *alturaOriginal);
+
+// CODIFICAR (miniaturas locais, miniatura.h): grava `px` (R,G,B,A por pixel,
+// o ABGR8888 das texturas; o alfa e ignorado) como JPEG em `f`. 1 = gravou.
+// 0 sem libjpeg/codificador (Tizen: sempre 0) ou em erro — o arquivo fica
+// incompleto e quem chama o descarta. jpeg_rapido_codificador diz, sem
+// gravar, se o codificador existe.
+#include <stdio.h>
+int jpeg_rapido_codificador(void);
+int jpeg_rapido_gravar_rgba(FILE *f, const unsigned char *px, int w, int h, int pitch,
+                            int qualidade);
 #endif

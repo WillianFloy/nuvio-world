@@ -32,9 +32,9 @@ static void tabela(void) {
   assert(ptv_tex_teto_mb(PTV_LG, 2245) == 300);
   assert(ptv_tex_teto_mb(PTV_LG, 4096) == 512);
   ptv_padrao(PTV_LG, 2245, &p);
-  assert(p.texMb == 128 && p.fiosRede == 4 && p.heroiLarg == 1920);
+  assert(p.texMb == 128 && p.fiosRede == 8 && p.heroiLarg == 1920);
   ptv_padrao(PTV_LG, 1024, &p);
-  assert(p.texMb == 48 && p.fiosRede == 2 && p.heroiLarg == 1280);
+  assert(p.texMb == 48 && p.fiosRede == 4 && p.heroiLarg == 1280);
   // Tizen: deviceMemory; o teto e o proprio automatico.
   assert(ptv_tex_auto_mb(PTV_TIZEN, 0) == 96);
   assert(ptv_tex_auto_mb(PTV_TIZEN, 1024) == 64);
@@ -52,12 +52,12 @@ static void tabela(void) {
   assert(ptv_tex_auto_mb(PTV_TPK, 3072) == 128);
   assert(ptv_tex_teto_mb(PTV_TPK, 1108) == 96);
   assert(ptv_tex_teto_mb(PTV_TPK, 3072) == 256);
-  assert(ptv_fios_rede_max(PTV_TPK) == 4);
+  assert(ptv_fios_rede_max(PTV_TPK) == 8);
   ptv_definir_gpu_fraca(0);
   ptv_padrao(PTV_TPK, 1108, &p);
-  assert(p.texMb == 64 && p.fiosRede == 2 && p.heroiLarg == 1280);
+  assert(p.texMb == 64 && p.fiosRede == 4 && p.heroiLarg == 1280);
   ptv_padrao(PTV_TPK, 2048, &p);
-  assert(p.texMb == 96 && p.fiosRede == 4 && p.heroiLarg == 1920);
+  assert(p.texMb == 96 && p.fiosRede == 8 && p.heroiLarg == 1920);
   ptv_definir_gpu_fraca(1);
   ptv_padrao(PTV_TPK, 2048, &p);
   assert(p.heroiLarg == 1280);
@@ -67,7 +67,7 @@ static void tabela(void) {
   ptv_definir_gpu_utgard(1);
   ptv_definir_gpu_fraca(1);
   ptv_padrao(PTV_TPK, 1108, &p);
-  assert(p.heroiLarg == 960 && p.texMb == 64 && p.fiosRede == 2);
+  assert(p.heroiLarg == 960 && p.texMb == 64 && p.fiosRede == 4);
   ptv_padrao(PTV_TPK, 2048, &p);
   assert(p.heroiLarg == 960);
   ptv_padrao(PTV_LG, 1024, &p);
@@ -118,11 +118,11 @@ static void limites(void) {
           if (m < 2000) assert(c.heroiLarg == 1280);
         }
         if ((plat == PTV_LG || plat == PTV_ANDROID) && m && m < 1200)
-          assert(c.texMb <= 64 && c.heroiLarg == 1280 && c.fiosRede <= 2);
+          assert(c.texMb <= 64 && c.heroiLarg == 1280 && c.fiosRede <= 4);
       }
   { PtvPerfil c;
     ptv_candidato(PTV_LG, 2245, PTV_QUALIDADE, 0, &c);
-    assert(c.texMb == 300 && c.fiosRede == 4 && c.heroiLarg == 1920);
+    assert(c.texMb == 300 && c.fiosRede == 8 && c.heroiLarg == 1920);
     ptv_candidato(PTV_LG, 2245, PTV_DESEMPENHO, 0, &c);
     assert(c.texMb == 128 && c.fiosRede == 2 && c.heroiLarg == 1280);
     // Escolha manual (ou alto-cache): o orcamento fica, o resto muda.
@@ -132,14 +132,14 @@ static void limites(void) {
     ptv_candidato(PTV_LG, 1024, PTV_QUALIDADE, 300, &c);
     assert(c.texMb == 64); }
   // LG de 658 MB (diagnostico de campo): o candidato de Qualidade sobe a
-  // textura ao teto, mas os fios ficam nos 2 da tabela; e um perfil salvo com
-  // 4 fios, aprovado antes desta regra, volta a 2 ao ser lido.
-  { PtvPerfil c, salvo = { 64, 4, 1280 };
+  // textura ao teto, mas os fios ficam nos 4 da tabela (eram 2 ate 20/11); e um perfil salvo com
+  // 8 fios volta a 4 ao ser lido.
+  { PtvPerfil c, salvo = { 64, 8, 1280 };
     ptv_candidato(PTV_LG, 658, PTV_QUALIDADE, 0, &c);
-    assert(c.texMb == 64 && c.fiosRede == 2 && c.heroiLarg == 1280);
-    assert(ptv_limitar(PTV_LG, 658, &salvo) == 1 && salvo.fiosRede == 2 && salvo.texMb == 64);
+    assert(c.texMb == 64 && c.fiosRede == 4 && c.heroiLarg == 1280);
+    assert(ptv_limitar(PTV_LG, 658, &salvo) == 1 && salvo.fiosRede == 4 && salvo.texMb == 64);
     ptv_candidato(PTV_LG, 1500, PTV_QUALIDADE, 0, &c);
-    assert(c.fiosRede == 4); }
+    assert(c.fiosRede == 8); }
   { PtvPerfil lido = { 999, 9, 3840 };
     assert(ptv_limitar(PTV_TIZEN, 2048, &lido) == 1);
     assert(lido.texMb == 96 && lido.fiosRede == 2 && lido.heroiLarg == 1920); }

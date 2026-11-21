@@ -221,6 +221,9 @@ extern long   tex_upl_bytes;
 // a fila de rede (discoDireto), e downloads poupados pela memoria de arte
 // inexistente (404 lembrado / host em prazo estourado).
 extern int    tex_disco_direto;
+// Miniaturas locais (miniatura.h): 1 = ligadas (padrao). Campo: no Android,
+// `setprop debug.nuvio.mini 0` desliga, para medir o antes/depois na TV.
+extern int    tex_mini_ligado;
 int tex_negativas_poupadas(void);
 extern int    tex_n_busca;
 // PEDIDOS QUE VOLTARAM SEM TEXTURA (arte ainda a caminho; a que falhou de vez

@@ -896,6 +896,9 @@ const char *app_tela_nome(void) {
   if (spainel_aberto()) return "salvos";
   if (menu_aberto()) return "menu";
   if (tela == TELA_HOME && detail_aberto()) return "detalhe";
+  // Dentro de uma Collection (a Vitrine): tela propria nos logs de quadro, que
+  // ate 20/11 a contavam como "home" e misturavam os dois numeros.
+  if (tela == TELA_HOME && vertudo_aberta()) return "vitrine";
   if ((unsigned)tela < sizeof NOMES / sizeof *NOMES) return NOMES[tela];
   return "?";
 }

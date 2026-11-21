@@ -265,8 +265,9 @@ int main(void) {
   AJ_LIMPAR_CACHE == AJ_HDR_INTERFACE + 1 &&
   AJ_TUNNELING == AJ_LIMPAR_CACHE + 1 && AJ_DV7 == AJ_TUNNELING + 1 &&
   AJ_LOG_REDE == AJ_DV7 + 1 && AJ_N > AJ_LOG_REDE);
-  assert(valor[AJ_LOG_REDE] == 1 && valorPadrao[AJ_LOG_REDE] == 1 &&
-         uxValorPadrao(AJ_LOG_REDE) == 1 && !ajustes_log_rede()); // V_LIGA: 1 = Off
+  // 20/11/2026: "Registro na rede local" virou a acao "Logs de diagnostico"
+  // (sessoes, diaglog.h): sem valor proprio, nada liga servidor no arranque.
+  assert(OPCOES[AJ_LOG_REDE].tipo == OP_ACAO);
   // #492: retomada morna e o prazo do video pronto
   assert(valor[AJ_RETOMADA_MORNA] == 0 && ajustes_retomada_morna());   // V_LIGA: 0 = Ligado
   assert(!strcmp(CHAVE[AJ_RETOMADA_MORNA], "retomadaMornaLocal") && somenteDesteAparelho(AJ_RETOMADA_MORNA) && !dePerfil(AJ_RETOMADA_MORNA));
@@ -429,6 +430,13 @@ int main(void) {
   for (int level = 0; level <= 4; level++) {
     valor[AJ_ANIM] = valor[AJ_VIDRO] = valor[AJ_VIDRO_FOSCO] = 2;
     valor[AJ_VIDRO_CONTORNO] = valor[AJ_VIDRO_QUALIDADE] = 0;
+    // P2 (20/11): no degrau 0, com vidro fosco e qualidade automaticos, o
+    // primeiro passo e o ritmo do vidro (fundo a cada 3 quadros), e so depois
+    // os degraus.
+    if (level == 1) {
+      for (int r = 0; r < 4 && gpun_vidro_ritmo() < 2; r++) gpun_relatar(30, 40, 16.667, 1, 1);
+      assert(gpun_vidro_ritmo() == 2 && gpun_degrau() == 0);
+    }
     if (level) for (int r = 0; r < 3; r++) gpun_relatar(30, 40, 16.667, 1, 1);
     if (level) gpun_relatar(34, 40, 16.667, 1, 1);
     assert(gpun_degrau() == level);

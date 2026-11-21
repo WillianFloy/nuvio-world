@@ -42,6 +42,7 @@ static int arqDiscoTem(const char *dst);
 #include <SDL2/SDL_image.h>
 #include "webp.h"
 #include "jpegrapido.h"
+#include "miniatura.h"
 #include "corviva.h"
 #include "artereserva.h"
 #include "artetamanho.h"
@@ -259,13 +260,17 @@ static int limiteDaVariante(const Item *it) {
   return it->limiteArquivo > it->limite ? it->limiteArquivo : it->limite;
 }
 
-#define NV_TEX_FIOS 2
-// Fios de rede: 4 no LG; 2 no Tizen, onde o fetch de cada um passa pelo fio
+// Fios de decode: ate 3 no nativo com >= 1,5 GB e 4 nucleos ou mais (decidido
+// em tex_iniciar); 2 no resto. Cada fio em decode segura a imagem inteira
+// em RAM (um PNG de 2560x1440 = ~15 MB): na TV de 1 GB fica em 2.
+#define NV_TEX_FIOS 3
+// Fios de rede criados: 8 no nativo (ativos pelo perfil de perfiltv.c, ate 2
+// sob pressao de memoria); 2 no Tizen, onde o fetch de cada um passa pelo fio
 // principal (ver Item.bruto e a nota de ADD_FIOS em addons.c).
 #ifdef __EMSCRIPTEN__
 #define NV_TEX_FIOS_REDE 2
 #else
-#define NV_TEX_FIOS_REDE 4
+#define NV_TEX_FIOS_REDE 8
 #endif
 static SDL_Thread *thrs[NV_TEX_FIOS];
 static SDL_Thread *thrsRede[NV_TEX_FIOS_REDE];
@@ -277,10 +282,22 @@ static SDL_Thread *thrsRede[NV_TEX_FIOS_REDE];
 static int fiosRedeAtivos = NV_TEX_FIOS_REDE;
 static int fiosRedeCriados = 0;
 static SDL_cond *cond;
+// FIOS QUE PODEM BAIXAR AGORA. O perfil diz quantos (fiosRedeAtivos); sob
+// pressao de memoria do sistema ou com video tocando, no maximo 2: cada fio
+// segura um corpo baixado ate o decode, e e ai que mais conexoes custam RAM.
+// Passada a pressao, os fios parados voltam sozinhos no proximo pedido
+// (acordarRede acorda todos quando ha fio parado). Chamada com o mutex.
+static int pressaoAtiva(void);
+static int pressaoPlayLigada;
+static int fiosRedeEfetivos(void) {
+  int n = fiosRedeAtivos;
+  if (n > 2 && (pressaoPlayLigada || pressaoAtiva())) n = 2;
+  return n;
+}
 // Com fios parados na condicao, um Signal pode acordar justamente um deles, que
 // volta a dormir e o pedido fica na fila sem ninguem. Broadcast so nesse caso.
 static void acordarRede(void) {
-  if (fiosRedeAtivos < fiosRedeCriados) SDL_CondBroadcast(cond);
+  if (fiosRedeEfetivos() < fiosRedeCriados) SDL_CondBroadcast(cond);
   else SDL_CondSignal(cond);
 }
 static Item itens[MAX_ITENS_ABS];
@@ -1460,6 +1477,19 @@ static void nomeDeCache(const char *url, char *dst, size_t tam) {
   snprintf(dst, tam, "%s/%08lx%s", dirCache, h, ext);
 }
 
+int tex_mini_ligado = 1;
+#ifndef __EMSCRIPTEN__
+// MINIATURA LOCAL (miniatura.h): o arquivo JA no tamanho de exibicao, gravado
+// pelo primeiro decode caro. O indice em RAM responde sem I/O; antes de o
+// indice existir (arranque), um fopen direto responde.
+static int miniPresente(const char *url, int limite, char *dst, size_t n) {
+  if (!tex_mini_ligado || !dirCache[0] || !url || !url[0] || limite <= 0) return 0;
+  mini_nome(dirCache, url, limite, dst, n);
+  if (cachearte_nativo_indice_pronto()) return cachearte_nativo_indice_tem(dst);
+  return access(dst, R_OK) == 0;
+}
+#endif
+
 #ifdef __EMSCRIPTEN__
 // ARQUIVOS QUE JA ESTAO NA PASTA DE CACHE (Tizen, 24/09/2026). No Tizen so GIF
 // vai a arquivo (gif.c le por caminho); o resto vive em Item.bruto. Mas o fio
@@ -2369,7 +2399,7 @@ static int threadRede(void *arg) {
     Uint32 filaEm = 0, filaWait = 0;
     int urgente = 0;
     SDL_LockMutex(mtx);
-    while (rodando && (filaIni == filaFim || meu >= fiosRedeAtivos)) SDL_CondWait(cond, mtx);
+    while (rodando && (filaIni == filaFim || meu >= fiosRedeEfetivos())) SDL_CondWait(cond, mtx);
     if (!rodando) { SDL_UnlockMutex(mtx); return 0; }
     idx = tirarFila(fila, &filaIni, filaFim);
     if (itens[idx].estado != PENDENTE || pedidoObsoleto(&itens[idx])) {
@@ -2824,6 +2854,10 @@ static int threadDecode(void *arg) {
     itens[idx].filaDecEm = 0;
     localDireto = itens[idx].localDireto;
     int limTam = localDireto ? 0 : itens[idx].limiteTamanho;
+    // Teto do ARQUIVO (previa de 128 px pedida com o arquivo do cartao): o
+    // decode da previa ja tem o original inteiro na mao e grava tambem a
+    // miniatura do cartao, para a promocao nao decodificar o original de novo.
+    int limArq = itens[idx].limiteArquivo;
     // OS BYTES SAEM DO ITEM AQUI, sob o mutex, e passam a ser deste fio.
     unsigned char *bruto = itens[idx].bruto;
     long nBruto = itens[idx].nBruto;
@@ -2853,7 +2887,36 @@ static int threadDecode(void *arg) {
     int srcW = 0, srcH = 0;
     SDL_Surface *bruta = NULL;
     SDL_Surface *conv = NULL;
-    if (bruto) {
+    // Primeiros bytes do original: decidem se vale gravar a miniatura (JPEG,
+    // PNG, WebP parado) e viram a `magica` do item.
+    unsigned char cabOrig[32];
+    int nCabOrig = 0, deMini = 0;
+#ifndef __EMSCRIPTEN__
+    // MINIATURA PRIMEIRO, quando o pedido nao trouxe bytes novos da rede: um
+    // arquivo do tamanho da tela no lugar do decode do original.
+    if (!bruto && !localDireto) {
+      char mcam[600];
+      if (miniPresente(urlOrig, limite, mcam, sizeof mcam)) {
+        MiniInfo mi; int corr = 0;
+        conv = mini_ler(mcam, limite, &mi, &corr);
+        if (conv) {
+          deMini = 1;
+          srcW = mi.srcW; srcH = mi.srcH; limTam = mi.limTam;
+          memcpy(magDec, mi.magica, 4); temMagDec = 1;
+          cachearte_nativo_indice_tocar(mcam);
+        } else if (corr) {
+          cachearte_nativo_indice_remover(mcam);
+          printf("[mini] miniatura invalida apagada: %08lx\n", hashCaminho(urlOrig));
+          fflush(stdout);
+        }
+      }
+    }
+#endif
+    if (deMini) {
+      /* conv ja veio da miniatura */
+    } else if (bruto) {
+      nCabOrig = nBruto < (long)sizeof cabOrig ? (int)nBruto : (int)sizeof cabOrig;
+      memcpy(cabOrig, bruto, (size_t)nCabOrig);
       bruta = jpeg_rapido_carregar_mem(bruto, (size_t)nBruto, limite, &srcW, &srcH);
 #ifndef __EMSCRIPTEN__
       // No LG o _mem so faz JPEG; PNG pelo SDL_image e WebP pela libwebp do
@@ -2882,7 +2945,11 @@ static int threadDecode(void *arg) {
     // (discoDireto) nao passou pelo fio de rede, que e quem a lia.
 #ifndef __EMSCRIPTEN__
     { FILE *g = fopen(caminho, "rb");
-      if (g) { temMagDec = fread(magDec, 1, 4, g) == 4; fclose(g); } }
+      if (g) {
+        nCabOrig = (int)fread(cabOrig, 1, sizeof cabOrig, g);
+        temMagDec = nCabOrig >= 4;
+        if (temMagDec) memcpy(magDec, cabOrig, 4);
+        fclose(g); } }
 #endif
     // JPEG SAI DO DECODIFICADOR JA REDUZIDO (jpegrapido.h): 1/2, 1/4 ou 1/8
     // dentro da DCT, o que cobre o pedido. srcW/srcH ficam com o tamanho do
@@ -2937,6 +3004,30 @@ static int threadDecode(void *arg) {
         bruta = NULL;
       }
       if (!conv && bruta) conv = SDL_ConvertSurfaceFormat(bruta, SDL_PIXELFORMAT_ABGR8888, 0);
+#ifndef __EMSCRIPTEN__
+      // A MINIATURA DO CARTAO, de carona na previa: o caro (ler o PNG/JPEG
+      // inteiro) ja foi pago; reduzir de novo e codificar custa uma fracao.
+      // Sem isto a previa decodificava o original a 128 px e a promocao, logo
+      // em seguida, decodificava o MESMO original outra vez no tamanho do
+      // cartao — 300-600 ms cada na TCL.
+      if (bruta && conv && limArq > limite && bruta->w > limArq && !localDireto &&
+          tex_mini_ligado && dirCache[0]) {
+        int lh2 = bruta->h * limArq / bruta->w;
+        if (mini_vale_gravar(srcW, srcH, limArq, lh2 > 0 ? lh2 : 1, SDL_GetTicks() - t0, cabOrig, nCabOrig)) {
+          SDL_Surface *cart = tex_reduzir(bruta, limArq, lh2 > 0 ? lh2 : 1);
+          if (cart) {
+            char mcam[600]; MiniInfo mi; long nb;
+            memset(&mi, 0, sizeof mi);
+            mi.srcW = srcW; mi.srcH = srcH; mi.limite = limArq; mi.limTam = limTam > 0 ? limTam : 0;
+            memcpy(mi.magica, cabOrig, 4);
+            mini_nome(dirCache, urlOrig, limArq, mcam, sizeof mcam);
+            nb = mini_gravar(mcam, cart, &mi);
+            if (nb > 0) cachearte_nativo_indice_registrar(mcam, nb);
+            SDL_FreeSurface(cart);
+          }
+        }
+      }
+#endif
       if (bruta) SDL_FreeSurface(bruta);
     }
 #ifdef __EMSCRIPTEN__
@@ -2992,6 +3083,23 @@ static int threadDecode(void *arg) {
       }
     }
 
+#ifndef __EMSCRIPTEN__
+    // GRAVA A MINIATURA depois do primeiro decode caro: da proxima vez este
+    // fio le uma imagem do tamanho da tela. Aqui `conv` ainda e so a base (a
+    // piramide de mipmaps e montada abaixo) e no formato final.
+    if (conv && !deMini && !localDireto && tex_mini_ligado && dirCache[0] &&
+        mini_vale_gravar(srcW, srcH, conv->w, conv->h, SDL_GetTicks() - t0, cabOrig, nCabOrig)) {
+      char mcam[600];
+      MiniInfo mi;
+      long nb;
+      memset(&mi, 0, sizeof mi);
+      mi.srcW = srcW; mi.srcH = srcH; mi.limite = limite; mi.limTam = limTam > 0 ? limTam : 0;
+      memcpy(mi.magica, cabOrig, 4);
+      mini_nome(dirCache, urlOrig, limite, mcam, sizeof mcam);
+      nb = mini_gravar(mcam, conv, &mi);
+      if (nb > 0) cachearte_nativo_indice_registrar(mcam, nb);
+    }
+#endif
     // DE ONDE VEM A NITIDEZ, quando alguem reclama que a arte esta borrada.
     //
     // Tres numeros e uma URL por decode: a fonte que o servidor mandou, o teto
@@ -3595,7 +3703,11 @@ int tex_iniciar(int max_itens) {
   int mb = orcamentoMB();
   mipCpuAtivo();  // decide antes dos fios de decode (NUVIO_TEX_MIP)
   posterprov_hook_estado(estadoPoster);
-  int fiosDecode = NV_TEX_FIOS, fiosRede = NV_TEX_FIOS_REDE;
+  int fiosDecode = 2, fiosRede = NV_TEX_FIOS_REDE;
+#ifndef __EMSCRIPTEN__
+  if (orcMemTotal >= 1500 && SDL_GetCPUCount() >= 4) fiosDecode = 3;
+#endif
+  printf("[tex] fios de decode: %d (RAM %ld MB, %d nucleos)\n", fiosDecode, orcMemTotal, SDL_GetCPUCount());
   // Os outros dois padroes do aparelho (fios ativos e teto do heroi) saem da
   // MESMA tabela do orcamento. Ver perfiltv.c.
   { PtvPerfil pf;
@@ -3742,11 +3854,18 @@ int tex_disco_direto = 0;
 // traduz a URL). Arquivo que a poda apagou no meio do caminho cai no
 // garantirLocal do decode, que baixa como antes. Fila de decode cheia ou
 // indice ainda nao montado: fila de rede, como sempre foi.
+
 static int discoDireto(int idx) {
 #ifndef __EMSCRIPTEN__
   char certo[NV_TEX_URL_MAX], dst[600];
   int usar;
   if (!dirCache[0] || !itens[idx].caminho[0]) return 0;
+  // A miniatura do tamanho pedido basta: nem a rede nem o original.
+  if (miniPresente(itens[idx].caminho, itens[idx].limite, dst, sizeof dst)) {
+    if (!enfileirarDecodeSemEspera(idx)) return 0;
+    tex_disco_direto++;
+    return 1;
+  }
   { int lim = limiteDaVariante(&itens[idx]);
     usar = arte_tamanho_url(itens[idx].caminho, lim, certo, sizeof certo);
     nomeDeCache(usar ? certo : itens[idx].caminho, dst, sizeof dst);

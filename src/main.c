@@ -60,6 +60,7 @@
 #include "rede.h"
 #include "fio1.h"   // so existe corpo com NV_UM_FIO — ver o gancho perto de nv_ceder_quadro
 #include "tex_cache.h"
+#include "miniatura.h"
 #include "webp.h"
 #include "cachearte.h"
 #include "artehero.h"
@@ -2502,6 +2503,16 @@ int main(int argc, char **argv) {
         if (sN > 0) printf("[swap] ritmo=%.2fms ref=%.2fms med=%.2fms pior=%.1fms n=%d limite-jank=%.1fms\n",
                            swapint_periodo(&swapInt), swapint_referencia(&swapInt, hzTela), sMed, sPior, sN,
                            swapint_limite_jank(swapint_referencia(&swapInt, hzTela))); }
+#ifndef __EMSCRIPTEN__
+      // MINIATURAS LOCAIS (miniatura.h): quantas artes vieram do arquivo ja no
+      // tamanho da tela, e quantas foram gravadas depois do decode caro.
+      { MiniStats ms; mini_stats(&ms, 1);
+        if (ms.lidas || ms.gravadas || ms.corrompidas || ms.falhas)
+          printf("[mini] lidas=%d (%.1fms media) gravadas=%d (%.1fms media, %.0fKB) invalidas=%d falhas=%d\n",
+                 ms.lidas, ms.lidas ? ms.msLer / ms.lidas : 0.0, ms.gravadas,
+                 ms.gravadas ? ms.msGravar / ms.gravadas : 0.0, ms.bytesGravados / 1024.0,
+                 ms.corrompidas, ms.falhas); }
+#endif
       printf("FPS=%.1f pior=%.1fms janks=%d | pior-quadro: texto %.1fms em %d linhas"
              " | gpu-cache=%d %.1fMB tela=%d/%.1fMB fila-tex=%d tex-despejos=%d(q=%d) disco-direto=%d neg-arte=%d"
              " | despejos=%d | cache-arte=%ld/%ldB hit=%ld miss=%ld grav=%ld err=%ld essenciais=%ld/%ld"
@@ -2691,7 +2702,14 @@ int main(int argc, char **argv) {
           pv[0] = 0;
           if (__system_property_get("debug.nuvio.gpunivel", pv) > 0 && pv[0] >= '0' && pv[0] <= '3' &&
               pv[0] - '0' != gpun_nivel())
-            gpun_definir_nivel(pv[0] - '0'); }
+            gpun_definir_nivel(pv[0] - '0');
+          // Miniaturas locais (miniatura.h): "0" desliga, para o antes/depois.
+          pv[0] = 0;
+          { int mini = !(__system_property_get("debug.nuvio.mini", pv) > 0 && pv[0] == '0');
+            if (mini != tex_mini_ligado) {
+              tex_mini_ligado = mini;
+              printf("[mini] miniaturas locais %s (debug.nuvio.mini)\n", mini ? "ligadas" : "desligadas");
+            } } }
 #endif
         // NO CAMPO, SEM ARQUIVO: interface lenta (FPS < 50 com mais de 9
         // texturas na tela) solta a mesma linha, no maximo uma vez a cada 30 s,
@@ -2722,13 +2740,19 @@ int main(int argc, char **argv) {
           printf("[gpu-modos] lento: fps=%.1f layout=%d cor-viva=%d vidro=%d tela=%s\n",
                  fpsAgora, ajustes_home_layout(), ajustes_cor_viva(), ajustes_vidro(),
                  app_tela_nome()); }
-        if (fo || lenta || forcaFill || getenv("NUVIO_FILL_MODOS")) {
+        // World (20/11): na Home e na Vitrine, toda janela abaixo de 50 fps
+        // solta o preenchimento por modo — e o que diz QUAL camada pesa na
+        // GPU da TV (a captura no PC nao mostra o mesmo).
+        { const char *tn = app_tela_nome();
+          int telaFill = fpsAgora < 50.0 && (!strcmp(tn, "home") || !strcmp(tn, "vitrine"));
+        if (fo || lenta || forcaFill || telaFill || getenv("NUVIO_FILL_MODOS")) {
           int k; printf("[gpu-modos] fill: forca=%.2f |", nv_ambiente_forca);
           for (k = 0; k < GFX_NMODOS; k++) if (gfx_fill_modo_ult[k] > 0.02) printf(" %d=%.2f", k, gfx_fill_modo_ult[k]);
           // gpu = o que a GPU pinta de fato (gfx.h, gfx_fill_gpu); mist = a parte com mistura
-          printf(" | gpu=%.2f mist=%.2f med=%.2f pico=%.2f\n", gfx_fill_gpu_ult, gfx_fill_gpu_mist_ult,
-                 gpuFillN ? gpuFillSoma / gpuFillN : 0.0, gpuFillPico);
-        }
+          printf(" | gpu=%.2f mist=%.2f med=%.2f pico=%.2f | tela=%s fps=%.1f foco=%s\n", gfx_fill_gpu_ult, gfx_fill_gpu_mist_ult,
+                 gpuFillN ? gpuFillSoma / gpuFillN : 0.0, gpuFillPico, tn, fpsAgora,
+                 !strcmp(tn, "home") ? home_rastro_foco() : "-");
+        } }
         gpuFillSoma = 0.0; gpuFillPico = 0.0; gpuFillN = 0; }
 #ifdef NV_TPK
       // Quanto de tela o pior quadro pintou (gfx_fill, em telas 1920x1080) e

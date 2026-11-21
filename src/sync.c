@@ -1593,6 +1593,10 @@ static void spRelatar(void) {
 
 // No fio principal: consome cada corpo uma vez, antes ou no fim do ciclo.
 // Nenhum destes corpos participa de um push; o restante conserva fioPronto.
+// Reconciliacoes das Collections evitadas porque a conta mandou o mesmo estado
+// (teste e log).
+static unsigned syncReconciliacoesPoupadas;
+unsigned sync_reconciliacoes_poupadas(void) { return syncReconciliacoesPoupadas; }
 static int aplicarEstruturaDaConta(int medir) {
   int mudou = 0;
   int atualizarColecoes = temColBlob || temCatHomeBlob;
@@ -1623,7 +1627,22 @@ static int aplicarEstruturaDaConta(int medir) {
   if (medir) spMarcar(SP_COLECOES);
   // Publish account additions, removals and visibility while Settings is open;
   // relying on the next Home draw left the editor on an older snapshot (#233).
-  if (atualizarColecoes) colfileiras_sincronizar();
+  //
+  // SO QUANDO ALGO MUDOU (World, 20/11/2026). Os logs da TCL mostraram a mesma
+  // trava de 140-170 ms no fio principal a cada ciclo de sync, logo depois de
+  // "[collections] account snapshot identical: kept (755 folders)": a conta
+  // mandava o MESMO JSON, definirJson ja o ignorava, e mesmo assim esta
+  // reconciliacao percorria as 755 pastas e 3531 fontes de novo, por nada. Se
+  // nem a revisao das Collections nem a ordem mudaram, nao ha o que publicar;
+  // o que mudar por outro caminho (addons) a Home reconcilia pela revisao.
+  if (atualizarColecoes && mudou) {
+    double t0 = syncRelogioMs();
+    colfileiras_sincronizar();
+    { double dt = syncRelogioMs() - t0;
+      if (dt >= 30.0) { printf("[lento] colfileiras_sincronizar (sync): %.0f ms no fio principal\n", dt); fflush(stdout); } }
+  } else if (atualizarColecoes) {
+    syncReconciliacoesPoupadas++;
+  }
   if (medir) spMarcar(SP_SINCRONIZAR);
   return mudou;
 }

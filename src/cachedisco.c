@@ -15,7 +15,7 @@ static int imagem(const char *nome) {
   while (isxdigit((unsigned char)*p)) p++;
   if (p - nome < 8 || p - nome > 16) return 0;
   return !strcmp(p, ".jpg") || !strcmp(p, ".jpeg") || !strcmp(p, ".png") ||
-         !strcmp(p, ".webp") || !strcmp(p, ".gif");
+         !strcmp(p, ".webp") || !strcmp(p, ".gif") || !strcmp(p, ".nvm");
 }
 static int ordem(const void *a, const void *b) {
   const Entrada *x = a, *y = b;

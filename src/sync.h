@@ -91,6 +91,9 @@ void sync_sujar_addons(const char *url);
 
 // Ultimo instante em que um ciclo terminou bem (SDL_GetTicks); 0 se nunca.
 unsigned sync_ultimo_ok(void);
+// Reconciliacoes das Collections que o sync deixou de fazer porque a conta
+// mandou o mesmo estado (World, 20/11: a trava de 150 ms por ciclo na TCL).
+unsigned sync_reconciliacoes_poupadas(void);
 
 // Intervalo entre ciclos automaticos. Ate agora o sync so rodava no arranque,
 // depois do login e ao trocar de perfil — entao parar um episodio no celular

@@ -125,7 +125,12 @@ static void quadros(int n, const char *bmp) {
     glClear(GL_COLOR_BUFFER_BIT);
     gfx_ambiente(1.0f);
     if (getenv("NV_MENU")) gfx_deslocar_base(floorf(menu_empurra()));   // como app.c: o menu aberto empurra a home
+    // NV_RASTRO=1: lista no ultimo quadro os retangulos grandes (gfx.c,
+    // [qd-rect]), para achar camada de tela cheia que nao precisa existir.
+    gfx_rastro_grandes = getenv("NV_RASTRO") && i == n - 1 && bmp;
+    if (gfx_rastro_grandes) printf("[qd-rect] --- quadro %s\n", bmp);
     home_desenhar(agora);
+    gfx_rastro_grandes = 0;
     gfx_deslocar_base(0.0f);
     ctx_atualizar(1.0f / 60.0f, agora);
     ctx_desenhar(agora);

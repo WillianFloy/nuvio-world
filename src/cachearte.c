@@ -597,8 +597,10 @@ static int native_image_name(const char *name) {
   while ((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f') ||
          (*p >= 'A' && *p <= 'F')) p++;
   if (p - name < 8 || p - name > 16) return 0;
+  /* .nvm: miniatura local no tamanho de exibicao (miniatura.h). Mesmo indice,
+   * mesma poda: sai antes do que foi usado ha menos tempo. */
   return !strcmp(p, ".jpg") || !strcmp(p, ".jpeg") || !strcmp(p, ".png") ||
-         !strcmp(p, ".webp") || !strcmp(p, ".gif");
+         !strcmp(p, ".webp") || !strcmp(p, ".gif") || !strcmp(p, ".nvm");
 }
 /* A UNICA VARREDURA DA SESSAO. Roda sem trava nenhuma durante o readdir/lstat;
  * so a insercao pega s_idx_mtx, e com "nao substituir": o que o fio de

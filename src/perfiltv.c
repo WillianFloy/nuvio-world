@@ -38,7 +38,9 @@
 //   diagnostico=v2): nesta faixa o pico chegou a 160 de 160 MB e houve arte
 //   VISIVEL despejada em 12 de 27 relatorios. 128 e o degrau seguinte da
 //   escada, abaixo do teto de 160 que ja valia; fios e heroi nao mudam.
-// - fios de rede: o build cria 4 na LG e 2 no Tizen (NV_TEX_FIOS_REDE). Na LG
+// - fios de rede (20/11/2026: 8 criados no nativo, 4 ativos abaixo de 1,2 GB,
+//   ate 2 sob pressao de memoria; ver ptv_fios_rede_max). O texto abaixo e o
+//   motivo original dos 2 fixos. Na LG
 //   de 1 GB ficam 2 ativos: cada fio segura um corpo baixado ate o decode
 //   (ate 12 MB de fundo), e 4 corpos em voo numa TV com ~300 MB livres e o
 //   caminho do OOM que no webOS fecha o app sem aviso. No Tizen os 2 seguem:
@@ -161,7 +163,12 @@ int ptv_tex_teto_mb(PtvPlataforma p, long mem) {
   return 512;
 }
 
-int ptv_fios_rede_max(PtvPlataforma p) { return p == PTV_TIZEN ? 2 : 4; }
+// 8 no nativo desde 20/11/2026 (World): os logs da TCL mostraram a arte
+// esperando 1,5-2,3 s (p90) na FILA de rede com 2 fios, para downloads de
+// ~0,3 s cada. Mais conexoes enchem a fileira antes; o risco de memoria (um
+// corpo baixado por fio) fica com o recuo automatico sob pressao de memoria e
+// durante o video (tex_cache.c, fiosRedeEfetivos), que volta a 2 fios.
+int ptv_fios_rede_max(PtvPlataforma p) { return p == PTV_TIZEN ? 2 : 8; }
 
 // Fios que a RAM aceita: a LG abaixo de 1,2 GB fica nos 2 da tabela em
 // QUALQUER perfil — padrao, candidato de Qualidade ou perfil salvo. Antes so
@@ -169,7 +176,10 @@ int ptv_fios_rede_max(PtvPlataforma p) { return p == PTV_TIZEN ? 2 : 4; }
 // (4), e LGs de 658 MB aprovaram 64 MB com 4 fios (diagnostico de campo,
 // pessoas 80cd1a98 e f9f204be) — os 4 corpos em voo que a tabela evita.
 static int fiosTeto(PtvPlataforma p, long mem) {
-  if ((p == PTV_LG || p == PTV_ANDROID || p == PTV_TPK) && mem && mem < 1200) return 2;
+  // < 1,2 GB: 4 (eram 2). O que segura a memoria agora e o recuo a 2 fios
+  // sob pressao (tex_cache.c), e nao um teto fixo que vale tambem quando ha
+  // folga.
+  if ((p == PTV_LG || p == PTV_ANDROID || p == PTV_TPK) && mem && mem < 1200) return 4;
   return ptv_fios_rede_max(p);
 }
 

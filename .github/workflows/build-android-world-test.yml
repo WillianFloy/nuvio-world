@@ -145,6 +145,10 @@ jobs:
         run: bash tests/navritmo.sh
       - name: Run Collections row cache tests
         run: bash tests/colcache.sh
+      - name: Run local thumbnail (miniatura) tests
+        run: bash tests/miniatura_mod.sh
+      - name: Run sync no-op Collections reconciliation test
+        run: bash tests/sync_colecoes_iguais.sh
       - name: Run 2.0.34 performance guards
         run: bash tests/desempenho_2034.sh
       - name: Run Visual World guards (theme, typography, identity, splash)

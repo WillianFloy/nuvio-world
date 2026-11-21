@@ -185,6 +185,12 @@ SDL_Surface *jpeg_rapido_carregar(const char *caminho, int largMax,
   free(dados);
   return s;
 }
+int jpeg_rapido_codificador(void) { return 0; }
+int jpeg_rapido_gravar_rgba(FILE *f, const unsigned char *px, int w, int h, int pitch,
+                            int qualidade) {
+  (void)f; (void)px; (void)w; (void)h; (void)pitch; (void)qualidade;
+  return 0;
+}
 #else
 
 #include <dlfcn.h>
@@ -330,6 +336,82 @@ static SDL_Surface *carregarDeFILE(FILE *f, int largMax,
   lib.destroy(&cinfo);
   fclose(f);
   return s;
+}
+
+// CODIFICADOR (miniaturas locais, miniatura.c). Simbolos a parte do decode:
+// faltando qualquer um, so a gravacao de miniatura cai para o formato cru, o
+// decode continua como estava.
+typedef void (*FnCCreate)(j_compress_ptr, int, size_t);
+typedef void (*FnCStdioDest)(j_compress_ptr, FILE *);
+typedef void (*FnCDefaults)(j_compress_ptr);
+typedef void (*FnCQuality)(j_compress_ptr, int, boolean);
+typedef void (*FnCStart)(j_compress_ptr, boolean);
+typedef JDIMENSION (*FnCWrite)(j_compress_ptr, JSAMPARRAY, JDIMENSION);
+typedef void (*FnCFinish)(j_compress_ptr);
+typedef void (*FnCDestroy)(j_compress_ptr);
+static struct {
+  FnCCreate create; FnCStdioDest dest; FnCDefaults defaults; FnCQuality quality;
+  FnCStart start; FnCWrite write; FnCFinish finish; FnCDestroy destroy;
+  int tentado, ok;
+} enc;
+
+static int abrirCodificador(void) {
+  if (!abrir()) return 0;
+  pthread_mutex_lock(&trava);
+  if (!enc.tentado) {
+    enc.tentado = 1;
+    enc.create   = (FnCCreate)sym("jpeg_CreateCompress");
+    enc.dest     = (FnCStdioDest)sym("jpeg_stdio_dest");
+    enc.defaults = (FnCDefaults)sym("jpeg_set_defaults");
+    enc.quality  = (FnCQuality)sym("jpeg_set_quality");
+    enc.start    = (FnCStart)sym("jpeg_start_compress");
+    enc.write    = (FnCWrite)sym("jpeg_write_scanlines");
+    enc.finish   = (FnCFinish)sym("jpeg_finish_compress");
+    enc.destroy  = (FnCDestroy)sym("jpeg_destroy_compress");
+    enc.ok = enc.create && enc.dest && enc.defaults && enc.quality && enc.start &&
+             enc.write && enc.finish && enc.destroy;
+  }
+  pthread_mutex_unlock(&trava);
+  return enc.ok;
+}
+
+int jpeg_rapido_codificador(void) { return abrirCodificador(); }
+
+int jpeg_rapido_gravar_rgba(FILE *f, const unsigned char *px, int w, int h, int pitch,
+                            int qualidade) {
+  struct jpeg_compress_struct cinfo;
+  ErroSalto erro;
+  int y;
+  if (!f || !px || w < 1 || h < 1 || pitch < w * 4) return 0;
+  if (!abrirCodificador()) return 0;
+  memset(&cinfo, 0, sizeof cinfo);
+  cinfo.err = lib.stdError(&erro.pub);
+  erro.pub.error_exit = erroSai;
+  erro.pub.output_message = semSaida;
+  if (setjmp(erro.salto)) { enc.destroy(&cinfo); return 0; }
+  enc.create(&cinfo, JPEG_LIB_VERSION, sizeof(struct jpeg_compress_struct));
+  enc.dest(&cinfo, f);
+  cinfo.image_width = (JDIMENSION)w;
+  cinfo.image_height = (JDIMENSION)h;
+  // Os bytes R,G,B,A do ABGR8888 entram direto (extensao da turbo, como o
+  // JCS_EXT_RGBA do decode): sem copia para RGB.
+  cinfo.input_components = 4;
+  cinfo.in_color_space = JCS_EXT_RGBA;
+  enc.defaults(&cinfo);
+  enc.quality(&cinfo, qualidade, TRUE);
+  // 4:4:4: a arte das pastas traz texto e logo desenhados dentro da imagem, e
+  // o 4:2:0 borra a cor das letras. O custo e ~30% a mais de bytes numa
+  // imagem que ja e pequena.
+  { int c; for (c = 0; c < cinfo.num_components; c++) {
+      cinfo.comp_info[c].h_samp_factor = 1; cinfo.comp_info[c].v_samp_factor = 1; } }
+  enc.start(&cinfo, TRUE);
+  for (y = 0; y < h; y++) {
+    JSAMPROW linha = (JSAMPROW)(px + (size_t)y * (size_t)pitch);
+    enc.write(&cinfo, &linha, 1);
+  }
+  enc.finish(&cinfo);
+  enc.destroy(&cinfo);
+  return 1;
 }
 
 SDL_Surface *jpeg_rapido_carregar(const char *caminho, int largMax,
