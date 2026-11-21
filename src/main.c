@@ -46,6 +46,7 @@
 #include "gfx.h"
 #include "fundo.h"
 #include "gpunivel.h"
+#include "diaglog.h"
 #include "fpscena.h"
 #include "player_pacing.h"
 #include "perftv.h"
@@ -942,6 +943,30 @@ static double nvTelaHzInformada(void) {
   const char *e = getenv("NUVIO_DISPLAY_HZ");
   double v = e && *e ? strtod(e, NULL) : 0.0;
   return v > 1.0 ? v : 0.0;
+}
+
+// CABECALHO DA SESSAO DE DIAGNOSTICO (diaglog.h): o que nao se repete a cada
+// 3 s e e preciso para ler P1/P2 no arquivo da sessao -- aparelho, versao,
+// frequencia e modos da tela, layout, vidro, efeitos e o estado da escada.
+// Depois dele vem o log de sempre ([ritmo], [swap], FPS=, [vidro-ritmo],
+// [gpu-escada], [qd-lento]). So printf: nada medido muda.
+static void nvDiagCabecalho(SDL_Window *w, double hzInformado) {
+  int dw = 0, dh = 0;
+  const char *tv = getenv("NUVIO_TV_INFO"), *mo = getenv("NUVIO_DISPLAY_MODOS");
+  if (w) SDL_GL_GetDrawableSize(w, &dw, &dh);
+  printf("[diag] app=%s versao=%s aparelho=%s\n", NV_APP_ID, NV_VERSAO, tv && *tv ? tv : "?");
+  printf("[diag] tela hz-ativo=%.2f hz-informado=%.2f drawable=%dx%d interface=%.0fx%.0f %s\n",
+         nvTelaHz(w), hzInformado, dw, dh, (double)NV_TELA_W, (double)NV_TELA_H, mo && *mo ? mo : "(modos n/d)");
+  printf("[diag] ajustes layout=%s barra-moderna=%d rail-recolhida=%d menu-topo=%d tom=%s vidro=%d fosco=%d qualidade-vidro=%d"
+         " animacoes-reduzidas=%d efeitos-pref=%d resolucao=%s\n",
+         ajustes_home_layout() == HOME_LAYOUT_PADRAO ? "padrao" : ajustes_home_layout() == HOME_LAYOUT_DINAMICA ? "dinamica" : "moderna",
+         ajustes_rail_moderna(), ajustes_rail_recolhida(), ajustes_menu_topo(), ajustes_tema_preto() ? "preto" : "grafite",
+         ajustes_vidro(), ajustes_vidro_fosco(), ajustes_vidro_qualidade(), ajustes_animacoes_reduzidas(), ajustes_gpu_efeitos(),
+         ajustes_720p() ? "720p" : ajustes_1080p() ? "1080p" : "auto");
+  printf("[diag] escada nivel=%d degrau=%d vidro-ritmo-escada=%d vidro-ritmo-gfx=%d (degraus: 1 esfumacado, 2 sem fosco, 3 animacoes, 4 sem vidro)\n",
+         gpun_nivel(), gpun_degrau(), gpun_vidro_ritmo(), gfx_vidro_nivel());
+  printf("[diag] linhas a cada 3 s: [ritmo] (ref = varredura da tela), [swap], FPS=/janks, [vidro-ritmo]; eventos: [gpu-escada], [gpu-nivel], [qd-lento]\n");
+  fflush(stdout);
 }
 
 int main(int argc, char **argv) {
@@ -2374,6 +2399,7 @@ int main(int argc, char **argv) {
     (void)frameStarted;
 #endif
     swapint_marca(&swapInt, (double)SDL_GetPerformanceCounter() * 1000.0 / perFreq);
+    if (diaglog_cabecalho_pendente()) nvDiagCabecalho(win, hzTela > 0.0 ? hzTela : nvTelaHzInformada());
     rq_quadro(&nvRitmo, rqDepoisSwap, rqInicio, rqAntesSwap - rqInicio, rqDepoisSwap - rqAntesSwap);
 #ifdef NV_ANDROID
     android_quadro();   // todo quadro apresentado, de qualquer tela (vigia #266)

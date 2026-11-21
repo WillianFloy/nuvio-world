@@ -1,5 +1,6 @@
 // Ponte do nucleo com o Android. Ver android.h.
 #ifdef NV_ANDROID
+#include "diaglog.h"
 #include "android.h"
 #include "queda.h"
 #include <SDL2/SDL.h>
@@ -152,6 +153,9 @@ static void *espelho(void *arg) {
       }
       ssize_t off = 0; while (off < n) { ssize_t w = write(fdArquivo, buf + off, (size_t)(n - off)); if (w <= 0) break; off += w; }
     }
+    // Sessao de diagnostico (diaglog.h): os mesmos bytes, so entre as marcas
+    // da sessao, num arquivo proprio (sem o corte de 2 MB acima).
+    diaglog_bytes(buf, (size_t)n);
     for (i = 0; i < n; i++) {
       if (buf[i] == '\n' || nl + 1 >= sizeof linha) {
         linha[nl] = 0;
@@ -176,6 +180,7 @@ static void espelharNoLogcat(void) {
     return;
   }
   pthread_detach(t);
+  diaglog_tap_registrar();
   dup2(p[1], STDOUT_FILENO);
   dup2(p[1], STDERR_FILENO);
   close(p[1]);

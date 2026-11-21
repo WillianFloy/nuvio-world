@@ -662,6 +662,7 @@ int registro_evento(const SDL_Event *e) {
 
 #include "registro_ilha.inc"
 #include "registro_envio.inc"
+#include "registro_diag.inc"
 
 // Leitura legal com as mesmas pecas de texto longo do painel de registro.
 static void legalPonteiro(int a, int b) { (void)a; (void)b; }

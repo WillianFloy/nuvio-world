@@ -109,10 +109,12 @@ void logrede_limpar(char *linha) {
 }
 
 #ifdef __EMSCRIPTEN__
-void logrede_configurar(int ligado, const char *arquivo) { (void)ligado; (void)arquivo; }
-const char *logrede_url(void) { return ""; }
+void logrede_servidor(int ligado) { (void)ligado; }
+const char *logrede_base(void) { return ""; }
+int logrede_ativo(void) { return 0; }
 #else
 
+#include "diaglog.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -134,55 +136,12 @@ const char *logrede_url(void) { return ""; }
 #define MSG_NOSIGNAL 0
 #endif
 
-#define LR_CAB_MAX   4096
-#define LR_INICIO    (512 * 1024)        // primeira carga: o fim do arquivo
-#define LR_PASSO     (1024 * 1024)       // no maximo por pedido incremental
-#define LR_BAIXAR    (4 * 1024 * 1024)   // "Baixar": o fim do arquivo, ate 4 MB
-#define LR_FILTRO_LER (8 * 1024 * 1024)  // filtro "escolha da fonte": varre ate 8 MB do fim
-#define LR_FILTRO_MAX (1024 * 1024)      // e devolve no maximo o ultimo 1 MB do que casou
-
-// AS ABAS DA PAGINA (dono, 16/10): cada uma e um filtro que roda AQUI, no
-// servidor, sobre ate 8 MB do fim do log (o log tem uma linha de FPS por
-// segundo; filtrar so no navegador sobre 512 KB perdia os blocos de minutos
-// atras). Termos em minuscula; a linha e comparada em minuscula.
-//   1 Source picking      — como a fonte foi escolhida
-//   2 Won't open          — o player recusou a fonte antes de tocar
-//   3 Error while playing — a fonte tocou e depois deu erro / parou
-static const char *const F_FONTE[] = {
-  "[fonte", "[voltafonte", "[addons", "[addon]", "[preparo", "[proximo", "[debrid", "[verif",
-  "[next", "proximo episodio", "buscando fontes", "automatico", "auto-play", "auto pick",
-  "bingegroup", "fonte escolhida", "nenhuma fonte", "[partes]", "[logrede]", NULL
-};
-static const char *const F_ABRIR[] = {
-  "[abrir-diag]", "abrir:", "pipeline open", "picked in the sheet", "sheet opened", "hand-picked",
-  "escolha manual", "erro do player", "sonda apos recusa", "nao abriu", "sem sinal de abertura",
-  "fonte escolhida", "automatico (verificado)", "tocando enquanto confere", "[voltafonte]", "failover",
-  "[host] erro", "[host] abrir", "[host] interrompido", "[host] cabecalho", "[mkv]", "[dts-tpk]",
-  "[video] tpk", "[fonte-cdn]", "duration", "[partes]", "[mkvfix]", "[logrede]", NULL
-};
-static const char *const F_TOCAR[] = {
-  "[tocar-diag]", "[host] erro", "[host] interrompido", "[video]", "[player]", "[dts-tpk]", "[dts-range]",
-  "[dts]", "[audio]", "[mkv]", "[tv] ", "reconex", "reconect", "failover", "escolha manual",
-  "tocando agora", "fonte escolhida", "pipeline open", "opened ok", "[abrir-diag] started", "[fonte-cdn]", "[partes]", "[mkvfix]", "[logrede]",
-  "[seek]", NULL
-};
-static const char *const *const FILTROS[4] = { NULL, F_FONTE, F_ABRIR, F_TOCAR };
-static const char *const NOMES_ARQ[4] = { "nuvio-log.txt", "nuvio-source-picking.txt", "nuvio-wont-open.txt",
-                                          "nuvio-error-while-playing.txt" };
-static int linhaDoFiltro(const char *l, int modo) {
-  char b[1024];
-  size_t i;
-  if (modo <= 0 || modo > 3) return 1;
-  for (i = 0; i + 1 < sizeof b && l[i]; i++) b[i] = (char)tolower((unsigned char)l[i]);
-  b[i] = 0;
-  for (int k = 0; FILTROS[modo][k]; k++) if (strstr(b, FILTROS[modo][k])) return 1;
-  return 0;
-}
+#define LR_CAB_MAX 4096
 
 static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t fio;
 static int vivo, ouvir = -1, acorda[2] = { -1, -1 }, porta;
-static char arqLog[600], url[96];
+static char base[96];
 static time_t proximaTentativa, ipQuando;
 
 static int privado(in_addr_t a) {
@@ -200,6 +159,8 @@ static int ipLan(char *dst, size_t n) {
   struct ifaddrs *lista = NULL, *i;
   int s = socket(AF_INET, SOCK_DGRAM, 0), ok = 0;
   in_addr_t achou = 0;
+  const char *fixo = getenv("NUVIO_LOGREDE_IP");   // testes: o endereco anunciado
+  if (fixo && *fixo) { snprintf(dst, n, "%s", fixo); if (s >= 0) close(s); return 1; }
   if (s >= 0) {
     memset(&alvo, 0, sizeof alvo);
     alvo.sin_family = AF_INET; alvo.sin_port = htons(9);
@@ -233,135 +194,193 @@ static int enviarTudo(int c, const char *b, size_t n) {
   return 0;
 }
 
-static void responderTexto(int c, int codigo, const char *tipo, const char *extra, const char *corpo, size_t n) {
-  char cab[512];
+static const char *motivo(int codigo) {
+  switch (codigo) {
+    case 200: return "OK";
+    case 301: return "Moved Permanently";
+    case 302: return "Found";
+    case 403: return "Forbidden";
+    case 404: return "Not Found";
+    case 409: return "Conflict";
+    case 410: return "Gone";
+    default:  return "Bad Request";
+  }
+}
+static void responder(int c, int codigo, const char *tipo, const char *extra, const char *corpo, size_t n) {
+  char cab[700];
   int k = snprintf(cab, sizeof cab,
                    "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %lu\r\nCache-Control: no-store\r\n"
                    "X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n%s\r\n",
-                   codigo, codigo == 200 ? "OK" : codigo == 404 ? "Not Found" : codigo == 403 ? "Forbidden" : "Bad Request",
-                   tipo, (unsigned long)n, extra ? extra : "");
+                   codigo, motivo(codigo), tipo, (unsigned long)n, extra ? extra : "");
   if (enviarTudo(c, cab, (size_t)k) == 0 && n) enviarTudo(c, corpo, n);
 }
 
+// A PAGINA DA SESSAO: uma so, responsiva (celular e computador), sem nada de
+// fora (nem fonte, nem script): a TV e a rede de casa bastam. Ela le
+// estado.json a cada segundo e desenha o estado; o relogio anda sozinho entre
+// as leituras. O botao baixa log.txt (Content-Disposition: attachment).
 static const char PAGINA[] =
-"<!doctype html><html lang=en><head><meta charset=utf-8>"
-"<meta name=viewport content='width=device-width,initial-scale=1'>"
-"<title>Nuvio log</title><style>"
-":root{color-scheme:dark;--bg:#0e1116;--fg:#d6dbe3;--dim:#7d8590;--fonte:#7ee0a1;--diag:#f2c45a;--next:#7cc4ff;--erro:#ff8a80;--abrir:#e0a8ff}"
-"body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 ui-monospace,Menlo,Consolas,monospace}"
-"header{position:sticky;top:0;background:#151a21;padding:8px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-bottom:1px solid #222a35}"
-"header b{font:600 14px system-ui,sans-serif;margin-right:6px}"
-"button,input,a.b{background:#1f2630;color:var(--fg);border:1px solid #2d3745;border-radius:6px;padding:5px 9px;font:12px system-ui,sans-serif;text-decoration:none}"
-"button.on{background:#2b5b3f;border-color:#3f8a5e}input#q{min-width:160px;flex:1;max-width:320px}"
-"#st,#cfg{color:var(--dim);font:12px system-ui,sans-serif}#cfg label{margin-right:12px;white-space:nowrap}#cfg{width:100%}"
-"#log{padding:8px 12px 40px;white-space:pre-wrap;word-break:break-word}"
-".l{padding:1px 0}.f{color:var(--fonte)}.d{color:var(--diag)}.n{color:var(--next)}.e{color:var(--erro)}.a{color:var(--abrir)}.h{color:#fff;font-weight:700;margin-top:10px;border-top:1px solid #333}.x{display:none}"
-"</style></head><body><header><b>Nuvio log</b>"
-"<button id=b1 class=on>Source picking</button><button id=b2>Won't open</button><button id=b3>Error while playing</button><button id=b0>Everything</button>"
-"<input id=q placeholder='Search (e.g. REFUSED, track #, T7)'>"
-"<button id=ba class=on>Auto-scroll</button><button id=bc>Clear</button>"
-"<a class=b id=dl href='/fonte.txt?baixar=1'>Download</a><span id=st></span>"
-"</header>"
-"<div id=log></div><script>"
-"var de=-1,f=1,auto=1,q='',gen=0,L=document.getElementById('log'),S=document.getElementById('st');"
-"var ARQ=['/log.txt','/fonte.txt','/abrir.txt','/tocar.txt'],BT=[b0,b1,b2,b3];"
-"function cls(t){return /=====/.test(t)?'h':/REFUSED|FAILED|failed AFTER|NOT CHANGED/.test(t)?'e':/\\[abrir-diag\\]|\\[tocar-diag\\]/.test(t)?'a':/\\[fonte-diag\\]/.test(t)?'d':/next/i.test(t)?'n':/(falh|erro|error|fail|refused)/i.test(t)?'e':/\\[fonte/.test(t)?'f':''}"
-"function vis(d){return !q||d.textContent.toLowerCase().indexOf(q)>=0}"
-"function add(txt){var fr=document.createDocumentFragment();txt.split('\\n').forEach(function(t){if(!t)return;"
-"var d=document.createElement('div');d.className='l '+cls(t);d.textContent=t;if(!vis(d))d.classList.add('x');fr.appendChild(d)});"
-"L.appendChild(fr);while(L.childNodes.length>20000)L.removeChild(L.firstChild);if(auto)window.scrollTo(0,document.body.scrollHeight)}"
-"function filtrar(){for(var i=0;i<L.childNodes.length;i++){var d=L.childNodes[i];d.classList.toggle('x',!vis(d))}if(auto)window.scrollTo(0,document.body.scrollHeight)}"
-"function puxar(){var g=gen;fetch('/log.txt?f='+f+'&de='+de,{cache:'no-store'}).then(function(r){if(g!==gen)return '';var x=r.headers.get('X-Fim');"
-"if(r.headers.get('X-Novo')==='1')L.textContent='';if(x!==null)de=+x;return r.text()}).then(function(t){if(g!==gen)return;if(t)add(t);"
-"S.textContent=(L.childNodes.length?L.childNodes.length+' lines':'no lines yet')+' • live • '+new Date().toLocaleTimeString()})"
-".catch(function(){S.textContent='TV not answering, retrying…'}).then(function(){if(g===gen)setTimeout(puxar,1500)})}"
-"function modo(v){f=v;for(var i=0;i<4;i++)BT[i].classList.toggle('on',i===v);"
-"dl.href=ARQ[v]+'?baixar=1';gen++;de=-1;L.textContent='';S.textContent='loading…';puxar()}"
-"b0.onclick=function(){modo(0)};b1.onclick=function(){modo(1)};b2.onclick=function(){modo(2)};b3.onclick=function(){modo(3)};"
-"ba.onclick=function(){auto=!auto;ba.classList.toggle('on',auto)};bc.onclick=function(){L.textContent=''};"
-"document.getElementById('q').oninput=function(e){q=e.target.value.toLowerCase();filtrar()};"
-"puxar();"
+"<!doctype html><html><head><meta charset=utf-8>"
+"<meta name=viewport content='width=device-width,initial-scale=1,viewport-fit=cover'>"
+"<meta name=robots content=noindex><title>Nuvio logs</title><style>"
+":root{color-scheme:dark;--bg:#0b0c0f;--card:#16181d;--fg:#f3f2ef;--dim:#9a9ca3;--line:#262931;--rec:#ef4f43;--ok:#4cc38a;--warn:#e8b84a}"
+"*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}"
+"main{max-width:560px;margin:0 auto;padding:max(24px,env(safe-area-inset-top)) 20px 32px}"
+".card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px}"
+".top{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}"
+"#dot{width:12px;height:12px;border-radius:50%;background:var(--dim);flex:none}"
+"#dot.rec{background:var(--rec);animation:p 1.4s ease-in-out infinite}#dot.ok{background:var(--ok)}#dot.warn{background:var(--warn)}"
+"@keyframes p{50%{opacity:.35}}"
+"h1{font-size:22px;margin:14px 0 4px;font-weight:650}"
+"#big{font:600 clamp(56px,18vw,88px)/1.05 ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:-.02em;margin:10px 0 6px;font-variant-numeric:tabular-nums}"
+"#lbl{color:var(--dim);font-size:14px;margin-bottom:14px}"
+"#sub{color:#c9cad0;margin:0 0 20px}"
+".btn{display:block;width:100%;text-align:center;padding:16px 18px;border-radius:14px;font-weight:650;font-size:17px;text-decoration:none;"
+"background:var(--fg);color:#0b0c0f;border:0}"
+".btn.off{background:#2a2d35;color:#7d8088;pointer-events:none}"
+"#meta{color:var(--dim);font-size:13px;margin:14px 0 0;word-break:break-word}"
+"footer{color:#6c6f76;font-size:12px;text-align:center;margin-top:18px}"
+"@media (min-width:720px){main{padding-top:64px}.card{padding:36px}h1{font-size:26px}}"
+"</style></head><body><main><div class=card>"
+"<div class=top><span id=dot></span><span id=st>&hellip;</span></div>"
+"<h1 id=tt>Nuvio</h1><div id=big>--:--</div><div id=lbl></div><p id=sub></p>"
+"<a id=dl class='btn off' href='log.txt' download>Baixar log.txt</a><p id=meta></p>"
+"</div><footer id=ft></footer></main><script>"
+"var T={pt:{tt:'Logs de diagn\\u00f3stico',g:'Gravando',gl:'tempo de grava\\u00e7\\u00e3o',"
+"gs:'Os logs ainda est\\u00e3o sendo coletados na TV. Use o app normalmente e escolha \\u201cFinalizar logs\\u201d na TV quando terminar.',"
+"sv:'Salvando',svs:'A TV est\\u00e1 salvando o arquivo\\u2026',p:'Pronto para baixar',pl:'o endere\\u00e7o fecha em',"
+"ps:'Toque em \\u201cBaixar log.txt\\u201d antes de a contagem chegar a zero.',e:'Sess\\u00e3o encerrada',"
+"es:'Este endere\\u00e7o n\\u00e3o est\\u00e1 mais ativo. Para gravar de novo, inicie uma nova sess\\u00e3o na TV.',"
+"x:'Sem resposta da TV',xs:'Tentando de novo\\u2026 Confira se este aparelho est\\u00e1 na mesma rede da TV.',"
+"dl:'Baixar log.txt',dlw:'Dispon\\u00edvel depois de finalizar na TV',ln:'linhas',fim:'O download j\\u00e1 iniciado continua at\\u00e9 o fim.'},"
+"en:{tt:'Diagnostic logs',g:'Recording',gl:'recording time',"
+"gs:'Logs are still being collected on the TV. Use the app normally and choose \\u201cFinish logs\\u201d on the TV when you are done.',"
+"sv:'Saving',svs:'The TV is saving the file\\u2026',p:'Ready to download',pl:'this address closes in',"
+"ps:'Tap \\u201cDownload log.txt\\u201d before the countdown reaches zero.',e:'Session ended',"
+"es:'This address is no longer active. To record again, start a new session on the TV.',"
+"x:'The TV is not answering',xs:'Retrying\\u2026 Check that this device is on the same network as the TV.',"
+"dl:'Download log.txt',dlw:'Available after finishing on the TV',ln:'lines',fim:'A download that already started keeps going until it ends.'}};"
+"var L=T.pt,s=null,em=0,falhas=0,baixou=0,fimLocal=0;"
+"function $(i){return document.getElementById(i)}"
+"function mmss(ms){ms=Math.max(0,ms);var t=Math.floor(ms/1000),m=Math.floor(t/60),x=t%60;return (m<10?'0':'')+m+':'+(x<10?'0':'')+x}"
+"function cd(ms){var t=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(t/60),x=t%60;return m+':'+(x<10?'0':'')+x}"
+"function kb(b){return b<1048576?Math.max(1,Math.round(b/1024))+' KB':(b/1048576).toFixed(1)+' MB'}"
+"function pinta(){var d=$('dot'),dl=$('dl'),st=s?s.estado:'',agora=Date.now()-em;"
+"$('tt').textContent=L.tt;dl.textContent=L.dl;d.className='';"
+"if(st==='pronto'){var r=s.restante-agora;if(r<=0){fimLocal=1;st='encerrada'}}"
+"if(!s&&falhas){st='x'}"
+"if(st==='gravando'){d.className='rec';$('st').textContent=L.g;$('big').textContent=mmss(s.decorrido+agora);$('lbl').textContent=L.gl;"
+"$('sub').textContent=falhas>2?L.xs:L.gs;dl.className='btn off';$('meta').textContent=L.dlw+(s.linhas?' \\u00b7 '+s.linhas+' '+L.ln:'')}"
+"else if(st==='salvando'){d.className='warn';$('st').textContent=L.sv;$('big').textContent=mmss(s.decorrido);$('lbl').textContent=L.gl;$('sub').textContent=L.svs;dl.className='btn off';$('meta').textContent=''}"
+"else if(st==='pronto'){d.className='ok';$('st').textContent=L.p;$('big').textContent=cd(s.restante-agora);$('lbl').textContent=L.pl;$('sub').textContent=L.ps;"
+"dl.className='btn';$('meta').textContent=s.nome+' \\u00b7 '+kb(s.bytes)+' \\u00b7 '+s.linhas+' '+L.ln+' \\u00b7 '+mmss(s.decorrido)}"
+"else if(st==='x'){d.className='warn';$('st').textContent=L.x;$('big').textContent='--:--';$('lbl').textContent='';$('sub').textContent=L.xs;dl.className='btn off';$('meta').textContent=''}"
+"else if(st==='encerrada'){$('st').textContent=L.e;$('big').textContent='0:00';$('lbl').textContent='';$('sub').textContent=L.es+(baixou?' '+L.fim:'');dl.className='btn off';$('meta').textContent=''}"
+"$('ft').textContent='Nuvio World'+(s&&s.aparelho?' \\u00b7 '+s.aparelho:'')}"
+"function le(){if(fimLocal){pinta();return}fetch('estado.json',{cache:'no-store'}).then(function(r){return r.json()})"
+".then(function(j){s=j;em=Date.now();falhas=0;L=j.pt?T.pt:T.en;document.documentElement.lang=j.pt?'pt-BR':'en'})"
+".catch(function(){falhas++;if(s&&s.estado==='pronto'&&s.restante-(Date.now()-em)<=0)fimLocal=1;else if(falhas>2)s=s&&s.estado==='gravando'?s:null})"
+".then(function(){pinta();setTimeout(le,1000)})}"
+"$('dl').onclick=function(){baixou=1};setInterval(pinta,250);le();"
 "</script></body></html>";
 
-// Le [ini, ini+max) do arquivo, so linhas inteiras, limpas. *fim = onde parou.
-static char *lerTrecho(const char *arq, long de, long max, int filtrar, long *fim, int *novo, size_t *n) {
-  // filtrar: 0 tudo, 1..3 a aba (FILTROS)
-  FILE *f = fopen(arq, "rb");
+static const char ENCERRADA[] =
+"<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+"<title>Nuvio logs</title><style>body{margin:0;background:#0b0c0f;color:#f3f2ef;font:16px/1.5 system-ui,sans-serif;"
+"display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center}"
+"b{display:block;font-size:22px;margin-bottom:8px}span{color:#9a9ca3}</style></head><body><div>"
+"<b>Sess\xc3\xa3o encerrada &middot; Session ended</b><span>Este endere\xc3\xa7o n\xc3\xa3o est\xc3\xa1 mais ativo. Inicie uma nova sess\xc3\xa3o na TV."
+"<br>This address is no longer active. Start a new session on the TV.</span></div></body></html>";
+
+static void jsonTexto(char *d, size_t n, const char *s) {
+  size_t k = 0;
+  for (; s && *s && k + 7 < n; s++) {
+    unsigned char ch = (unsigned char)*s;
+    if (ch == '"' || ch == '\\') { d[k++] = '\\'; d[k++] = (char)ch; }
+    else if (ch < 0x20) k += (size_t)snprintf(d + k, n - k, "\\u%04x", ch);
+    else d[k++] = (char)ch;
+  }
+  d[k] = 0;
+}
+
+// A sessao vale se o codigo do caminho e o da sessao atual e, pronta, o prazo
+// nao passou (o servidor fecha no quadro seguinte; ate la, nada novo entra).
+static int sessaoValida(const DiagInfo *i, const char *cod, size_t n) {
+  if (i->estado == DIAG_PARADO || !i->codigo[0] || strlen(i->codigo) != n || strncmp(i->codigo, cod, n)) return 0;
+  if (i->estado == DIAG_PRONTO && i->restanteMs <= 0) return 0;
+  return 1;
+}
+
+static void responderEstado(int c, const DiagInfo *i, int valida) {
+  char j[900], ap[200], nome[200];
+  int k;
+  const char *est = !valida ? "encerrada" : i->estado == DIAG_GRAVANDO ? "gravando" : i->estado == DIAG_SALVANDO ? "salvando" : "pronto";
+  jsonTexto(ap, sizeof ap, i->aparelho);
+  jsonTexto(nome, sizeof nome, valida ? i->nome : "");
+  k = snprintf(j, sizeof j,
+               "{\"estado\":\"%s\",\"decorrido\":%ld,\"restante\":%ld,\"janela\":%ld,\"linhas\":%ld,\"bytes\":%ld,"
+               "\"nome\":\"%s\",\"pt\":%d,\"aparelho\":\"%s\"}",
+               est, valida ? i->decorridoMs : 0, valida ? i->restanteMs : 0, DIAG_JANELA_MS,
+               valida ? i->linhas : 0, valida ? i->bytes : 0, nome, i->pt, ap);
+  responder(c, valida ? 200 : 410, "application/json; charset=utf-8", NULL, j, (size_t)k);
+}
+
+// O arquivo inteiro, em pedacos: o download que comecou dentro do prazo vai ate
+// o fim mesmo que o prazo acabe no meio (o fio desta conexao e dele).
+static void responderArquivo(int c, const DiagInfo *i) {
+  char cab[900], buf[65536];
   struct stat st;
-  long tam, ini;
-  char *bruto, *saida, *p, *o;
-  size_t lidos;
-  *n = 0; *novo = 0; *fim = 0;
-  if (!f) return NULL;
-  if (fstat(fileno(f), &st) != 0) { fclose(f); return NULL; }
-  tam = (long)st.st_size;
-  if (de < 0 || de > tam) {   // primeira carga, ou o arquivo recomecou
-    *novo = de >= 0;
-    ini = tam > max ? tam - max : 0;
-  } else ini = de;
-  if (tam - ini > max) ini = tam - max;
-  bruto = malloc((size_t)(tam - ini) + 1);
-  saida = malloc((size_t)(tam - ini) + 1);
-  if (!bruto || !saida) { free(bruto); free(saida); fclose(f); return NULL; }
-  fseek(f, ini, SEEK_SET);
-  lidos = fread(bruto, 1, (size_t)(tam - ini), f);
-  fclose(f);
-  bruto[lidos] = 0;
-  p = bruto;
-  // Comecou no meio de uma linha (corte por tamanho): pula ate a proxima.
-  if (ini > 0 && (de < 0 || ini != de)) { char *nl = memchr(p, '\n', lidos); p = nl ? nl + 1 : bruto + lidos; }
-  { char *ult = NULL;
-    for (char *q = bruto + lidos; q > p; q--) if (q[-1] == '\n') { ult = q; break; }
-    if (!ult) { *fim = ini + (long)(p - bruto); free(bruto); free(saida); saida = NULL; return calloc(1, 1); }
-    *ult = 0;
-    *fim = ini + (long)(ult - bruto); }
-  o = saida;
-  while (*p) {
-    char *nl = strchr(p, '\n'), *ln = p;
-    size_t k;
-    if (nl) *nl = 0;
-    if (linhaDoFiltro(ln, filtrar)) {
-      logrede_limpar(ln);
-      k = strlen(ln);
-      memcpy(o, ln, k); o += k; *o++ = '\n';
+  int k;
+  FILE *f = fopen(i->arquivo, "rb");
+  if (!f || fstat(fileno(f), &st) != 0) {
+    static const char msg[] = "log file not available\n";
+    if (f) fclose(f);
+    responder(c, 410, "text/plain; charset=utf-8", NULL, msg, sizeof msg - 1);
+    return;
+  }
+  k = snprintf(cab, sizeof cab,
+               "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %lu\r\n"
+               "Content-Disposition: attachment; filename=\"%s\"\r\nCache-Control: no-store\r\n"
+               "X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n\r\n",
+               (unsigned long)st.st_size, i->nome);
+  printf("[logrede] download %s (%ld KB) iniciado\n", i->nome, (long)(st.st_size + 1023) / 1024);
+  fflush(stdout);
+  if (enviarTudo(c, cab, (size_t)k) == 0) {
+    size_t n;
+    long total = 0;
+    while ((n = fread(buf, 1, sizeof buf, f)) > 0) {
+      if (enviarTudo(c, buf, n) != 0) break;
+      total += (long)n;
     }
-    if (!nl) break;
-    p = nl + 1;
+    printf("[logrede] download %s: %ld de %ld bytes enviados\n", i->nome, total, (long)st.st_size);
+    fflush(stdout);
   }
-  *o = 0;
-  *n = (size_t)(o - saida);
-  // Filtrado: so o fim do que casou, comecando numa linha inteira.
-  if (filtrar && *n > LR_FILTRO_MAX) {
-    char *c = saida + *n - LR_FILTRO_MAX, *nl = strchr(c, '\n');
-    c = nl ? nl + 1 : c;
-    *n = (size_t)(o - c);
-    memmove(saida, c, *n + 1);
-  }
-  free(bruto);
-  return saida;
+  fclose(f);
 }
 
 static void atender(int c) {
-  char cab[LR_CAB_MAX + 1], metodo[8], caminho[256], arq[600];
+  char cab[LR_CAB_MAX + 1], metodo[8], caminho[256];
   size_t k = 0;
   struct sockaddr_in par;
   socklen_t tp = sizeof par;
-  struct timeval tv = { 2, 0 }, tvs = { 8, 0 };
+  struct timeval tv = { 2, 0 }, tvs = { 15, 0 };
+  DiagInfo info;
   setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
   setsockopt(c, SOL_SOCKET, SO_SNDTIMEO, &tvs, sizeof tvs);
 #ifdef SO_NOSIGPIPE
   { int um = 1; setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &um, sizeof um); }
 #endif
+  memset(&par, 0, sizeof par);
   if (getpeername(c, (struct sockaddr *)&par, &tp) != 0 || par.sin_family != AF_INET ||
       !privado(par.sin_addr.s_addr)) {
     // Com o motivo na tela: uma pagina em branco parecia "quebrado".
-    char msg[160], ip[48] = "?";
-    int k;
+    char msg[200], ip[48] = "?";
+    int n;
     if (par.sin_family == AF_INET) inet_ntop(AF_INET, &par.sin_addr, ip, sizeof ip);
-    k = snprintf(msg, sizeof msg, "Nuvio log: this page only answers devices on the home network (your address: %s).\n", ip);
+    n = snprintf(msg, sizeof msg, "Nuvio: this page only answers devices on the home network (your address: %s).\n", ip);
     printf("[logrede] refused %s (not a home-network address)\n", ip);
     fflush(stdout);
-    responderTexto(c, 403, "text/plain; charset=utf-8", NULL, msg, (size_t)k);
+    responder(c, 403, "text/plain; charset=utf-8", NULL, msg, (size_t)n);
     return;
   }
   while (k < LR_CAB_MAX) {
@@ -371,49 +390,56 @@ static void atender(int c) {
     if (strstr(cab, "\r\n\r\n")) break;
   }
   cab[k] = 0;
-  if (sscanf(cab, "%7s %255s", metodo, caminho) != 2 || strcmp(metodo, "GET")) {
-    responderTexto(c, 400, "text/plain", NULL, "", 0);
+  if (sscanf(cab, "%7s %255s", metodo, caminho) != 2 || (strcmp(metodo, "GET") && strcmp(metodo, "HEAD"))) {
+    responder(c, 400, "text/plain", NULL, "", 0);
     return;
   }
-  pthread_mutex_lock(&trava);
-  snprintf(arq, sizeof arq, "%s", arqLog);
-  pthread_mutex_unlock(&trava);
-  if (!strcmp(caminho, "/") || !strcmp(caminho, "/log") || !strcmp(caminho, "/log/")) {
-    responderTexto(c, 200, "text/html; charset=utf-8", NULL, PAGINA, sizeof PAGINA - 1);
+  { char *q = strchr(caminho, '?'); if (q) *q = 0; }
+  diaglog_info(&info);
+  // Raiz (quem digitou so o IP): leva a sessao atual, se houver.
+  if (!strcmp(caminho, "/")) {
+    if (info.estado != DIAG_PARADO && info.codigo[0] && !(info.estado == DIAG_PRONTO && info.restanteMs <= 0)) {
+      char ex[64];
+      snprintf(ex, sizeof ex, "Location: /s/%s/\r\n", info.codigo);
+      responder(c, 302, "text/plain", ex, "", 0);
+    } else responder(c, 410, "text/html; charset=utf-8", NULL, ENCERRADA, sizeof ENCERRADA - 1);
     return;
   }
-  if (!strncmp(caminho, "/log.txt", 8) || !strncmp(caminho, "/fonte.txt", 10) ||
-      !strncmp(caminho, "/abrir.txt", 10) || !strncmp(caminho, "/tocar.txt", 10)) {
-    const char *qs = strchr(caminho, '?'), *v;
-    long de = -1, fim = 0, max = LR_PASSO;
-    int novo = 0, baixar = 0, filtrar = !strncmp(caminho, "/fonte.txt", 10) ? 1 : !strncmp(caminho, "/abrir.txt", 10) ? 2
-                                      : !strncmp(caminho, "/tocar.txt", 10) ? 3 : 0;
-    size_t n = 0;
-    char *txt, extra[200];
-    if (qs && (v = strstr(qs, "de="))) de = strtol(v + 3, NULL, 10);
-    if (qs && ((v = strstr(qs, "?f=")) || (v = strstr(qs, "&f=")))) { filtrar = atoi(v + 3); if (filtrar < 0 || filtrar > 3) filtrar = 0; }
-    if (qs && strstr(qs, "baixar=1")) { baixar = 1; de = -1; max = filtrar ? LR_FILTRO_LER : LR_BAIXAR; }
-    else if (de < 0) max = filtrar ? LR_FILTRO_LER : LR_INICIO;
-    if (!arq[0] || !(txt = lerTrecho(arq, de, max, filtrar, &fim, &novo, &n))) {
-      static const char sem[] = "[logrede] no log file on this build yet\n";
-      responderTexto(c, 200, "text/plain; charset=utf-8", "X-Fim: 0\r\n", de < 0 ? sem : "", de < 0 ? sizeof sem - 1 : 0);
+  if (!strncmp(caminho, "/s/", 3)) {
+    const char *cod = caminho + 3, *barra = strchr(cod, '/');
+    size_t n = barra ? (size_t)(barra - cod) : strlen(cod);
+    const char *resto = barra ? barra : "";
+    int valida = n > 0 && n < sizeof info.codigo && sessaoValida(&info, cod, n);
+    if (!*resto) {   // /s/<codigo> sem a barra: os caminhos relativos da pagina precisam dela
+      char ex[64];
+      if (!valida) { responder(c, 410, "text/html; charset=utf-8", NULL, ENCERRADA, sizeof ENCERRADA - 1); return; }
+      snprintf(ex, sizeof ex, "Location: /s/%s/\r\n", info.codigo);
+      responder(c, 301, "text/plain", ex, "", 0);
       return;
     }
-    if (baixar) snprintf(extra, sizeof extra, "X-Fim: %ld\r\nX-Novo: %d\r\nContent-Disposition: attachment; filename=\"%s\"\r\n",
-                         fim, novo, NOMES_ARQ[filtrar]);
-    else snprintf(extra, sizeof extra, "X-Fim: %ld\r\nX-Novo: %d\r\n", fim, novo);
-    responderTexto(c, 200, "text/plain; charset=utf-8", extra, txt, n);
-    free(txt);
-    return;
+    if (!strcmp(resto, "/estado.json")) { responderEstado(c, &info, valida); return; }
+    if (!valida) { responder(c, 410, "text/html; charset=utf-8", NULL, ENCERRADA, sizeof ENCERRADA - 1); return; }
+    if (!strcmp(resto, "/")) { responder(c, 200, "text/html; charset=utf-8", NULL, PAGINA, sizeof PAGINA - 1); return; }
+    if (!strcmp(resto, "/log.txt")) {
+      if (info.estado != DIAG_PRONTO) {
+        static const char ainda[] = "Os logs ainda estao sendo coletados. Finalize na TV para baixar.\n"
+                                    "Logs are still being collected. Finish on the TV to download.\n";
+        responder(c, 409, "text/plain; charset=utf-8", NULL, ainda, sizeof ainda - 1);
+        return;
+      }
+      if (!strcmp(metodo, "HEAD")) { responder(c, 200, "text/plain; charset=utf-8", NULL, "", 0); return; }
+      responderArquivo(c, &info);
+      return;
+    }
   }
-  responderTexto(c, 404, "text/plain", NULL, "", 0);
+  responder(c, 404, "text/plain", NULL, "", 0);
 }
 
 // UM FIO POR CONEXAO, no maximo LR_CONEXOES ao mesmo tempo. Com um fio so, a
 // conexao que o Chrome abre adiantada e nao usa (preconnect) segurava o
 // atendimento ate o tempo de leitura acabar, e as seguintes ficavam na fila:
-// a pagina "carregava sem nunca abrir". O painel de 8099 da etapa de DTS, que
-// funcionava nesta TV, tambem atendia em fios proprios.
+// a pagina "carregava sem nunca abrir". Os fios sao soltos (detached): desligar
+// o servidor fecha so a porta de escuta; quem ja estava baixando termina.
 #define LR_CONEXOES 6
 static pthread_mutex_t contTrava = PTHREAD_MUTEX_INITIALIZER;
 static int emAtendimento;
@@ -457,17 +483,19 @@ static void *servir(void *u) {
   return NULL;
 }
 
-static void atualizarUrl(void) {
-  char ip[64];
-  if (ipLan(ip, sizeof ip)) snprintf(url, sizeof url, "http://%s:%d/log", ip, porta);
-  else snprintf(url, sizeof url, "http://<TV IP>:%d/log", porta);
+static void atualizarBase(void) {
+  char ip[64], b[96];
+  if (ipLan(ip, sizeof ip)) snprintf(b, sizeof b, "http://%s:%d", ip, porta);
+  else b[0] = 0;
+  pthread_mutex_lock(&trava);
+  snprintf(base, sizeof base, "%s", b);
+  pthread_mutex_unlock(&trava);
   ipQuando = time(NULL);
 }
 
-// PORTA 8099 PRIMEIRO: e a do painel de registro da etapa de DTS (b1574f7a),
-// a que o dono abriu nesta TV. A 8090 de antes nao abria no S95C (a pagina
-// ficava carregando). Ocupada: o sistema escolhe uma livre, como o
-// "Digitar pelo celular" (celular.c) — o endereco certo aparece no Ajuste.
+// PORTA 8099 PRIMEIRO: e a que o dono ja abriu nesta TV. Ocupada: o sistema
+// escolhe uma livre, como o "Digitar pelo celular" (celular.c) — o endereco
+// certo vai no QR e na tela.
 static int subir(void) {
   struct sockaddr_in a;
   socklen_t al = sizeof a;
@@ -490,8 +518,8 @@ static int subir(void) {
     return 0;
   }
   vivo = 1;
-  atualizarUrl();
-  printf("[logrede] log page on the local network: %s\n", url);
+  atualizarBase();
+  printf("[logrede] diagnostic page on the local network: %s\n", base[0] ? base : "(no local IP)");
   fflush(stdout);
   return 1;
 }
@@ -502,26 +530,32 @@ static void descer(void) {
   pthread_join(fio, NULL);
   close(ouvir); ouvir = -1;
   close(acorda[0]); close(acorda[1]); acorda[0] = acorda[1] = -1;
-  vivo = 0; url[0] = 0;
-  puts("[logrede] log page stopped");
+  vivo = 0;
+  pthread_mutex_lock(&trava); base[0] = 0; pthread_mutex_unlock(&trava);
+  puts("[logrede] diagnostic page stopped");
   fflush(stdout);
 }
 
-void logrede_configurar(int ligado, const char *arquivo) {
+void logrede_servidor(int ligado) {
   time_t agora;
-  pthread_mutex_lock(&trava);
-  snprintf(arqLog, sizeof arqLog, "%s", arquivo ? arquivo : "");
-  pthread_mutex_unlock(&trava);
-  if (!ligado) { descer(); return; }
+  if (!ligado) { descer(); proximaTentativa = 0; return; }
   agora = time(NULL);
   if (!vivo) {
     if (agora < proximaTentativa) return;
-    if (!subir()) proximaTentativa = agora + 10;
+    if (!subir()) proximaTentativa = agora + 5;
     return;
   }
-  if (agora - ipQuando >= 30) atualizarUrl();   // a TV pode trocar de IP (DHCP)
+  // A TV pode trocar de IP (DHCP) ou so ganhar rede agora.
+  if (agora - ipQuando >= (base[0] ? 30 : 3)) atualizarBase();
 }
 
-const char *logrede_url(void) { return vivo ? url : ""; }
+const char *logrede_base(void) {
+  static char b[96];
+  pthread_mutex_lock(&trava);
+  snprintf(b, sizeof b, "%s", vivo ? base : "");
+  pthread_mutex_unlock(&trava);
+  return b;
+}
+int logrede_ativo(void) { return vivo; }
 
 #endif

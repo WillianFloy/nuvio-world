@@ -1338,7 +1338,7 @@ static void aj2InspetorDiferencas(void) {
 // --- A TELA ---------------------------------------------------------------------
 static int ajModalAberto(void) {
   return (uxEditor && (uxRestaurar || uxAvisoRisco || uxEditor == 2)) || riscoFolha || frAberta || hcAberta || ajVinculoAtivo() ||
-         teclado_aberto() || registro_envio_aberto() || apoioAberto;
+         teclado_aberto() || registro_envio_aberto() || registro_diag_aberto() || apoioAberto;
 }
 #ifdef NV_TOUCH_UI
 // Inline pointer editing (Confirm/Cancel footer, Mobile hit targets) is Mobile only.
@@ -1459,6 +1459,7 @@ static void ajDesenharTela(void) {
     AJ_ESCALA_FIM(); }
   ajDesenharModais();
   if (registro_envio_aberto()) registro_envio_desenhar();
+  if (registro_diag_aberto()) registro_diag_desenhar();
 }
 
 // --- ADDONS (addonsui.c) COMO UMA CATEGORIA DE AJUSTES ------------------------------

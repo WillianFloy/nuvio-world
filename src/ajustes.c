@@ -5,7 +5,7 @@
 #include "ajustes.h"
 #include "configtransfer.h"
 #include "menu.h"
-#include "logrede.h"
+#include "diaglog.h"
 #include "jsw.h"
 #include <limits.h>
 #include "player.h"
@@ -701,7 +701,8 @@ typedef enum {
   AJ_LIMPAR_CACHE,
   AJ_TUNNELING,        // Android-only, device-local; off by default, append-only.
   AJ_DV7, // independent P7 conversion, append-only
-  // REGISTRO NA REDE LOCAL (logrede.h, dono 16/10 e 20/10): Desligado. LOCAL, append-only.
+  // LOGS DE DIAGNOSTICO (diaglog.h, 20/11; era o interruptor "Registro na rede local",
+  // logrede.h 16/10): agora uma ACAO que abre o painel de sessoes. ID mantido. LOCAL, append-only.
   AJ_LOG_REDE,
   // Fileira de formato do player (4K, HDR, Atmos, idioma do audio; player.c,
   // fileiraFormato): o estilo. LOCAL (o web nao tem). No fim:
@@ -1855,7 +1856,7 @@ static const Opcao OPCOES[AJ_N] = {
   ACAO("Limpar cache"),
   ESC("Reprodução em túnel", V_VIDRO_FOSCO, 2),
   ESC("Dolby Vision P7 para P8.1 (experimental)", V_LIGA, 2),
-  ESC("Registro na rede local", V_LIGA, 2),                   // local: logRedeLocal
+  ACAO("Logs de diagnóstico"),   // era "Registro na rede local" (logRedeLocal); 20/11: sessoes (diaglog.h)
   ESC("Formato no player", V_PLR_FORMATO, 6),          // local: plrFormatoLocal
   ESC("Apresentação do menu superior", V_MENU_TOPO_MODO, 2), // por perfil, somente nesta TV
   ESC("Tamanho do menu superior", V_MENU_TOPO_TAMANHO, 3), // por perfil, somente nesta TV
@@ -7286,6 +7287,20 @@ static const char *textoLeitura(int op) {
   // mostrava "100.1 MB em 119..." na coluna do valor (foto do dono, 16/09).
   // Nem "Abrir": o chevron "›" da linha ja diz que o OK leva a algum lugar, e
   // a palavra repetida em toda acao so empurrava o rotulo para o corte.
+  // Logs de diagnostico: o estado da sessao na coluna do valor.
+  if (op == AJ_LOG_REDE) {
+    DiagInfo di;
+    long sg;
+    diaglog_info(&di);
+    switch (di.estado) {
+      case DIAG_GRAVANDO: sg = di.decorridoMs / 1000;
+        snprintf(buf, sizeof buf, "%s %02ld:%02ld", i18n("Gravando"), sg / 60, sg % 60); return buf;
+      case DIAG_SALVANDO: return i18n("Salvando…");
+      case DIAG_PRONTO: sg = (di.restanteMs + 999) / 1000;
+        snprintf(buf, sizeof buf, "%s %ld:%02ld", i18n("Baixar até"), sg / 60, sg % 60); return buf;
+      default: return "";
+    }
+  }
   if (OPCOES[op].tipo == OP_ACAO) return "";
   return "";
 }
@@ -8046,7 +8061,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_DICASCONTROLE: return "Dicas do controle";
     case AJ_NOVIDADES20: return "O tour do que mudou na 2.0, capítulo por capítulo, com o que vale neste aparelho. Abre do começo.";
     case AJ_APOIAR: return "Se o Nuvio te ajuda e você quiser apoiar quem faz o app, aponte a câmera do celular para um dos códigos. É opcional: nada muda no app.";
-    case AJ_LOG_REDE: return "Mostra o registro desta TV numa página da sua rede: abra o endereço abaixo no celular ou no computador, na mesma rede. Sem senhas nem chaves; endereços vão cortados no host. Desligue quando terminar.";
+    case AJ_LOG_REDE: return "Grava só o que acontecer a partir de agora e entrega o arquivo pelo celular ou computador da mesma rede, pelo QR. Sem senhas nem chaves.";
     case AJ_ENVIAR_LOG: return "Manda os últimos 200 KB do registro desta sessão (sem senhas nem chaves) para quem faz o app. Use quando algo estiver errado agora.";
     case AJ_ENVIO_AUTO: return "Ligado, o app manda o registro sozinho: o da sessão anterior ao abrir e o desta a cada minuto. Sem senhas nem chaves; serve para achar o que trava a Samsung. Desligue quando quiser.";
     case AJ_DIAGNOSTICO: return "Testa manifestos, fontes e artes dos addons, mede os tempos e aplica um perfil seguro de Qualidade ou Desempenho. O teste não marca títulos como assistidos.";
@@ -8093,9 +8108,9 @@ static const char *ajudaOpcaoBase(int op) {
 static const char *ajudaOpcao(int op) {
   const char *base = ajudaOpcaoBase(op);
   static char b[2048];
-  // O endereco da pagina vai junto da ajuda, ao vivo (muda com o IP da TV).
-  if (op == AJ_LOG_REDE && logrede_url()[0]) {
-    snprintf(b, sizeof b, "%s\n%s", i18n(base), logrede_url());
+  // O endereco da sessao de diagnostico vai junto da ajuda, ao vivo.
+  if (op == AJ_LOG_REDE && diaglog_url()[0]) {
+    snprintf(b, sizeof b, "%s\n%s", i18n(base), diaglog_url());
     return b;
   }
   if (op == AJ_AMPLIAR_UI && saidaLimitada && ampliarUiVale()) {
@@ -9792,6 +9807,7 @@ static void eventoTela(const SDL_Event *e) {
     if (focoOp == AJ_ENVIAR_LOG) { registro_envio_abrir(); return; }
     if (focoOp == AJ_AVISO_LEGAL) { registro_legal_abrir(); return; }
     if (focoOp == AJ_VER_REGISTRO) { registro_abrir(); return; }
+    if (focoOp == AJ_LOG_REDE) { registro_diag_abrir(); return; }
 #ifdef NV_ANDROID
     if (focoOp == AJ_BAIXAR_REGISTRO) {
       android_baixar_registro(registro_arquivo(), i18n("Registro salvo."),

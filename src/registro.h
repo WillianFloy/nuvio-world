@@ -79,6 +79,14 @@ int  registro_envio_evento(const SDL_Event *e);   // 1 = consumido
 void registro_envio_desenhar(void);
 // Teste do ponteiro (#99): 0 = "Tentar de novo", 1 = "Fechar" (no erro).
 int  registro_envio_teste_foco(void);
+// LOGS DE DIAGNOSTICO (registro_diag.inc, diaglog.h): o painel de Ajustes >
+// Sobre e ajuda > Logs de diagnostico (Iniciar / Finalizar / QR / contagem) e a
+// pilula no alto da tela enquanto a sessao grava ou espera o download.
+void registro_diag_abrir(void);
+int  registro_diag_aberto(void);
+int  registro_diag_evento(const SDL_Event *e);   // 1 = consumido
+void registro_diag_desenhar(void);
+void registro_diag_indicador(void);
 // O fim do log em mono, numa caixa (o "pacote" do mockup): a previa da linha
 // "Enviar registro" no inspetor de Ajustes e a esquerda do painel de envio.
 // `n` = quantas linhas; `rotDir` e o texto a direita do nome do arquivo.

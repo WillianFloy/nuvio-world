@@ -871,7 +871,7 @@ static int armarPoliticaFonteAberta(int indice, int servico, const char *url) {
 #include "segurar.h"
 #include "servidores.h"
 #include "partes.h"
-#include "logrede.h"
+#include "diaglog.h"
 #include <stdio.h>
 
 static Tela tela = TELA_HOME;
@@ -4032,7 +4032,7 @@ static int relogioFocoPermitido(void) {
       tela == TELA_LOGIN || tela == TELA_ESCOLHA_PERFIL ||
       player_aberto() || player_mini_ativo() || menu_aberto() ||
       spainel_aberto() || central_aberta() || ilha_modal_aberto() ||
-      registro_aberto() || registro_envio_aberto() || estatvivo_aberto() ||
+      registro_aberto() || registro_envio_aberto() || registro_diag_aberto() || estatvivo_aberto() ||
       spot_aberto() || teclado_aberto() || celb_aberto() || avisos_aberto() ||
       ctx_aberto() || faixas_aberta() || episodios_aberto() ||
       stream_folha_aberta() || guia_overlay_aberta() || relogioCamadaAberta()) return 0;
@@ -4230,6 +4230,8 @@ void app_evento(const SDL_Event *e) {
   // O painel de envio do registro (Ajustes > Enviar registro, ou o "Enviar
   // agora" do painel): modal, come o teclado enquanto aberto.
   if (registro_envio_evento(e)) return;
+  // Logs de diagnostico (Ajustes > Sobre e ajuda): modal enquanto aberto.
+  if (registro_diag_evento(e)) return;
   // A CENTRAL DE CONTROLE (central.h, CH+ segurado) e uma camada: aberta, come
   // o teclado todo, por cima do player, das folhas e das ilhas.
   if (central_aberta()) { central_evento(e); return; }
@@ -4796,8 +4798,10 @@ void app_atualizar(float dt, Uint32 agora) {
   // "Preferir o mesmo grupo de fonte" governa as duas memorias: a escolha a
   // mao (o titulo inteiro, 180 dias) e a do automatico.
   fontepref_configurar(ajustes_fonte_grupo(), 0, ajustes_fonte_grupo(), ajustes_fonte_grupo_sessoes());
-  // Pagina de registro na rede local (logrede.h): Ajustes > Sobre e ajuda > Registro.
-  logrede_configurar(ajustes_log_rede(), registro_arquivo());
+  // Sessao de diagnostico (diaglog.h, Ajustes > Sobre e ajuda > Logs de
+  // diagnostico): prazos, o arquivo limpo e o servidor da rede de casa
+  // (logrede.h), que so fica de pe com sessao.
+  diaglog_tick();
   fontevolta_configurar(ajustes_link_reusar(), ajustes_link_prazo_s());
   // Pausa entre quadros medida uma vez, antes de qualquer tela perguntar se o
   // OK segurado venceu (segurar.h, #387).
@@ -7133,7 +7137,7 @@ int app_home_recebe_teclas(void) {
   return app_na_home() && !relogioCamadaAberta() &&
       !ctx_aberto() && !menu_aberto() && !spainel_aberto() && !vertudo_aberta() &&
       !central_aberta() && !ilha_modal_aberto() && !celb_aberto() && !spot_aberto() &&
-      !registro_aberto() && !registro_envio_aberto() && !estatvivo_aberto() &&
+      !registro_aberto() && !registro_envio_aberto() && !registro_diag_aberto() && !estatvivo_aberto() &&
       !avisos_aberto() && !teclado_aberto() && !texto_sistema_aberto() &&
       !faixas_aberta() && !episodios_aberto() && !stream_folha_aberta() &&
       !guia_overlay_aberta();
@@ -7478,6 +7482,9 @@ void app_desenhar(Uint32 agora) {
     CAMADA_SE(dicascontrole_ocupado());
     dicascontrole_desenhar(agora);
   }
+  // Sessao de diagnostico gravando ou esperando o download: a pilula no alto,
+  // acima de tudo (some com o painel aberto; diaglog.h).
+  registro_diag_indicador();
 }
 
 int app_quer_sair(void) { return sair; }
