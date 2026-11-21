@@ -179,7 +179,7 @@ static const Item TELA[] = {
     ROT("Estado"),
       OPC(AJ_COLECOES_STATUS),
     ROT("Arte das pastas"),
-      OPC(AJ_COL_ARTE_CONTA),
+      OPC(AJ_COL_GIF), OPC(AJ_COL_ARTE_CONTA),
 
   SEC("Aparência", "Cor, transparência, fonte, animações e relógio", "aj_palette"),
 #ifdef NV_TOUCH_UI

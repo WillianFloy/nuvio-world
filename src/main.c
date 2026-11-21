@@ -1684,6 +1684,7 @@ int main(int argc, char **argv) {
   { const char *gr = (const char *)glGetString(GL_RENDERER);
     if (ptv_gpu_utgard(gr)) ajustes_trailer_hero_vetar(gr); }
   gputempo_iniciar();   // GPU clock per frame: Android diagnostic, opt-in (gputempo.h)
+  { extern void gif_modo(int); gif_modo(ajustes_col_gif()); }   // GIF das Collections (World)
   int gpuPref = ajustes_gpu_efeitos();
   if (gpuPref) gpun_preferencia(gpuPref);
   if (ajustes_720p() || auto720) gpun_forcar_720();

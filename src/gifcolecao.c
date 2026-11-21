@@ -80,7 +80,8 @@ const char *gifcol_motivo_texto(GcMotivo m) {
     case GC_UM_QUADRO:  return "GIF de 1 quadro";
     case GC_ORCAMENTO:  return "recusado pelo orcamento de animacao (ver a linha [gif] acima)";
     case GC_REDUZIDAS:  return "animacoes reduzidas";
-    case GC_APARELHO:   return "este aparelho nao anima GIF (webOS ou TV de 1 GB)";
+    case GC_APARELHO:   return "este aparelho nao anima GIF (webOS ou TV de 1 GB; Ajustes > Colecoes > GIF animado: Ligado forca)";
+    case GC_DESLIGADO:  return "desligado em Ajustes > Colecoes > GIF animado";
   }
   return "?";
 }

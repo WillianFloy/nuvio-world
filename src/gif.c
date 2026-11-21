@@ -177,12 +177,28 @@ EM_JS(double, gif_js_memoria_gb, (), {
 });
 #endif
 
-// Decidido uma vez: a RAM nao muda com o app aberto.
+// A ESCOLHA DA PESSOA (World 21/11, Ajustes > Colecoes > "GIF animado nas
+// Collections"; dono: "na SEMP o gif funcionou e na minha TCL nao"): a TCL tem
+// 932 MB, abaixo do 1 GB da tabela, entao nunca animava. 0 Automatico = a
+// tabela; 1 Ligado = anima tambem em TV de 1 GB, com o teto de 20 MB/s (o
+// GIF mais pesado anima mais devagar ou fica parado, como em 2 GB); 2
+// Desligado = nunca anima (a capa fica parada).
+static int gifModo;
+void gif_modo(int m) { gifModo = m < 0 || m > 2 ? 0 : m; }
+static size_t orcamentoRam(void);
 static size_t orcamento(void) {
+  size_t o = orcamentoRam();
+  if (gifModo == 2) return 0;
+  if (gifModo == 1 && !o) return (size_t)20 * 1024 * 1024;
+  return o;
+}
+// Decidido uma vez: a RAM nao muda com o app aberto.
+static size_t orcamentoRam(void) {
   static int lido;
   static size_t orc;
   if (!lido) {
-    double gb = gif_js_memoria_gb();
+    const char *gbTeste = getenv("NV_GIF_MEM_GB");   // testes: a RAM de outra TV
+    double gb = gbTeste ? atof(gbTeste) : gif_js_memoria_gb();
     lido = 1;
     orc = gif_orcamento_para(gb);
     if (orc == GIF_SEM_TETO)
@@ -200,6 +216,7 @@ static size_t orcamento(void) {
 int gif_pode_animar(void) { return orcamento() != 0; }
 #else
 int gif_pode_animar(void) { return 0; }
+void gif_modo(int m) { (void)m; }
 #endif
 
 int gif_mapear(const unsigned char *b, size_t n, GifQuadro *q, int max) {

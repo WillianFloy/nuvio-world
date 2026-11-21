@@ -733,6 +733,7 @@ typedef enum {
   // VISUAL WORLD (18/11), LOCAIS, append-only:
   AJ_TEMA_FUNDO,           // 0 Grafite (o de sempre) | 1 Preto puro (#000, estilo AMOLED)
   AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
+  AJ_COL_GIF,              // World 21/11: GIF das Collections: 0 Automatico | 1 Ligado | 2 Desligado (local)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -784,6 +785,7 @@ static const char *V_QUALIDADE[] = { "Automática", "4K", "1080p", "720p" };
 static const char *V_LIGA[]      = { "Ligado", "Desligado" };
 static const char *V_NAV_VELOCIDADE[] = { "Lenta", "Normal", "Rápida" };
 static const char *V_LIGA_AUTO[] = { "Ligado", "Desligado", "Automático" };
+static const char *V_COL_GIF[]   = { "Automático", "Ligado", "Desligado" };
 // Estilo da fileira de formato do player; o indice e o PLR_FMT_* de ajustes.h
 // e o gravado em "plrFormatoLocal".
 static const char *V_PLR_FORMATO[] = { "Texto", "Pílula", "Marcas", "Selos", "Original", "Desligado" };
@@ -1881,6 +1883,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Animação de entrada das Collections", V_LIGA, 2),   // colEntradaLocal (2.0.43)
   ESC("Tom da interface",                V_TEMA_FUNDO, 2),       // temaFundoLocal
   ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
+  ESC("GIF animado nas Collections",     V_COL_GIF, 3),          // colGifLocal (World 21/11)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2222,6 +2225,7 @@ static const char *CHAVE[] = {
   "colEntradaLocal",
   "temaFundoLocal",
   "aberturaVideoLocal",
+  "colGifLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3897,6 +3901,7 @@ int   ajustes_tema_preto(void) {
   return valor[AJ_TEMA_FUNDO] == 1;
 }
 int   ajustes_abertura_video(void) { return lig(AJ_ABERTURA_VIDEO); }
+int   ajustes_col_gif(void) { int v = valor[AJ_COL_GIF]; return v >= 0 && v <= 2 ? v : 0; }
 float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
 float ajustes_navegacao_velocidade(void) {
@@ -7737,6 +7742,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_LOGO_APP: return "O símbolo que o Nuvio mostra na abertura e nas telas de entrada. World é a identidade do Nuvio World; Clássico é a TV retrô de sempre. Vale só nesta TV.";
     case AJ_TEMA_FUNDO: return "Grafite (padrão): fundos e painéis em cinza bem escuro. Preto puro: fundos em preto absoluto, bom para TVs OLED; textos, foco e imagens continuam iguais. Vale só nesta TV.";
     case AJ_ABERTURA_VIDEO: return "Ligado (padrão): o app abre com o vídeo do Nuvio World enquanto se prepara. Se o vídeo falhar, a abertura de sempre aparece. Vale só nesta TV.";
+    case AJ_COL_GIF: return "A capa da coleção em foco anima quando a pasta tem GIF. Automático: anima conforme a memória da TV (TVs de 1 GB ficam na capa parada). Ligado: anima também nessas TVs, mais devagar se o GIF for pesado. Desligado: sempre a capa parada. Vale só nesta TV.";
     case AJ_ABERTURA: return "Como o logo some quando o app abre. Padrão para um instante, aproxima e esmaece; Só esmaece não aproxima; Direto abre a Home sem parar. Vale só nesta TV.";
     case AJ_FONTE_HDR: return "Preferir: fontes com HDR ou Dolby Vision vêm na frente. Indiferente: o formato não conta. Evitar: prefere SDR na mesma resolução. O Dolby Vision só entra se estiver ligado em Imagem e som; perfil 5 sem HDR10 fica atrás do HDR10, porque sai com cores erradas fora de TV Dolby Vision. Só vale para a escolha automática.";
     case AJ_FONTE_ORDEM_ADDON: return "Por qualidade: as fontes vêm agrupadas por resolução, da maior para a menor, e do maior arquivo para o menor. Do addon: cada addon na ordem em que você o instalou, e as fontes de cada um na ordem em que ele mandou — para quem já ordena no AIOStreams. A escolha automática não muda.";

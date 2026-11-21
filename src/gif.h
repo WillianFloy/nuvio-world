@@ -29,6 +29,9 @@
 // pediria o download do GIF a cada foco, para gif_textura devolver 0 no fim —
 // banda e espaco de cache gastos num arquivo que nunca vai ser desenhado.
 int gif_pode_animar(void);
+// 0 Automatico (pela RAM) | 1 Ligado (anima tambem em TV de 1 GB, teto 20 MB/s)
+// | 2 Desligado. Ajustes > Colecoes > "GIF animado nas Collections" (World).
+void gif_modo(int m);
 
 // ORCAMENTO DE ANIMACAO POR RAM (24/09/2026, TV de 1 GB que morria na tela de
 // perfis e na home). O custo de um GIF e o RITMO de decode (#141): bytes que o

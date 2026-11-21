@@ -44,7 +44,8 @@ typedef enum {
   GC_UM_QUADRO,     // GIF de um quadro so
   GC_ORCAMENTO,     // gif.c recusou: orcamento de RAM ou tela grande demais
   GC_REDUZIDAS,     // Ajustes > animacoes reduzidas (ou build NV_LEVE)
-  GC_APARELHO       // gif_pode_animar() == 0: webOS, TV de 1 GB
+  GC_APARELHO,      // gif_pode_animar() == 0: webOS, TV de 1 GB
+  GC_DESLIGADO      // Ajustes > Colecoes > GIF animado: Desligado (World)
 } GcMotivo;
 
 // Os 4 bytes sao de GIF ("GIF8")?

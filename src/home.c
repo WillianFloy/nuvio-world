@@ -6277,7 +6277,7 @@ static void desenhaAtalhos(int r, float y) {
       }
       if(!fonte) motivo=gifcol_sem_fonte(arte,temMagCapa?magCapa:NULL);
       else if(NV_SEM_GIF||ajustes_animacoes_reduzidas()) motivo=GC_REDUZIDAS;
-      else if(!gif_pode_animar()) motivo=GC_APARELHO;
+      else if((gif_modo(ajustes_col_gif()),!gif_pode_animar())) motivo=ajustes_col_gif()==2?GC_DESLIGADO:GC_APARELHO;
       else {
         // O ARQUIVO E PEDIDO FORA DO ATRASO de 350 ms. Dentro dele, o download so
         // comecaria depois do atraso e o primeiro quadro chegaria tarde; pedir
