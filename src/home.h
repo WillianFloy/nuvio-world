@@ -168,6 +168,9 @@ void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, flo
 #endif
 int home_foco_fixo_ativo(void);   // 2.0.41: foco numa fileira NORMAL/POSTER de foco fixo (TV)
 const char *home_rastro_foco(void);
+// Quadros em que a troca de fundo das Collections da Home saiu numa passada so
+// (gfx_hero_camadas). So para testes e diagnostico.
+int home_colcam_compostos(void);
 // CARROSSEL DA DINAMICA: titulos (indices do catalogo) da fileira em foco e a
 // posicao do focado; 0 fora da Dinamica ou numa fileira que nao e de titulos.
 int  home_fileira_titulos(int *out, int max, int *pos);

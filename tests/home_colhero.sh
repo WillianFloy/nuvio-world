@@ -26,4 +26,4 @@ done | xargs -P "$(nproc)" -I{} sh -c 'o="'"$D"'/$(echo {} | tr / _).o"; cc -c $
 cp tests/home_colhero.c "$D/_t.c"
 cc $FLAGS "$D"/*.o tests/home_colhero.c -o "$D/home_colhero" -lSDL2 -lSDL2_image -lSDL2_ttf -lz -lGLESv2 -lm -lpthread -ldl
 # Layout Dinamica (2) saiu do app em 20/11 (o arquivo de ajustes migra para Moderna).
-for L in 0 1; do echo "== layout $L"; SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 300 "$D/home_colhero" $L 2>&1 | grep -E "^(PASS|FAIL|home_colhero)|Assertion|fixture" || true; done | tee "$D/colfoco.out"; ! grep -q "FAIL\|FALHOU" "$D/colfoco.out"
+for L in 0 1; do echo "== layout $L"; SDL_VIDEODRIVER=offscreen LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$D/data" NUVIO_TESTE_DIR="$D/data" timeout 300 "$D/home_colhero" $L 2>&1 | grep -E "^(PASS|FAIL|home_colhero|\[info\])|Assertion|fixture" || true; done | tee "$D/colfoco.out"; ! grep -q "FAIL\|FALHOU" "$D/colfoco.out"

@@ -134,6 +134,17 @@ static inline float exp_alfa_cartaz(float p) { return 1.0f - anim_suave((p - 0.1
 // Compatibilidade (testes e quem ainda pede o peso da deitada).
 static inline float exp_mistura_arte(float p) { return exp_alfa_deitada(p); }
 
+// A ARTE DEITADA PREENCHE A MOLDURA (cover) EM TODO O CAMINHO (World, 21/11).
+// Com a deitada como arte principal (p >= EXP_SO_DEITADA, abrindo ou fechando)
+// o GFX_CARD caia no "contain" enquanto a moldura ainda nao tinha proporcao
+// perto da arte (ra < 0,80, gfx.c): a imagem encolhia para dentro do cartao com
+// a propria arte escurecida em volta, e voltava a cover perto do fim. Era o
+// "bug" da troca de arte no video da TCL, na entrada e na saida. Na camada por
+// baixo (p < 0,5) ela ja era cover; agora e cover dos dois lados da troca.
+static inline int exp_arte_cobre(float p, int deitadaPrincipal) {
+  return deitadaPrincipal && p > 0.0f;
+}
+
 // Hora de pedir a arte deitada (na largura FINAL do cartao aberto): metade do
 // atraso parado, entre 200 e 600 ms. Antes disso o foco ainda esta passando.
 static inline int exp_pre_pedir(const ExpEstado *e, unsigned agora, unsigned atrasoMs) {

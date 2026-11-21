@@ -522,6 +522,19 @@ int main(int argc, char **argv) {
       } }
     quadros(15, NULL);
     snprintf(bmp, sizeof bmp, "%s-exp-aberto.bmp", saida); quadros(1, bmp);
+    // NV_EXP_PONTOS=1 (World 21/11): o cartao aberto CONGELADO em pontos do caminho, dos dois lados
+    // da troca de arte (p = 0,50), para tests/expansao_troca_shot.sh comparar a arte quadro a quadro.
+    if (getenv("NV_EXP_PONTOS")) {
+      extern float home_exp_abre_teste;
+      static const float P[] = { 0.40f, 0.49f, 0.51f, 0.60f, 0.75f, 0.90f };
+      for (int k = 0; k < (int)(sizeof P / sizeof *P); k++) {
+        home_exp_abre_teste = P[k];
+        quadros(3, NULL);
+        snprintf(bmp, sizeof bmp, "%s-exp-p%03d.bmp", saida, (int)(P[k] * 100.0f + 0.5f));
+        quadros(1, bmp);
+      }
+      home_exp_abre_teste = -1.0f; quadros(3, NULL);
+    }
     tecla(SDLK_RIGHT);
     { static const int F2[] = { 1, 4, 8, 14, 30 };
       int q = 0, k;

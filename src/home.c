@@ -5327,6 +5327,17 @@ static void colCamAvancar(float dt) {
   }
   if (j > 0) { memmove(colCam, colCam + j, (size_t)(colCamN - j) * sizeof(ColCam)); colCamN -= j; }
 }
+// O banner de uma pasta comum (nem editorial, nem diretor): a arte plana que
+// gfx_hero_camadas compoe. NULL quando a pasta tem outro desenho.
+static const char *pastaBannerPlano(const ColFolder *f) {
+  const char *a;
+  if (!f || f->editorial || !strcasecmp(f->group, "Directors")) return NULL;
+  a = col_banner(f);
+  return a && a[0] ? a : NULL;
+}
+// Quadros em que a troca de fundo das Collections saiu numa passada (testes).
+static int colCamQuadrosCompostos;
+int home_colcam_compostos(void) { return colCamQuadrosCompostos; }
 // O FUNDO da pasta (o banner ou, no editorial, o cabecalho). `aEd`/`aBn` ja trazem o alfa da camada.
 static void pastaArteHero(const ColFolder *folder, GfxRect r, GfxModo modoHero, float aBn, float aEd, int principal) {
   if (folder->editorial) {
@@ -5616,6 +5627,26 @@ static void desenhaHero(Uint32 agora, float saida) {
     colCamManter(pastaFocoId, agora, motionReduzido || gfx_efeitos_minimos());
     pastaPrePedir();
     float aBase=(1-saida)*heroVisivelToque();
+    // TROCA NUMA PASSADA (World, 21/11; TCL: "Collections na Home travam ao andar para os lados,
+    // so na Moderna"). Cada camada do colCam era um GFX_HERO_CHEIO de tela cheia: andando rapido
+    // sobram 3-4 camadas acendendo uma sobre a outra (cada passo comeca outra de 350 ms) e o quadro
+    // pintava 3-4 telas cheias do shader mais caro do app. Na Padrao o banner e menor, por isso la
+    // nao pesava. Agora as DUAS de cima saem compostas no fragmento (gfx_hero_camadas, o mesmo
+    // crossfade do destaque de titulos), uma tela so. Com 3+ camadas a segunda e tomada como
+    // opaca: o que estava por baixo dela ja nao aparece (andando rapido, o fundo segue o ultimo).
+    int artePronta = 0;
+    if (colCamN >= 2 && (modoHero == GFX_HERO_CHEIO || modoHero == GFX_HERO)) {
+      const ColFolder *fa = col_folder(colCam[colCamN-1].pasta), *fb = col_folder(colCam[colCamN-2].pasta);
+      const char *aA = fa ? pastaBannerPlano(fa) : NULL, *aB = fb ? pastaBannerPlano(fb) : NULL;
+      GLuint tA = aA ? tex_obter_hero(aA) : 0, tB = aB ? tex_obter_hero(aB) : 0;
+      if (tA && tB) {
+        float la = ht_ease(colCam[colCamN-1].t / NV_HERO_ARTE_FADE_MS);
+        artePronta = gfx_hero_camadas(r, modoHero, tA, tex_aspecto(aA), aArte * la,
+                                      tB, tex_aspecto(aB), aArte);
+        if (artePronta) { corviva_definir(aA, CORVIVA_HOME); heroArteRect = r; colCamQuadrosCompostos++; }
+      }
+    }
+    if (!artePronta)
     for(int i=0;i<colCamN;i++) {   // ARTE, de baixo para cima (a de cima acende por cima)
       const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
       float la=i==0?1.0f:ht_ease(colCam[i].t/NV_HERO_ARTE_FADE_MS);
@@ -7248,6 +7279,7 @@ static void desenhaPilha(const Fileira *f, int coluna, int stackN, float px, flo
 // esqueleto opaco de baixo taparia o furo.
 static int arteSobreTrailer;
 int home_rastro_cartoes;   // capturas: imprime o retangulo de cada cartao
+float home_exp_abre_teste = -1.0f;   // capturas: congela o cartao que abre neste ponto (0..1)
 // Cruzamento da expansao: as duas camadas em "cover" (o cartaz em pe numa
 // moldura que alarga nao pode cair no contain do GFX_CARD no meio do caminho).
 static int expCoverForcado;
@@ -7742,6 +7774,9 @@ typedef struct {
   // razao = largura/altura do cartaz FECHADO (o cartaz fica nesse tamanho
   // enquanto se dissolve — expansao.h, exp_alfa_cartaz).
   const char *caminhoB; GLuint tB; float misturaB; float razao;
+  // 1 = a arte principal ja e a DEITADA (a troca da metade do caminho):
+  // desenhada em cover enquanto a moldura abre ou fecha (exp_arte_cobre).
+  int deitadaPrincipal;
 } CartaoFoco;
 static CartaoFoco cartaoFoco; static float cartaoFocoRaio; static int temCartaoFoco;
 // O caminho da arte mora num buffer que o proximo cartao sobrescreve: copia propria.
@@ -8037,9 +8072,27 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
             // se dissolvendo. Em p = 0 e o cartao fechado, pixel a pixel; de
             // 50% em diante so a deitada. Nenhuma camada leva esqueleto.
             int sobre = k->tB && k->misturaB > 0.004f && abre > 0.0f;
-            if (!sobre) {
+            // DEITADA A CAMINHO (pedida e ainda sem textura, ou chegando com o
+            // fade em zero): o cartaz fica PARADO no tamanho fechado sobre o
+            // fundo escuro, como na camada de cima do cruzamento. Esticado na
+            // moldura que abre ele caia no contain do GFX_CARD (encolhido, com
+            // a propria arte escurecida em volta) e pulava quando a deitada
+            // chegava. Sem deitada nenhuma (ou que falhou) segue o de sempre.
+            int espera = !sobre && abre > 0.0f && t && k->caminhoB && !k->deitadaPrincipal &&
+                         k->razao > 0.05f && !tex_falhou(k->caminhoB);
+            if (espera) {
+              int st = arteSobreTrailer;
+              GfxRect pr = card;
+              if (card.h * k->razao < card.w) pr.w = card.h * k->razao;
+              arteSobreTrailer = 1;
+              gfx_cor(card, raio, 0.051f, 0.051f, 0.055f, aArteCard);
+              desenhaArteCard(pr, tipo, caminho, t, cItem, f, raio, aArteCard, varreFoco);
+              arteSobreTrailer = st;
+            } else if (!sobre) {
+              expCoverForcado = exp_arte_cobre(abre, k->deitadaPrincipal);
               desenhaArteCard(card, tipo, caminho, t, cItem, f, raio, aArteCard,
                               varreFoco);
+              expCoverForcado = 0;
             } else {
               int st = arteSobreTrailer;
               float aD = exp_alfa_deitada(abre) * k->misturaB;
@@ -8223,10 +8276,11 @@ void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, flo
       }
     }
   }
-  if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { cam = camD; t = tB; tB = 0; camD = NULL; misturaB = 0.0f; }
+  int deitadaPrincipal = 0;
+  if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { cam = camD; t = tB; tB = 0; camD = NULL; misturaB = 0.0f; deitadaPrincipal = 1; }
   CartaoFoco k = { -1, -1, FILEIRA_NORMAL, ci, cam, t, 1.0f, deitado, temRotulo(FILEIRA_NORMAL),
                    abre, 1.0f, 0.0f, card.x, card.y, card.w, card.h, 0.0f, 0.0f, camD, tB, misturaB,
-                   (wFechado > 1.0f && card.h > 1.0f) ? wFechado / card.h : 0.0f };
+                   (wFechado > 1.0f && card.h > 1.0f) ? wFechado / card.h : 0.0f, deitadaPrincipal };
   gfx_opacidade_grupo = alfa;
   pintarCartao(&k, raio);
   gfx_opacidade_grupo = og;
@@ -8672,6 +8726,7 @@ static void home_desenhar_(Uint32 agora) {
           // A altura nao entra na conta: na referencia ela nao muda, e o card
           // cresce so para a direita a partir de uma borda esquerda parada.
           float abre = exp_propria(&expE, r, c);
+          if (home_exp_abre_teste >= 0.0f && abre > 0.0f) abre = home_exp_abre_teste;   // capturas
           float larguraAberta = artH * esc * NV_EXP_ASPECTO;
           // Cascata: atraso pela coluna VISIVEL, nao pela absoluta — a
           // fileira rolada ate a coluna 20 entra pelo primeiro card da tela.
@@ -8899,7 +8954,8 @@ static void home_desenhar_(Uint32 agora) {
             : tex_obter_larg(caminho, wPedido)) : 0;
           // Deitada ja cobre tudo (o cartaz ja se dissolveu): ela vira a arte
           // principal e o desenho volta ao caminho de sempre.
-          if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { caminho = caminhoB; t = tB; tB = 0; misturaB = 0.0f; }
+          int deitadaPrincipal = 0;
+          if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { caminho = caminhoB; t = tB; tB = 0; misturaB = 0.0f; deitadaPrincipal = 1; }
           // ARTE CHEGANDO: so esvanece quem foi visto esperando (revela.h).
           float aArte = revela_arte(&revArte[r][c], t != 0, agora);
           // ANEL DE FOCO: 4 px de #FFFFFF, POR FORA da arte.
@@ -8938,7 +8994,8 @@ static void home_desenhar_(Uint32 agora) {
           }
           CartaoFoco ck = { r, c, tipo, cItem, caminho, t, aArte, deitado, rotuloFora, abre, esc, f,
                             px, py, w, h, (!focoHero && focus_indice(&foco, r, c)) ? varreFoco : 0.0f,
-                            trailerCard, caminhoB, tB, misturaB, artH > 0.0f ? lw / artH : 0.0f };
+                            trailerCard, caminhoB, tB, misturaB, artH > 0.0f ? lw / artH : 0.0f,
+                            deitadaPrincipal };
           pintarCartao(&ck, raio);
           // MARCADOR "PRIMEIRA FILEIRA PINTADA" (#7 do handoff de desempenho,
           // 05/10). "primeira fileira da rede pronta" e "catalogo da rede

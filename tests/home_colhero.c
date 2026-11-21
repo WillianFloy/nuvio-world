@@ -76,6 +76,28 @@ int main(int argc, char **argv) {
   for (int q = 0; q < 80; q++) { frames(1); if (colCamN > camMax) camMax = colCamN; if (colCamN >= 2 && colCam[0].t < NV_HERO_ARTE_FADE_MS) pop = 1; }
   ok(camMax >= 3, "trocas seguidas empilham as camadas");
   ok(!pop && colCamN == 1, "interrupcao: camada de baixo sempre inteira e tudo assenta numa so");
+  // 2b. World 21/11 (TCL: Collections da Home travando ao andar para os lados, so na Moderna): com as
+  //     camadas empilhadas o fundo das pastas sai NUMA tela (gfx_hero_camadas), nao numa por camada.
+  {
+    double maxHero = 0.0; int maxCam = 1, comp0 = home_colcam_compostos(), quadrosCam = 0;
+    key(SDLK_LEFT); frames(3); key(SDLK_LEFT); frames(3); key(SDLK_LEFT);
+    for (int q = 0; q < 60; q++) {
+      frames(1);
+      double h = gfx_fill_modo_ult[GFX_HERO_CHEIO] + gfx_fill_modo_ult[GFX_HERO_CHEIO_CAM] +
+                 gfx_fill_modo_ult[GFX_HERO] + gfx_fill_modo_ult[GFX_HERO_CAM];
+      if (colCamN >= 2) { quadrosCam++; if (h > maxHero) maxHero = h; }
+      if (colCamN > maxCam) maxCam = colCamN;
+    }
+    printf("[info] trocas empilhadas: camadas=%d quadros=%d compostos=%d fundo maximo=%.2f telas\n",
+           maxCam, quadrosCam, home_colcam_compostos() - comp0, maxHero);
+    if (layout == 0) {
+      ok(maxCam >= 3, "Moderna: tres passos seguidos empilham camadas");
+      ok(home_colcam_compostos() - comp0 >= quadrosCam - 2, "Moderna: toda troca de fundo das pastas sai numa passada");
+      ok(maxHero <= 1.10, "Moderna: o fundo das pastas custa uma tela por quadro, com qualquer numero de camadas");
+    }
+    frames(60);
+    while (foco.coluna < 3) { key(SDLK_RIGHT); frames(25); } frames(60);
+  }
   // 3. Banner que FALHA de vez (pasta 5 sem arquivo): o anterior segue inteiro ate a falha ser conhecida e a troca
   //    NAO espera os 600 ms por uma URL morta (2.0.44). O limite de 600 ms continua para o que so demora (guarda no .sh).
   while (foco.coluna > 3) { key(SDLK_LEFT); frames(25); } frames(60);

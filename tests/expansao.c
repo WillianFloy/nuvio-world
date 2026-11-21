@@ -149,6 +149,24 @@ int main(void) {
     OK(!exp_pre_pedir(&q, t0 + 150, 0), "atraso 0: espera pelo menos 200 ms");
     OK(exp_pre_pedir(&q, t0 + 600, 5000), "atraso longo: pede aos 600 ms"); }
 
+  // 8. A deitada preenche a moldura dos dois lados da troca (video da TCL, 21/11). O GFX_CARD
+  //    (gfx.c) cai no contain quando a moldura sai de +-25% da proporcao da arte e a cover nao foi
+  //    forcada. Caminho de um cartaz 2:3 abrindo ate 16:9 com a deitada 16:9: abaixo da troca ela e a
+  //    camada de baixo (sempre forcada); acima, a principal (exp_arte_cobre). Nenhum p cai no contain.
+  { const float hC = 322.0f, wF = hC * 2.0f / 3.0f, wA = hC * 16.0f / 9.0f, aspArte = 16.0f / 9.0f;
+    int contem = 0, semRegra = 0;
+    for (int i = 1; i <= 100; i++) {
+      float p = i / 100.0f, ra = ((wF + (wA - wF) * p) / hC) / aspArte;
+      int principal = p >= EXP_SO_DEITADA, forca = principal ? exp_arte_cobre(p, 1) : 1;
+      int caiContain = !forca && (ra < 0.80f || ra > 1.25f);
+      if (caiContain) contem++;
+      if (principal && (ra < 0.80f || ra > 1.25f)) semRegra++;   // o que caia no contain antes
+    }
+    printf("deitada principal fora de +-25%%: %d de 100 quadros (contain antes); agora %d\n", semRegra, contem);
+    OK(semRegra > 0, "o caminho passa por molduras longe dos 16:9 com a deitada ja principal");
+    OK(contem == 0, "a deitada fica em cover em todo o caminho: a imagem nao encolhe nem salta");
+    OK(!exp_arte_cobre(0.0f, 1) && !exp_arte_cobre(0.7f, 0), "fechado, ou com o cartaz como arte: a regra de sempre"); }
+
   printf("%s\n", falhas ? "expansao: FALHOU" : "expansao: tudo ok");
   return falhas != 0;
 }
