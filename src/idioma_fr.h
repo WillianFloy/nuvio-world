@@ -4598,7 +4598,7 @@
   T("República Tcheca", "Tchéquie"),
   T("Resetar foco das fileiras ao iniciar", "Réinitialiser le focus des rangées au démarrage"),
   T("Resolução", "Résolution"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "La résolution règle la netteté ; les effets règlent la fluidité. Automatique ne descend jamais à 720p. Redémarrez après un changement de résolution ; la vidéo reste inchangée."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "La résolution règle la netteté ; les effets règlent la fluidité. Automatique ne descend à 720p que si le téléviseur ne suit pas. Redémarrez après un changement de résolution ; la vidéo reste inchangée."),
   T("Resolução da interface", "Résolution de l'interface"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Résolution de l’interface en 720p et Effets visuels en Légers allègent une TV faible. La vidéo ne change pas."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "La résolution de l’interface en Automatique n’utilise la 4K que si la TV suit. Sur une TV faible, 720p et des effets visuels Légers allègent la charge. La vidéo ne change pas."),

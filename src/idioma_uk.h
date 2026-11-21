@@ -4598,7 +4598,7 @@
   T("República Tcheca", "Чехія"),
   T("Resetar foco das fileiras ao iniciar", "Скидати фокус рядів під час запуску"),
   T("Resolução", "Роздільність"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Роздільність визначає чіткість, ефекти — швидкість. Автоматично ніколи не знижує до 720p. Перезапустіть після зміни роздільності; відео не змінюється."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Роздільність визначає чіткість, ефекти — швидкість. Автоматично знижує до 720p, лише якщо телевізор не справляється. Перезапустіть після зміни роздільності; відео не змінюється."),
   T("Resolução da interface", "Роздільна здатність інтерфейсу"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Роздільність інтерфейсу 720p і Візуальні ефекти Легкі розвантажують слабкий телевізор. Відео не змінюється."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Роздільність інтерфейсу «Автоматично» вмикає 4K, лише коли телевізор витягує. На слабкому телевізорі 720p і легкі візуальні ефекти знімають навантаження. Відео не змінюється."),

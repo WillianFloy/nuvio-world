@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Ceko"),
   T("Resetar foco das fileiras ao iniciar", "Setel ulang fokus baris saat peluncuran"),
   T("Resolução", "Resolusi"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Resolusi mengatur ketajaman; efek mengatur kecepatan. Otomatis tidak pernah turun ke 720p. Mulai ulang setelah mengubah resolusi; video tidak berubah."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Resolusi mengatur ketajaman; efek mengatur kecepatan. Otomatis hanya turun ke 720p jika TV tidak sanggup. Mulai ulang setelah mengubah resolusi; video tidak berubah."),
   T("Resolução da interface", "Resolusi antarmuka"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Resolusi antarmuka 720p dan Efek visual Ringan meringankan TV yang lemah. Video tidak berubah."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Resolusi antarmuka Otomatis hanya memakai 4K bila TV sanggup. Di TV lemah, 720p dan efek visual Ringan meringankan beban. Video tidak berubah."),

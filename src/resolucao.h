@@ -101,6 +101,47 @@ static inline int res_auto_ler(const char *txt, const char *versao) {
   return n;
 }
 
+// AUTOMATICA TAMBEM DESCE PARA 720p (Nuvio World, 21/11/2026; decisao do dono
+// depois do log da SEMP 50SK8300, Android 9: superficie 1920x1080, ~14 ms de
+// GPU por tela cheia, media de 15 fps mesmo com os efeitos ja no minimo; na TCL
+// do dono a propria superficie do sistema e 1280x720 e a interface fica lisa).
+// Revoga, so no World, a regra herdada "Automatica nunca baixa para 720p".
+// Ordem: primeiro saem os EFEITOS (gpunivel ate o fim da escada, ou fixados pela
+// pessoa); se mesmo assim a janela segue lenta por RES_720_SEGUIDAS relatorios
+// (~12 s), a interface passa a desenhar em 1280x720 nesta sessao (alvo interno
+// ampliado) e o veredito fica gravado: o proximo arranque ja pede a superficie
+// 1280x720 (o escalador da TV amplia de graca). Gravado por versao do app: uma
+// atualizacao (mais leve) mede de novo.
+#define RES_ARQ_720 "resolucao-auto-720.txt"
+#ifndef RES_720_FPS_MIN
+#define RES_720_FPS_MIN  32.0
+#endif   // sem relogio da GPU: abaixo disto, sustentado = lenta
+#ifndef RES_720_GPU_MS
+#define RES_720_GPU_MS   24.0
+#endif   // com relogio: mediana da GPU acima disto = lenta
+#ifndef RES_720_SEGUIDAS
+#define RES_720_SEGUIDAS 4
+#endif
+typedef struct { int ruins; int desceu; } Res720;
+static inline int res_720_ler(const char *txt, const char *versao) {
+  size_t l;
+  if (!txt || strncmp(txt, "720 ", 4)) return 0;
+  txt += 4; l = strlen(versao);
+  return !strncmp(txt, versao, l) && (txt[l] == '\n' || txt[l] == 0);
+}
+// Uma amostra por relatorio de 3 s. `efeitosNoFim` = a escada de efeitos ja
+// chegou ao fim (ou a pessoa fixou os efeitos): antes disso quem cede sao os
+// efeitos, nao os pixels. Devolve 1 uma unica vez: a amostra que decide.
+static inline int res_720_amostra(Res720 *v, double fps, double gpuMs, int efeitosNoFim, int valida) {
+  int ruim;
+  if (!v || v->desceu || !valida || !efeitosNoFim) return 0;
+  ruim = gpuMs > 0.0 ? gpuMs > RES_720_GPU_MS : fps < RES_720_FPS_MIN;
+  v->ruins = ruim ? v->ruins + 1 : 0;
+  if (v->ruins < RES_720_SEGUIDAS) return 0;
+  v->desceu = 1;
+  return 1;
+}
+
 typedef struct { int estado; int validas; int ruins; double pior; } ResAuto;
 enum { RES_AUTO_NADA = 0, RES_AUTO_APROVOU = 1, RES_AUTO_REBAIXOU = 2 };
 

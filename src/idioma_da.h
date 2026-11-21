@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Tjekkiet"),
   T("Resetar foco das fileiras ao iniciar", "Nulstil fokus på rækkerne ved start"),
   T("Resolução", "Opløsning"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Opløsning styrer skarphed; effekter styrer hastighed. Automatisk sænker aldrig til 720p. Genstart efter ændret opløsning; video ændres ikke."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Opløsning styrer skarphed; effekter styrer hastighed. Automatisk sænker kun til 720p, hvis tv'et ikke kan følge med. Genstart efter ændret opløsning; video ændres ikke."),
   T("Resolução da interface", "Brugerfladens opløsning"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Brugerfladeopløsning på 720p og Visuelle effekter på Lette letter et svagt tv. Videoen ændrer sig ikke."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Brugerfladens opløsning på Automatisk bruger kun 4K, når TV’et kan klare det. På et svagt TV letter 720p og lette effekter. Videoen ændres ikke."),

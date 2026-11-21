@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Séc"),
   T("Resetar foco das fileiras ao iniciar", "Đặt lại tiêu điểm hàng khi khởi động"),
   T("Resolução", "Độ phân giải"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Độ phân giải điều chỉnh độ nét; hiệu ứng điều chỉnh tốc độ. Tự động không bao giờ hạ xuống 720p. Khởi động lại sau khi đổi độ phân giải; video không đổi."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Độ phân giải điều chỉnh độ nét; hiệu ứng điều chỉnh tốc độ. Tự động chỉ hạ xuống 720p khi TV không theo kịp. Khởi động lại sau khi đổi độ phân giải; video không đổi."),
   T("Resolução da interface", "Độ phân giải giao diện"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Độ phân giải giao diện 720p và Hiệu ứng hình ảnh Nhẹ giảm tải cho TV yếu. Video không đổi."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Độ phân giải giao diện Tự động chỉ dùng 4K khi TV đáp ứng. Trên TV yếu, 720p và hiệu ứng Nhẹ giảm tải. Video không đổi."),

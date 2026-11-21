@@ -4599,7 +4599,7 @@
   T("República Tcheca", "チェコ"),
   T("Resetar foco das fileiras ao iniciar", "起動時に行のフォーカスをリセット"),
   T("Resolução", "解像度"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "解像度は鮮明さ、エフェクトは速度を調整します。自動で720pに下がることはありません。解像度を変更したら再起動してください。動画は変わりません。"),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "解像度は鮮明さ、エフェクトは速度を調整します。自動はテレビが追いつかない場合のみ720pに下げます。解像度を変更したら再起動してください。動画は変わりません。"),
   T("Resolução da interface", "インターフェースの解像度"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "表示解像度 720p と 視覚効果 軽量 で、性能の低いテレビの負担を減らします。動画は変わりません。"),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "インターフェース解像度の「自動」は、テレビが対応できるときだけ 4K を使います。非力なテレビでは 720p と軽い効果で負荷を減らせます。映像は変わりません。"),

@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Tsjechië"),
   T("Resetar foco das fileiras ao iniciar", "Rijfocus resetten bij het opstarten"),
   T("Resolução", "Resolutie"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Resolutie bepaalt scherpte; effecten bepalen snelheid. Automatisch schakelt nooit naar 720p. Herstart na wijziging van resolutie; video blijft gelijk."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Resolutie bepaalt scherpte; effecten bepalen snelheid. Automatisch schakelt alleen naar 720p als de tv het niet bijhoudt. Herstart na wijziging van resolutie; video blijft gelijk."),
   T("Resolução da interface", "Interfaceresolutie"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Interfaceresolutie op 720p en Visuele effecten op Licht ontlasten een zwakke tv. De video verandert niet."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Interfaceresolutie op Automatisch gebruikt 4K alleen als de tv het aankan. Op een zwakke tv verlichten 720p en lichte effecten de last. Video verandert niet."),

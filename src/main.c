@@ -1165,7 +1165,7 @@ int main(int argc, char **argv) {
   // tex_escala recebem dw/NV_TELA_W, que e o mesmo caminho pelo qual a previa
   // no Mac (retina) desenha em 2x. Se voltar 1920x1080, a resposta e a mesma da
   // C9 e nao ha o que fazer neste lado.
-  int pedeW, pedeH, pediu4k = 0, autoPediu = 0, autoEst = 0;
+  int pedeW, pedeH, pediu4k = 0, autoPediu = 0, autoEst = 0, auto720 = 0;
 
   // OS DADOS ANTES DA JANELA, e so por causa desta escolha.
   //
@@ -1227,6 +1227,17 @@ int main(int argc, char **argv) {
     int uiMenor4k = resolucaoDaTv() && ajustes_ampliar_app() &&
                     (ajustes_720p() || ajustes_1080p());
     int uiMenor720 = resolucaoDaTv() && ajustes_720p();
+    // AUTOMATICA QUE JA DESCEU PARA 720p nesta TV e nesta versao (resolucao.h):
+    // pede a superficie 1280x720 de saida, como a escolha manual de 720p.
+    if (resolucaoDaTv() && ajustes_res_auto()) {
+      char *m720 = dados_ler(RES_ARQ_720);
+      auto720 = res_720_ler(m720, NV_VERSAO);
+      free(m720);
+      if (auto720) {
+        uiMenor720 = 1;
+        printf("[res] automatica: 720p (esta TV nao segurou 1080p numa sessao anterior desta versao)\n");
+      }
+    }
     // 4K THAT DID NOT HOLD on this TV in an earlier session (resolucao.h):
     // start at 1080p. Picking 4K again in Settings deletes the file.
     if (quer4k) {
@@ -1240,7 +1251,7 @@ int main(int argc, char **argv) {
     pediu4k = quer4k;
     // AUTOMATIC (resolucao.h): ask for the 4K surface only on a 4K display, and
     // only while the verdict for this TV + this app version is "probe" or "4K".
-    if (resolucaoDaTv() && ajustes_res_auto() && !quer4k) {
+    if (resolucaoDaTv() && ajustes_res_auto() && !quer4k && !auto720) {
       char *mem = dados_ler(RES_ARQ_AUTO);
       int est = res_auto_ler(mem, NV_VERSAO);
       SDL_DisplayMode dm; int tela4k = SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.w >= 3840;
@@ -1668,7 +1679,7 @@ int main(int argc, char **argv) {
   gputempo_iniciar();   // GPU clock per frame: Android diagnostic, opt-in (gputempo.h)
   int gpuPref = ajustes_gpu_efeitos();
   if (gpuPref) gpun_preferencia(gpuPref);
-  if (ajustes_720p()) gpun_forcar_720();
+  if (ajustes_720p() || auto720) gpun_forcar_720();
   else if (ajustes_1080p() && dw > (int)NV_TELA_W) gpun_alvo_1080();
   // Scale to the granted drawable, including 1080p when 4K is refused.
   gpun_ampliar_app(resolucaoDaTv() && ajustes_ampliar_app() &&
@@ -2634,6 +2645,23 @@ int main(int argc, char **argv) {
                 ilha_avisar("res-4k-recuo", ILHA_INFO, NULL,
                             i18n("Interface em 1080p: esta TV não aguenta 4K"), 8000u, 0);
             }
+          }
+        }
+        // AUTOMATICA -> 720p (resolucao.h, World 21/11): 1080p que nao segura nem com os
+        // efeitos no fim da escada. So na superficie de 1080p (a de 4K tem o recuo acima).
+        if (resolucaoDaTv() && ajustes_res_auto() && janelaTv && !auto720 && !autoPediu &&
+            dw > 1280 && dw <= (int)NV_TELA_W && !gpun_forca_720_ativo()) {
+          static Res720 v720;
+          double fpsJan = quadros * 1000.0 / (double)(agora - ultRelato);
+          int valida = SDL_GetTicks() > 15000u && !abertura_ativa() &&
+                       !player_aberto() && !player_mini_ativo();
+          int noFim = gpun_nivel() >= 2 || ajustes_gpu_efeitos() != 0;
+          if (res_720_amostra(&v720, fpsJan, gN > 0 ? gMed : 0.0, noFim, valida)) {
+            printf("[res] automatica: 1080p nao segurou (gpu=%.1fms fps=%.1f em %d relatorios, "
+                   "efeitos no minimo) -> 720p nesta sessao e nas proximas desta versao\n",
+                   gN > 0 ? gMed : 0.0, fpsJan, RES_720_SEGUIDAS);
+            gpun_forcar_720();
+            dados_gravar(RES_ARQ_720, "720 " NV_VERSAO "\n");
           }
         }
         // 4K WATCH (resolucao.h): the person picked 4K and the TV granted it.

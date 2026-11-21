@@ -102,6 +102,7 @@ void gpun_forcar_720(void);
 // above 1080p or with 720p forced. Session-only; main.c remembers it on disk.
 void gpun_alvo_1080(void);
 int  gpun_alvo_1080_ativo(void);
+int  gpun_forca_720_ativo(void);   // interface desenhada em 1280x720 (escolha ou Automatica que desceu)
 
 // Laco de quadro: _inicio ANTES do glClear da tela (liga o alvo interno no
 // explicit 720p or 4K fallback), _fim after drawing and before swap.

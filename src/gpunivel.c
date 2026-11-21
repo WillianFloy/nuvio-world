@@ -452,6 +452,7 @@ void gpun_alvo_1080(void) {
   fflush(stdout);
 }
 int gpun_alvo_1080_ativo(void) { return alvo1080; }
+int gpun_forca_720_ativo(void) { return forca720; }
 
 int gpun_nivel(void) { return nivel; }
 int gpun_degrau(void) { return degrau; }

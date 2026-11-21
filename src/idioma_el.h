@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Τσεχία"),
   T("Resetar foco das fileiras ao iniciar", "Επαναφορά εστίασης σειρών κατά την εκκίνηση"),
   T("Resolução", "Ανάλυση"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Η ανάλυση ελέγχει την ευκρίνεια, τα εφέ την ταχύτητα. Το Αυτόματο δεν πέφτει ποτέ στα 720p. Επανεκκινήστε μετά την αλλαγή ανάλυσης· το βίντεο δεν αλλάζει."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Η ανάλυση ελέγχει την ευκρίνεια, τα εφέ την ταχύτητα. Το Αυτόματο πέφτει στα 720p μόνο αν η τηλεόραση δεν αντέχει. Επανεκκινήστε μετά την αλλαγή ανάλυσης· το βίντεο δεν αλλάζει."),
   T("Resolução da interface", "Ανάλυση διεπαφής"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Ανάλυση διεπαφής 720p και Οπτικά εφέ Ελαφριά ξεκουράζουν μια αδύναμη τηλεόραση. Το βίντεο δεν αλλάζει."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Η ανάλυση διεπαφής στο Αυτόματο χρησιμοποιεί 4K μόνο όταν αντέχει η τηλεόραση. Σε αδύναμη τηλεόραση, 720p και ελαφριά εφέ ελαφρύνουν. Το βίντεο δεν αλλάζει."),

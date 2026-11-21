@@ -4599,7 +4599,7 @@
   T("República Tcheca", "República Checa"),
   T("Resetar foco das fileiras ao iniciar", "Repor o foco das filas ao iniciar"),
   T("Resolução", "Resolução"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "A resolução controla a nitidez; os efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "A resolução controla a nitidez; os efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda."),
   T("Resolução da interface", "Resolução da interface"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Resolução da interface em 720p e Efeitos visuais em Leves tiram peso a uma TV fraca. O vídeo não muda."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "A resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais Leves tiram peso. O vídeo não muda."),

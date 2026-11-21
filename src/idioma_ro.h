@@ -4598,7 +4598,7 @@
   T("República Tcheca", "Cehia"),
   T("Resetar foco das fileiras ao iniciar", "Resetează focusul rândurilor la pornire"),
   T("Resolução", "Rezoluție"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Rezoluția controlează claritatea; efectele controlează viteza. Automat nu scade niciodată la 720p. Repornește după schimbarea rezoluției; videoclipul nu se schimbă."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Rezoluția controlează claritatea; efectele controlează viteza. Automat scade la 720p doar dacă televizorul nu face față. Repornește după schimbarea rezoluției; videoclipul nu se schimbă."),
   T("Resolução da interface", "Rezoluția interfeței"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Rezoluția interfeței la 720p și Efectele vizuale pe Ușoare iau din greutatea unui televizor slab. Videoclipul nu se schimbă."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Rezoluția interfeței pe Automat folosește 4K doar când televizorul face față. Pe un TV slab, 720p și efecte vizuale Ușoare reduc încărcarea. Video-ul nu se schimbă."),

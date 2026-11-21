@@ -4599,7 +4599,7 @@
   T("República Tcheca", "جمهورية التشيك"),
   T("Resetar foco das fileiras ao iniciar", "إعادة ضبط تركيز الصفوف عند البدء"),
   T("Resolução", "الدقة"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "الدقة تتحكم في الحدة؛ والتأثيرات تتحكم في السرعة. التلقائي لا ينخفض أبدًا إلى 720p. أعد التشغيل بعد تغيير الدقة؛ الفيديو لا يتغير."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "الدقة تتحكم في الحدة؛ والتأثيرات تتحكم في السرعة. التلقائي ينخفض إلى 720p فقط إذا لم يتحمل التلفاز. أعد التشغيل بعد تغيير الدقة؛ الفيديو لا يتغير."),
   T("Resolução da interface", "دقة الواجهة"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "دقة الواجهة 720p والتأثيرات المرئية الخفيفة تخففان العبء عن التلفاز الضعيف. الفيديو لا يتغير."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "دقة الواجهة في التلقائي لا تستخدم 4K إلا عندما يتحملها التلفاز. على التلفاز الضعيف، 720p والتأثيرات المرئية الخفيفة تخففان العبء. الفيديو لا يتأثر."),

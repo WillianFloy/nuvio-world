@@ -4599,7 +4599,7 @@
   T("República Tcheca", "捷克"),
   T("Resetar foco das fileiras ao iniciar", "启动时重置行的焦点"),
   T("Resolução", "分辨率"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "分辨率控制清晰度，效果控制速度。自动模式绝不会降至720p。更改分辨率后请重启；视频不受影响。"),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "分辨率控制清晰度，效果控制速度。自动模式仅在电视跟不上时降至720p。更改分辨率后请重启；视频不受影响。"),
   T("Resolução da interface", "界面分辨率"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "界面分辨率 720p 和视觉效果 轻量 可减轻性能较弱的电视的负担。视频不变。"),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "界面分辨率设为“自动”时，只有电视撑得住才用 4K。性能弱的电视可用 720p 和轻量效果减负。视频不受影响。"),

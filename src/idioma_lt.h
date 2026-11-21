@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Čekija"),
   T("Resetar foco das fileiras ao iniciar", "Paleidžiant nustatyti eilučių fokusą iš naujo"),
   T("Resolução", "Raiška"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Raiška lemia ryškumą, efektai — greitį. Automatiškai niekada nesumažina iki 720p. Pakeitę raišką paleiskite iš naujo; vaizdo įrašas nesikeičia."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Raiška lemia ryškumą, efektai — greitį. Automatiškai sumažina iki 720p tik tada, kai televizorius nespėja. Pakeitę raišką paleiskite iš naujo; vaizdo įrašas nesikeičia."),
   T("Resolução da interface", "Sąsajos skiriamoji geba"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "720p sąsajos raiška ir Lengvi vizualiniai efektai palengvina silpną televizorių. Vaizdo įrašas nesikeičia."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Automatinė sąsajos raiška naudoja 4K tik kai televizorius pajėgia. Silpname televizoriuje 720p ir lengvi efektai sumažina apkrovą. Vaizdo įrašas nesikeičia."),

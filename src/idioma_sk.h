@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Česko"),
   T("Resetar foco das fileiras ao iniciar", "Resetovať fokus riadkov pri spustení"),
   T("Resolução", "Rozlíšenie"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Rozlíšenie riadi ostrosť, efekty rýchlosť. Automaticky nikdy nezníži na 720p. Po zmene rozlíšenia reštartujte; video sa nemení."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Rozlíšenie riadi ostrosť, efekty rýchlosť. Automaticky zníži na 720p, len keď to TV nezvláda. Po zmene rozlíšenia reštartujte; video sa nemení."),
   T("Resolução da interface", "Rozlíšenie rozhrania"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Rozlíšenie rozhrania 720p a Vizuálne efekty Ľahké uľavia slabému televízoru. Video sa nemení."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Rozlíšenie rozhrania na Automaticky použije 4K, len keď to televízor zvládne. Na slabom televízore uľaví 720p a ľahké efekty. Video sa nemení."),

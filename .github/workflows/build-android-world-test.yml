@@ -158,6 +158,8 @@ jobs:
           cc -D_POSIX_C_SOURCE=200809L -DNV_CACHE_TEST -Isrc tests/android_storage.c src/androidcache.c -pthread -o "$W/t"
           for r in durable apk escrita; do mkdir "$W/$r"; "$W/t" "$W/$r" "$r"; done
           "$W/t" "$W"
+      - name: Run automatic 720p fallback test (real FPS series)
+        run: bash tests/resolucao_720.sh
       - name: Run focus ring concentricity test
         run: bash tests/anel_foco.sh
       - name: Run image toll (pedagio) test

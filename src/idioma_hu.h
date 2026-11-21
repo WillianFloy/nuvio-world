@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Csehország"),
   T("Resetar foco das fileiras ao iniciar", "Sorfókusz visszaállítása induláskor"),
   T("Resolução", "Felbontás"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "A felbontás az élességet, az effektek a sebességet szabályozzák. Az Automatikus soha nem csökkent 720p-re. Felbontásváltás után indítsa újra; a videó nem változik."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "A felbontás az élességet, az effektek a sebességet szabályozzák. Az Automatikus csak akkor csökkent 720p-re, ha a TV nem bírja. Felbontásváltás után indítsa újra; a videó nem változik."),
   T("Resolução da interface", "Felület felbontása"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "A 720p-s felületfelbontás és a Könnyű vizuális effektusok tehermentesítik a gyenge tévét. A videó nem változik."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Az Automatikus felületi felbontás csak akkor használ 4K-t, ha a TV bírja. Gyenge TV-n a 720p és a könnyű effektek tehermentesítenek. A videó nem változik."),

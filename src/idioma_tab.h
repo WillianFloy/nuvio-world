@@ -4598,7 +4598,7 @@
   { "República Tcheca", "Czech Republic" },
   { "Resetar foco das fileiras ao iniciar", "Reset row focus on startup" },
   { "Resolução", "Resolution" },
-  { "Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Resolution controls sharpness; effects control speed. Automatic never drops to 720p. Restart after changing resolution; video is unchanged." },
+  { "Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Resolution controls sharpness; effects control speed. Automatic drops to 720p only if the TV cannot keep up. Restart after changing resolution; video is unchanged." },
   { "Resolução da interface", "Interface resolution" },
   { "Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "Interface resolution at 720p and Visual effects at Light take weight off a weak TV. The video doesn't change." },
   { "Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Interface resolution on Automatic only uses 4K when the TV can handle it. On a weak TV, 720p and Light visual effects lighten the load. Video is unaffected." },

@@ -4599,7 +4599,7 @@
   T("República Tcheca", "Çekya"),
   T("Resetar foco das fileiras ao iniciar", "Açılışta satır odağını sıfırla"),
   T("Resolução", "Çözünürlük"),
-  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.", "Çözünürlük keskinliği, efektler hızı belirler. Otomatik hiçbir zaman 720p’ye düşmez. Çözünürlüğü değiştirdikten sonra yeniden başlatın; video değişmez."),
+  T("Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.", "Çözünürlük keskinliği, efektler hızı belirler. Otomatik yalnızca TV yetişemezse 720p’ye düşer. Çözünürlüğü değiştirdikten sonra yeniden başlatın; video değişmez."),
   T("Resolução da interface", "Arayüz çözünürlüğü"),
   T("Resolução da interface em 720p e Efeitos visuais em Leves tiram peso de TV fraca. O vídeo não muda.", "720p arayüz çözünürlüğü ve Hafif görsel efektler zayıf bir TV'nin yükünü azaltır. Video değişmez."),
   T("Resolução da interface em Automática só usa 4K quando a TV aguenta. Em TV fraca, 720p e Efeitos visuais em Leves tiram peso. O vídeo não muda.", "Otomatik arayüz çözünürlüğü 4K’yı yalnızca TV kaldırınca kullanır. Zayıf TV’de 720p ve Hafif görsel efektler yükü azaltır. Video değişmez."),

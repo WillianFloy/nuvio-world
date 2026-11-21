@@ -5074,7 +5074,7 @@ void ajustes_dir(const char *dir) {
     else {
       if (performanceAutoVersao < 1) {
         valor[AJ_RESOLUCAO] = RES_AUTO;
-        dados_apagar(RES_ARQ_RECUO); dados_apagar(RES_ARQ_AUTO);
+        dados_apagar(RES_ARQ_RECUO); dados_apagar(RES_ARQ_AUTO); dados_apagar(RES_ARQ_720);
       }
       dados_gravar(RES_ARQ_MIGRADA, "1\n");
       gravar();
@@ -8056,7 +8056,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_FONTE_IDIOMA_AUDIO: return "Na escolha automática, fontes com o seu Idioma do áudio ou áudio duplo passam na frente na mesma resolução. Não é filtro: sem elas, a melhor das outras toca.";
     case AJ_CACHE_SEEK: return "Com retomada rápida, guarda só o último título por até 3 horas. Trocar de perfil ou pouco espaço apagam o trecho.";
     case AJ_ANIM: return "Use Reduzidas para movimentos mais discretos ao navegar pela interface.";
-    case AJ_RESOLUCAO: return "Resolução controla a nitidez; efeitos controlam a velocidade. Automática nunca baixa para 720p. Reinicie após mudar a resolução; o vídeo não muda.";
+    case AJ_RESOLUCAO: return "Resolução controla a nitidez; efeitos controlam a velocidade. Automática só baixa para 720p se a TV não aguentar. Reinicie após mudar a resolução; o vídeo não muda.";
     case AJ_PERFIL_ATIVO: return "Perfil em uso nesta TV. Trocar de perfil é feito na tela de perfis, ao abrir o app.";
     case AJ_SYNC: return "Estado da última troca de dados com a sua conta: addons, progresso, coleções e preferências.";
     case AJ_ADDONS: return "Abre a lista de addons da sua conta, para ligar e desligar cada um nesta TV.";
@@ -9675,7 +9675,7 @@ static int definirValorDireto(int op, int novo) {
     if (m) { free(m); dados_apagar(RES_ARQ_RECUO); printf("[4k] 4K escolhido de novo: tenta outra vez no proximo arranque\n"); }
   }
   // Back to Automatic = measure again at the next launch.
-  if (op == AJ_RESOLUCAO && novo == RES_AUTO) dados_apagar(RES_ARQ_AUTO);
+  if (op == AJ_RESOLUCAO && novo == RES_AUTO) { dados_apagar(RES_ARQ_AUTO); dados_apagar(RES_ARQ_720); }   // Automatica escolhida de novo: mede outra vez
   if (op == AJ_ENQUETES) enquete_definir_optout(novo != 0);
   if (op == AJ_ADDONS_PRINCIPAL) sync_iniciar();
   if (op == AJ_SELOS_PACOTE) { selospacote_escolher(novo - 1); spEspelhar(); }
