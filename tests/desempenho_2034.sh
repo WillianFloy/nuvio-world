@@ -39,7 +39,7 @@ ok("static int prioFila(const Item *it) { return it->urgente * 2 + (it->lookahea
 # 2.0.38: troca do destaque continua quando interrompida (pilha de camadas), 350 ms.
 ok("#define VIT_HERO_DUR (NV_MOTION_MS / 1000.0f)" in v and "vitHeroEntra += dt / VIT_HERO_DUR;" in v, "troca do destaque em 350 ms")
 ok("vitHeroAnt2 = vitHeroAnt; vitHeroEntraAnt2 = vitHeroEntraAnt;" in v and "vitHeroAnt = vitHeroAtual; vitHeroEntraAnt = vitHeroEntra;" in v, "troca interrompida empilha a camada com o progresso que tinha")
-ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "float ty = topo - 14.0f * sai;" in v and "home_vitrine_texto_el(camIt[i], ty, teto, al0, al1, al2," in v, "arte e texto do destaque por camadas")
+ok("home_vitrine_arte_troca(camIt[0], al[0], camIt[1], al[1])" in v and "float ty = topo - VIT_TITULO_SOBE - 14.0f * sai;" in v and "home_vitrine_texto_el(camIt[i], ty, teto, al0, al1, al2," in v, "arte e texto do destaque por camadas")
 # 2.0.39: a reprojecao nao zera mais a posicao horizontal das fileiras na TV.
 ok("if (!manter) vitSx[r] = vitSv[r] = 0.0f;\n      vitSxAjuste[r] = 0;\n    } else if (!l->n) {" in v, "reprojecao: so o telefone zera vitSx")
 ok("porChave ? mesmaChave(&vitLembChave[r], it) : bruto == lembrado" in v and "static VtChave vitLembChave[VIT_LIN_MAX];" in v, "coluna lembrada reencontrada pela chave estavel (IMDb/TMDB)")
