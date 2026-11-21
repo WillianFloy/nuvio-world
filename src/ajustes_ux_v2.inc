@@ -1330,9 +1330,14 @@ static void aj2DesenharPagina(float t) {
   r = (GfxRect){ c.x + (h.x - c.x) * k, c.y + (h.y - c.y) * k, c.w + (h.w - c.w) * k, c.h + (h.h - c.h) * k };
   ajustes_acento(&ar, &ag, &ab);
   gfx_opacidade_grupo = grupo * (t > 1 ? 1 : t);
-  ajPaginaIlha(r, 36.0f, 1);
-  // um veu do acento, como o cartao em foco de onde ele veio
-  gfx_cor(r, ajTelaCheia() ? 0.0f : 36.0f / r.h, ar, ag, ab, 0.10f + 0.55f * (1.0f - k));
+  // Tela cheia da TV (World): assentado, o cabecalho e texto sobre o fundo da tela, sem faixa;
+  // a faixa (com o veu do acento) so aparece enquanto o cartao da categoria vira cabecalho.
+  if (!ajCheiaTv() || k < 0.999f) {
+    float sai = ajCheiaTv() ? 1.0f - k : 1.0f;
+    ajPaginaIlha(r, 36.0f, sai);
+    // um veu do acento, como o cartao em foco de onde ele veio
+    gfx_cor(r, ajTelaCheia() ? 0.0f : 36.0f / r.h, ar, ag, ab, (0.10f + 0.55f * (1.0f - k)) * sai);
+  }
   gfx_opacidade_grupo = grupo * conteudo;
   if (uxIndice >= 2) {
     nome = aj2MenuTitulo(uxIndice); ic = aj2MenuIcone(uxIndice); kick = aj2GrupoNome(aj2Grupo(sec));

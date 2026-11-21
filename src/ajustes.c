@@ -137,16 +137,39 @@ static int ajRetrato(void) {
 #endif
 }
 #define AJ_ESCALA_INI() float ajEscalaAnt_ = gfx_escala(); gfx_escala_sair(ajustes_tamanho_ajustes())
+// AJUSTES EM TELA CHEIA NA TV (Nuvio World, 21/11; pedido antigo do dono: "o menu de ajustes
+// num estilo proprio em tela cheia"). O arranjo de tela cheia ja existia para o celular (sem as
+// ilhas flutuantes: cabecalho, lista e editor de borda a borda); no World ele vale tambem na TV.
+#if defined(NV_ANDROID) && !defined(NV_VIDRO_TESTE)
+#define NV_AJUSTES_CHEIA 1
+#endif
 static int ajTelaCheia(void) {
-#ifdef NV_TOUCH_UI
+#ifdef NV_AJUSTES_CHEIA
+  return 1;
+#elif defined(NV_TOUCH_UI)
   return layout_modo_mobile();
 #else
   return 0;
 #endif
 }
+// TV em tela cheia (World): sem ilhas, mas com as margens da Home (2,5% = 48 px dos lados) e o
+// cabecalho abaixo da ilha do relogio. No celular a tela cheia segue de borda a borda.
+static int ajCheiaTv(void) {
+#ifdef NV_AJUSTES_CHEIA
+  return 1;
+#else
+  return 0;
+#endif
+}
 // Mobile "Lista": o cabecalho desce abaixo do selo e do relogio, como nas outras telas.
-static float ajPaginaTopo(void) { return ajTelaCheia() && !ajustes_layout_lista() ? 0.0f : 112.0f / ajustes_tamanho_ajustes(); }
-static float ajPaginaMargem(void) { return ajTelaCheia() ? 0.0f : (ajRetrato() ? 48.0f : 40.0f) / ajustes_tamanho_ajustes(); }
+static float ajPaginaTopo(void) {
+  if (ajCheiaTv()) return 96.0f / ajustes_tamanho_ajustes();
+  return ajTelaCheia() && !ajustes_layout_lista() ? 0.0f : 112.0f / ajustes_tamanho_ajustes();
+}
+static float ajPaginaMargem(void) {
+  if (ajCheiaTv()) return 48.0f / ajustes_tamanho_ajustes();
+  return ajTelaCheia() ? 0.0f : (ajRetrato() ? 48.0f : 40.0f) / ajustes_tamanho_ajustes();
+}
 static GfxRect ajTelaR(void) { return (GfxRect){0, 0, NV_VTELA_W, NV_VTELA_H}; }
 #define AJ_ESCALA_FIM() gfx_escala_sair(ajEscalaAnt_)
 

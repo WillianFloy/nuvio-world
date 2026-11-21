@@ -141,6 +141,13 @@ static GfxRect ajIlhaMiolo0(GfxRect r, float raioPx) {
 // Ilha: sombra curta, miolo (vidro 80% / solido #15161A) e a luz larga do canto
 // de cima, sem contorno. `modal` = miolo a 86%, para a ilha por cima de outra.
 static void ajIlhaMaterial(GfxRect r, float raioPx, float a, int modal, int pagina) {
+  // Tela cheia da TV (World): a pagina e o fundo do tom escolhido (Preto puro = preto absoluto,
+  // como a Home), chapado e sem luzes.
+  if (pagina && ajCheiaTv() && !ajVid()) {
+    float c = ajustes_tema_preto() ? 0.0f : 0.051f;
+    if (a > 0.003f) gfx_cor(r, 0.0f, c, c, c + (c > 0.0f ? 0.004f : 0.0f), a);
+    return;
+  }
   if (pagina) raioPx = 0.0f;
   float raio = raioPx / r.h;
   if (a <= 0.003f) return;
@@ -363,7 +370,7 @@ static float aj2X0(void) {
   gfx_escala_sair(gfx_escala_txt());
   float rail = ajustes_rail_largura_fixa();
   gfx_escala_sair(previous);
-  return ((ajTelaCheia() && rail <= 0.0f ? 0.0f : 48.0f) + rail) / AJ2_S;
+  return ((ajTelaCheia() && !ajCheiaTv() && rail <= 0.0f ? 0.0f : 48.0f) + rail) / AJ2_S;
 }
 // A3: linhas compactas (58 + 2 de vao, rotulo 24), o dobro de linhas na tela.
 #define AJ2_LN_H        (ajRetrato() ? 96.0f : 60.0f)
@@ -1383,6 +1390,10 @@ static void ajDesenharLinha(int item, float y, float f, float a) {
       }
     }
     { const char *selo = ajSelo(op);
+      // Tela cheia da TV (World): o escopo ("Esta TV" / "Este perfil") so na linha em foco; em
+      // toda linha era ruido (auditoria de 20/11, item C). Plataforma e Avancado continuam.
+      if (selo && ajCheiaTv() && f < 0.5f && uxTemPadrao(op) && !uxAvancada(op) &&
+          op != AJ_LEG_SYNC_AUDIO) selo = NULL;
       if (selo) {
         float w = ajCaps(TXT_V3_SELO, selo, 2.2f, -1, 0, 0);
         if (rx + 18 + w < tx + maxW) ajCaps(TXT_V3_SELO, selo, 2.2f, rx + 18, tyc - 11, 0.42f * aT);
