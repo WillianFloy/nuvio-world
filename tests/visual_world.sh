@@ -181,7 +181,7 @@ grep -q 'rq_quadro(&nvRitmo' src/main.c && grep -q 'NUVIO_DISPLAY_HZ' android/ap
 ! grep -q 'SDL_GL_SetSwapInterval(2)\|eglPresentationTimeANDROID' src/main.c src/android.c || falha "limite artificial de FPS voltou"
 grep -q 'static int vidNivel = 1;' src/gfx.c || falha "ritmo do fundo do vidro ausente"
 grep -q 'menu_empurra()' src/app.c && grep -q 'void gfx_deslocar_base' src/gfx.c || falha "menu lateral volta a cobrir a tela"
-grep -q 'if (tvAtivo() || topo() || !padrao()) return 0.0f;' src/menu.c || falha "menu volta a empurrar a Moderna (so a Padrao empurra)"
+grep -q 'if (tvAtivo() || topo() || !gaveta()) return 0.0f;' src/menu.c || falha "menu volta a empurrar fora da gaveta da Padrao"
 grep -q 'static void aj2DesenharPreviaLista' src/ajustes_ux_v2.inc && grep -q 'static void aj2DesenharColunaPagina' src/ajustes_ux_v2.inc || falha "Ajustes sem as duas colunas"
 echo "ok etapa 5: topo sem faixa, foco centrado, ritmo medido, vidro graduado, menu empurra, Ajustes em duas colunas"
 echo "tudo ok"

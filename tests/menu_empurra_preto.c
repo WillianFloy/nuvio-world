@@ -1,8 +1,9 @@
 // ITENS A E B DA AUDITORIA DE 20/11, POR COMPORTAMENTO (pixels e geometria).
 //
-// A: o menu lateral aberto EMPURRA o conteudo so no layout Padrao. Na Moderna
-//    (coluna World com a "Barra lateral Moderna" ligada, ou a ilha com ela
-//    desligada) o conteudo fica onde esta. Ate 20/11 empurrava em todos.
+// A: o menu lateral aberto EMPURRA o conteudo so na GAVETA da Padrao (Padrao +
+//    "Barra lateral Moderna" ligada: a barra de altura inteira). Na Moderna
+//    (coluna World ou ilha) e na ilha da Padrao (barra Moderna desligada, que
+//    nao ocupa a altura toda) o conteudo fica onde esta.
 // B: no tom Preto puro, a ilha da Moderna com a "Barra lateral Moderna"
 //    DESLIGADA e #000000 absoluto (era vidro escuro, RGB 7-15). A coluna World
 //    (Moderna ligada) fica como esta, por pedido.
@@ -166,8 +167,8 @@ int main(void) {
   printf("[%s] aberto: borda=%.1f empurra=%.1f marcador %d -> %d\n", nome, borda, empurraUsado, xFechado, xAberto);
   if (esperaEmpurra) {
     OK(empurraUsado > 1.0f && xAberto - xFechado == (int)floorf(empurraUsado),
-       "[%s] Padrao: o conteudo anda %.0f px com o menu aberto (marcador %d -> %d)", nome, empurraUsado, xFechado, xAberto);
-    OK(xAberto > (int)borda, "[%s] Padrao: o conteudo fica a direita da barra (%d > %.0f)", nome, xAberto, borda);
+       "[%s] gaveta da Padrao: o conteudo anda %.0f px com o menu aberto (marcador %d -> %d)", nome, empurraUsado, xFechado, xAberto);
+    OK(xAberto > (int)borda, "[%s] gaveta da Padrao: o conteudo fica a direita da barra (%d > %.0f)", nome, xAberto, borda);
   } else {
     OK(empurraUsado == 0.0f && xAberto == xFechado,
        "[%s] sem empurrao: o conteudo NAO anda (empurra=%.1f, marcador %d -> %d)", nome, empurraUsado, xFechado, xAberto);

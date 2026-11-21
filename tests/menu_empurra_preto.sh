@@ -34,9 +34,10 @@ mod-ilha-recolhida    0 0 0 0 0 -
 mod-ilha-preto        0 0 1 1 0 1
 mod-ilha-preto-recol  0 0 0 1 0 1
 pad-gaveta-fixa       1 1 1 0 1 -
-pad-ilha-fixa         1 0 1 0 1 -
-pad-ilha-recolhida    1 0 0 0 1 -
-pad-ilha-preto        1 0 1 1 1 1
+pad-gaveta-recolhida  1 1 0 0 1 -
+pad-ilha-fixa         1 0 1 0 0 -
+pad-ilha-recolhida    1 0 0 0 0 -
+pad-ilha-preto        1 0 1 1 0 1
 pad-gaveta-preto      1 1 1 1 1 1
 pad-so-icones         1 0 1 0 0 - 0
 M

@@ -909,13 +909,16 @@ float menu_barra_borda(void) {
 // aberto, a barra passa dessa borda. A tela inteira desliza o que a barra
 // passou (+24 px de respiro), na mesma mola da abertura (`expande`), entao
 // nada fica escondido atras dela e a animacao e uma so. Px da tela REAL.
-// So no layout Padrao (pedido do dono, 20/11): na Moderna o menu -- coluna
-// World ou ilha -- flutua sobre a cena e o conteudo NAO anda (a etapa 5
-// empurrava em todos os layouts; tests/menu_empurra.sh).
+// So na GAVETA da Padrao (Padrao + "Barra lateral Moderna" ligada), a barra de
+// altura inteira colada na borda (dono, 20/11). Na Moderna (coluna World ou
+// ilha) o menu flutua sobre a cena; na ilha da Padrao (barra Moderna
+// desligada) a barra nao ocupa a altura toda e o conteudo deslizar por ela
+// "nao tem motivo" (TCL, 20/11). Nos dois casos o conteudo NAO anda.
+// tests/menu_empurra_preto.sh.
 float menu_empurra(void) {
   MenuGeo g;
   float e, dir, borda;
-  if (tvAtivo() || topo() || !padrao()) return 0.0f;
+  if (tvAtivo() || topo() || !gaveta()) return 0.0f;
   e = limita01(expande);
   if (e <= 0.002f) return 0.0f;
   g = geoEm(e, railFixa() ? 1.0f : (padrao() ? anim_suave(desliza) : 1.0f));
