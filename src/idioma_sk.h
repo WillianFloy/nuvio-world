@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Farba pozadia"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Farba tlačidiel vo fokuse a značiek stavu. Dvanásť motívov je z webovej aplikácie a riadi sa účtom. Dynamické berú farbu z titulu na obrazovke a zostávajú len v tomto TV."),
   T("Cor viva", "Zodpovedajúca farba"),
+  T("Cor, fonte e cartazes", "Farba, písmo a plagáty"),
   T("Cor, transparência, fonte, animações e relógio", "Farba, priehľadnosť, písmo, animácie a hodiny"),
   T("Coreano", "Kórejčina"),
   T("Coreia do Norte", "Severná Kórea"),

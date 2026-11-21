@@ -43,6 +43,7 @@ static int arqDiscoTem(const char *dst);
 #include "webp.h"
 #include "jpegrapido.h"
 #include "miniatura.h"
+#include "pedagio.h"
 #include "corviva.h"
 #include "artereserva.h"
 #include "artetamanho.h"
@@ -2342,8 +2343,19 @@ static int baixarParaItem(int idx, const char *url, char *dst, size_t tam, int *
     // A VARIANTE DO TAMANHO DO DESENHO (artetamanho.h), antes do nome de
     // cache: o arquivo no disco e o da variante, e a promocao a heroi, com
     // teto maior, procura outro nome e baixa o maior.
+    // O PEDAGIO (pedagio.h, World 21/11): host sem escada de tamanhos (GitHub,
+    // CDN de addon) passa pelo servico de redimensionamento e a arte ja chega
+    // no tamanho do desenho. O arquivo no disco e o da URL do pedagio (outro
+    // nome: a promocao com teto maior pede outro degrau ou o original), e
+    // limiteTamanho marca o teto, como numa variante do TMDB. Falhou: volta
+    // ao original na hora.
+    int viaPedagio = 0;
+    char pedagio[NV_TEX_URL_MAX];
     { int usar = arte_tamanho_url(url, limitePedido, certo, sizeof certo);
       if (usar) url = certo;
+      else if (pedagio_url(url, limitePedido, pedagio, sizeof pedagio, SDL_GetTicks())) {
+        url = pedagio; usar = 1; viaPedagio = 1;
+      }
       SDL_LockMutex(mtx);
       if (mesmoPedido(idx, pedido)) itens[idx].limiteTamanho = usar ? limitePedido : 0;
       SDL_UnlockMutex(mtx); }
@@ -2353,6 +2365,20 @@ static int baixarParaItem(int idx, const char *url, char *dst, size_t tam, int *
     if (!gravacaoPendente(dst, &corpo, &n)) {
       if (foiRede) *foiRede = 1;
       corpo = (unsigned char *)baixarImagem(url, &n, trace);
+      if (viaPedagio) {
+        pedagio_resultado(corpo != NULL, SDL_GetTicks());
+        if (!corpo) {
+          // Recuo ao original: mesmo caminho de sempre, sem variante.
+          url = pedido;
+          SDL_LockMutex(mtx);
+          if (mesmoPedido(idx, pedido)) itens[idx].limiteTamanho = 0;
+          SDL_UnlockMutex(mtx);
+          nomeDeCache(url, dst, tam);
+          if (acertoDisco(dst, trace)) { if (foiRede) *foiRede = 0; return 1; }
+          if (!gravacaoPendente(dst, &corpo, &n))
+            corpo = (unsigned char *)baixarImagem(url, &n, trace);
+        }
+      }
       if (!corpo) {
         char alt[400];
         if (resolverReserva(url, alt, sizeof alt, trace))

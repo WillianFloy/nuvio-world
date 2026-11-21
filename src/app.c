@@ -4998,8 +4998,19 @@ void app_atualizar(float dt, Uint32 agora) {
 
   // Um ciclo por vez, e so quando a conta existe. O passo e barato: sem fio
   // terminado ele nao faz nada.
-  sync_passo((unsigned)agora);
-  agenda_filmes_atualizar();
+  // World (21/11): medido, porque a trava de 120-170 ms por ciclo de sync
+  // continuou nos logs da TCL depois da correcao da reconciliacao.
+  { Uint64 t0 = SDL_GetPerformanceCounter(), t1;
+    double ms1, ms2;
+    sync_passo((unsigned)agora);
+    t1 = SDL_GetPerformanceCounter();
+    agenda_filmes_atualizar();
+    ms1 = (double)(t1 - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+    ms2 = (double)(SDL_GetPerformanceCounter() - t1) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+    if (ms1 >= 30.0 || ms2 >= 30.0) {
+      printf("[lento] fio principal: sync_passo %.0f ms, agenda_filmes %.0f ms\n", ms1, ms2);
+      fflush(stdout);
+    } }
   // SERVIDOR DA CONTA FORA DO AR (#215): um aviso discreto na ilha, uma vez
   // por queda, e retirado quando ele volta. Sem isto a pessoa via a home sem
   // addons (ou com os de ontem) e concluia que o app quebrou — e saia da conta

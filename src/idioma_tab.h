@@ -1485,6 +1485,7 @@
   { "Cor do fundo", "Background color" },
   { "Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Color of focused buttons and status marks. The twelve themes are the web app's and follow the account. The dynamic ones take the color from the title on screen and stay on this TV only." },
   { "Cor viva", "Matching color" },
+  { "Cor, fonte e cartazes", "Color, font and posters" },
   { "Cor, transparência, fonte, animações e relógio", "Color, transparency, font, animations, and clock" },
   { "Coreano", "Korean" },
   { "Coreia do Norte", "North Korea" },

@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Arka plan rengi"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Odaktaki düğmelerin ve durum işaretlerinin rengi. On iki tema web uygulamasındakilerdir ve hesabı izler. Dinamik olanlar rengi ekrandaki yapımdan alır ve yalnızca bu TV'de kalır."),
   T("Cor viva", "Uyumlu renk"),
+  T("Cor, fonte e cartazes", "Renk, yazı tipi ve afişler"),
   T("Cor, transparência, fonte, animações e relógio", "Renk, saydamlık, yazı tipi, animasyonlar ve saat"),
   T("Coreano", "Korece"),
   T("Coreia do Norte", "Kuzey Kore"),

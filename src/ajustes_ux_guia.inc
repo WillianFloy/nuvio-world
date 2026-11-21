@@ -95,10 +95,23 @@ static int pediuTela;
 int ajustes_pediu_tela(void) { int v = pediuTela; pediuTela = 0; return v; }
 int ajustes_guia_aberto(void) { return guiaAberto; }
 
-static int guiaTotal(void) { return GUIA_NENT; }
-static int guiaNovos(void) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].novo; return n; }
-static int guiaNoCap(int c) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].cap == c; return n; }
-static int guiaNovosNoCap(int c) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].cap == c && GUIA_ENT[i].novo; return n; }
+// ENTRADA QUE APONTA PARA UM AJUSTE QUE NAO EXISTE AQUI (World, 21/11: o vidro
+// saiu do Android e o guia ainda mostrava "Vidro ou solido" com um botao que
+// nao abria nada) fica fora do guia: lista, contagens e busca.
+static int guiaVisivel(int i) {
+  return !(GUIA_ENT[i].alvo >= 0 && !ajOpcaoDisponivel(GUIA_ENT[i].alvo));
+}
+// O subtitulo do capitulo sem o que saiu (o vidro, no Android).
+static const char *guiaCapSub(int c) {
+#ifdef NV_SEM_VIDRO
+  if (!strcmp(GUIA_CAPS[c].sub, "Vidro, cor, fonte e cartazes")) return "Cor, fonte e cartazes";
+#endif
+  return GUIA_CAPS[c].sub;
+}
+static int guiaTotal(void) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += guiaVisivel(i); return n; }
+static int guiaNovos(void) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].novo && guiaVisivel(i); return n; }
+static int guiaNoCap(int c) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].cap == c && guiaVisivel(i); return n; }
+static int guiaNovosNoCap(int c) { int i, n = 0; for (i = 0; i < GUIA_NENT; i++) n += GUIA_ENT[i].cap == c && GUIA_ENT[i].novo && guiaVisivel(i); return n; }
 
 // A LISTA do meio para o item `idx` do indice: entradas do capitulo, ou as
 // novas agrupadas por capitulo (cabecalho = -1 - capitulo).
@@ -108,12 +121,12 @@ static int guiaLista(int idx, int *out) {
     for (c = 0; c < GUIA_NCAPS; c++) {
       if (!guiaNovosNoCap(c)) continue;
       out[n++] = -1 - c;
-      for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c && GUIA_ENT[i].novo) out[n++] = i;
+      for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c && GUIA_ENT[i].novo && guiaVisivel(i)) out[n++] = i;
     }
     return n;
   }
   c = idx >= GI_CAP0 ? idx - GI_CAP0 : 0;
-  for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c) out[n++] = i;
+  for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c && guiaVisivel(i)) out[n++] = i;
   return n;
 }
 static int guiaPrimeira(int idx) {
@@ -625,7 +638,7 @@ static float guiaVisual(int tipo, int ent, float x, float y, float w) {
 static int guiaVisualCap(int c) {
   int i;
   if (c == 1) return GV_LAYOUTS;
-  for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c && GUIA_ENT[i].visual) return GUIA_ENT[i].visual;
+  for (i = 0; i < GUIA_NENT; i++) if (GUIA_ENT[i].cap == c && GUIA_ENT[i].visual && guiaVisivel(i)) return GUIA_ENT[i].visual;
   return GV_NADA;
 }
 
@@ -740,7 +753,7 @@ static void guiaDesenharLista(const GuiaVista *v, float a) {
     if (v->daNov) snprintf(kick, sizeof kick, "%s › %s", i18n("Novidades da 1.8.0"), i18n("Guia de uso"));
     else snprintf(kick, sizeof kick, i18n("Guia de uso · Capítulo %d de %d"), c + 1, GUIA_NCAPS);
     snprintf(tit, sizeof tit, "%s", GUIA_CAPS[c].titulo);
-    snprintf(sub, sizeof sub, "%s", GUIA_CAPS[c].sub);
+    snprintf(sub, sizeof sub, "%s", guiaCapSub(c));
   }
   if (v->daNov && !guiaTelefone()) {
     TxtLinha t = ajTxt(TXT_AJ_SEG, "Voltar às novidades");
@@ -1216,6 +1229,7 @@ int ajustes_guia_buscar(const char *consulta, int *out, int max) {
   for (passo = 0; passo < 2 && n < max; passo++)
     for (i = 0; i < GUIA_NENT && n < max; i++) {
       int j, ja = 0;
+      if (!guiaVisivel(i)) continue;
       busca_normalizar(i18n(passo == 0 ? GUIA_ENT[i].titulo : GUIA_ENT[i].txt), t, sizeof t);
       if (!strstr(t, q)) continue;
       for (j = 0; j < n; j++) if (out[j] == i) ja = 1;

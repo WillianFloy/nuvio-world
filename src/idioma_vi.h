@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Màu nền"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Màu của nút đang chọn và dấu trạng thái. Mười hai chủ đề là của ứng dụng web và theo tài khoản. Các chủ đề động lấy màu từ tựa đang hiện và chỉ áp dụng trên TV này."),
   T("Cor viva", "Màu phù hợp"),
+  T("Cor, fonte e cartazes", "Màu, phông chữ và áp phích"),
   T("Cor, transparência, fonte, animações e relógio", "Màu, độ trong suốt, phông chữ, hiệu ứng động và đồng hồ"),
   T("Coreano", "Tiếng Hàn"),
   T("Coreia do Norte", "Triều Tiên"),

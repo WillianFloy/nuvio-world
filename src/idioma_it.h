@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Colore dello sfondo"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Colore dei pulsanti attivi e dei segni di stato. I dodici temi sono quelli dell'app web e seguono l'account. Quelli dinamici prendono il colore dal titolo in scena e restano solo su questa TV."),
   T("Cor viva", "Colore abbinato"),
+  T("Cor, fonte e cartazes", "Colore, carattere e locandine"),
   T("Cor, transparência, fonte, animações e relógio", "Colore, trasparenza, carattere, animazioni e orologio"),
   T("Coreano", "Coreano"),
   T("Coreia do Norte", "Corea del Nord"),

@@ -504,7 +504,7 @@ int main(int argc, char **argv) {
   // NV_AJ=$'focusedPosterBackdropExpandEnabled 0\nfocusedPosterBackdropExpandDelaySeconds 1'.
   if (getenv("NV_EXPANSAO")) {
     int r;
-    static const int FOTOS[] = { 20, 26, 32, 38, 44 };   // quadros de foco parado (no harness o quadro leva ~40 ms reais)
+    static const int FOTOS[] = { 22, 26, 30, 34, 40, 48 };   // quadros de foco parado (no harness o quadro leva ~40 ms reais)
     for (r = 0; r < 14; r++) tecla(SDLK_UP);
     { int d = getenv("NV_EXPANSAO") ? atoi(getenv("NV_EXPANSAO")) : 1;   // fileiras a descer ate a de cartazes
       for (r = 1; r < d; r++) { tecla(SDLK_DOWN); quadros(90, NULL); } }

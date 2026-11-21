@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Warna latar"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Warna tombol terfokus dan tanda status. Dua belas tema berasal dari aplikasi web dan mengikuti akun. Yang dinamis mengambil warna dari judul di layar dan hanya berlaku di TV ini."),
   T("Cor viva", "Warna yang serasi"),
+  T("Cor, fonte e cartazes", "Warna, font, dan poster"),
   T("Cor, transparência, fonte, animações e relógio", "Warna, transparansi, font, animasi, dan jam"),
   T("Coreano", "Korea"),
   T("Coreia do Norte", "Korea Utara"),

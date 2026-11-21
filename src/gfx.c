@@ -43,6 +43,7 @@ typedef struct {
   GLint jan;     // uJan: janela do GFX_JANELA
   GLint peso;    // uPeso: GFX_TEXTO faux-bold scale/offsets in highp
   GLint leve;    // uLeve: 1 = efeitos leves (sem dither), ver gfx_definir_efeitos_leves
+  GLint veuLut;  // uVeuLut (unidade 4): tabela das rampas do hero cheio
   GLint sub;     // uSub do VS: o pedaco do rect desenhado (gfx_sombra_vazada)
   float subAtual[4];
   GLint din;     // uDin: cor do topo e queda do fundo da Dinamica (GFX_VITRINE_DIN)
@@ -366,6 +367,7 @@ static const char *FS_CABECA =
   // "pendente", ver gfx_rect). uAmbOn liga o caminho; a UV da luz e vAmb, a
   // posicao na tela vinda do vertex shader — nao gl_FragCoord (ver o VS).
   "uniform sampler2D uAmb;\n"
+  "uniform sampler2D uVeuLut;\n"
   "uniform float uAmbOn;\n"
   // CAMADAS DO DESTAQUE NUMA PASSADA SO (gfx_hero_camadas, GFX_*_CAM). Durante o
   // crossfade a arte que sai e a que entra eram DUAS passadas de tela cheia
@@ -873,16 +875,12 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  float dentro = step(0.0, xd) * step(xd, 1.0);\n"
   "  vec3 c = texture2D(uTex, clamp(cover(vec2(xd, vUv.y)), 0.0, 1.0)).rgb;\n"
   "  vec3 bg = uFundo;\n"
-  "  float y = vUv.y;\n"
-  "  float av = clamp((y-0.640)/0.108,0.0,1.0)*0.35\n"
-  "           + clamp((y-0.748)/0.108,0.0,1.0)*0.40\n"
-  "           + clamp((y-0.856)/0.144,0.0,1.0)*0.25;\n"
-  "  float t = vUv.x/0.65;\n"
-  "  float ah = 1.0 - clamp(t/0.22,0.0,1.0)*0.10\n"
-  "                 - clamp((t-0.22)/0.24,0.0,1.0)*0.10\n"
-  "                 - clamp((t-0.46)/0.30,0.0,1.0)*0.38\n"
-  "                 - clamp((t-0.76)/0.24,0.0,1.0)*0.42;\n"
-  "  ah *= step(vUv.x, 0.65);\n"
+  // World (21/11): as duas rampas do veu vem da tabela uVeuLut (gfx_veu_lut_*),
+  // nao de ~25 contas por pixel. MEDIDO na TCL: ~0,25 ms por conta por tela
+  // cheia, e o hero cheio esta em todo quadro da Home (duas vezes no
+  // cruzamento das pastas das Collections).
+  "  float av = texture2D(uVeuLut, vec2(vUv.y, 0.5)).g;\n"
+  "  float ah = texture2D(uVeuLut, vec2(vUv.x, 0.5)).r;\n"
   "  if (uPar.x > 0.5) { vec3 vb = (uAmbOn > 0.5) ? texture2D(uAmb, vAmb).rgb : bg;\n"
   "    gl_FragColor = nv_dither(vb, clamp(ah + av - ah*av, 0.0, 1.0) * uCor.a); return; }\n"
   "  if (uAmbOn > 0.5) { vec3 amb = texture2D(uAmb, vAmb).rgb;\n"
@@ -1204,9 +1202,14 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "void main(){\n"
   "  float m = bordaR(vUv, uRaio, uAspect);\n"
   "  if (m <= 0.001) discard;\n"
+  // World (21/11, dono: "um esqueleto mais bonitinho, sem o nome do filme"):
+  // a superficie ganha profundidade — um pouco mais clara no alto e mais funda
+  // na base, como um cartaz com luz de cima — e a luz que passa fica mais
+  // larga e mais macia. Mesmo custo: duas contas a mais que o exp.
   "  float x = uPar.y + vUv.x * uFoco + (1.0 - vUv.y) * 0.05 - uPar.x;\n"
-  "  float b = exp(-x*x*70.0);\n"
-  "  gl_FragColor = vec4(uCor.rgb + b * 0.05, uCor.a * m);\n"
+  "  float b = exp(-x*x*36.0);\n"
+  "  float g = 0.030 - vUv.y * 0.050;\n"
+  "  gl_FragColor = vec4(uCor.rgb + g + b * 0.040, uCor.a * m);\n"
   "}\n",
 
   // GFX_LINHA — distancia ao segmento; nucleo liso e halo quadratico. Tudo em
@@ -1413,16 +1416,12 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   "  float dentro = step(0.0, xd) * step(xd, 1.0);\n"
   "  vec3 c = texture2D(uTex, clamp(cover(vec2(xd, vUv.y)), 0.0, 1.0)).rgb;\n"
   "  vec3 bg = uFundo;\n"
-  "  float y = vUv.y;\n"
-  "  float av = clamp((y-0.640)/0.108,0.0,1.0)*0.35\n"
-  "           + clamp((y-0.748)/0.108,0.0,1.0)*0.40\n"
-  "           + clamp((y-0.856)/0.144,0.0,1.0)*0.25;\n"
-  "  float t = vUv.x/0.65;\n"
-  "  float ah = 1.0 - clamp(t/0.22,0.0,1.0)*0.10\n"
-  "                 - clamp((t-0.22)/0.24,0.0,1.0)*0.10\n"
-  "                 - clamp((t-0.46)/0.30,0.0,1.0)*0.38\n"
-  "                 - clamp((t-0.76)/0.24,0.0,1.0)*0.42;\n"
-  "  ah *= step(vUv.x, 0.65);\n"
+  // World (21/11): as duas rampas do veu vem da tabela uVeuLut (gfx_veu_lut_*),
+  // nao de ~25 contas por pixel. MEDIDO na TCL: ~0,25 ms por conta por tela
+  // cheia, e o hero cheio esta em todo quadro da Home (duas vezes no
+  // cruzamento das pastas das Collections).
+  "  float av = texture2D(uVeuLut, vec2(vUv.y, 0.5)).g;\n"
+  "  float ah = texture2D(uVeuLut, vec2(vUv.x, 0.5)).r;\n"
   "  float rampa = clamp(ah + av - ah*av, 0.0, 1.0);\n"
   "  vec3 dst = (uAmbOn > 0.5) ? texture2D(uAmb, vAmb).rgb : bg;\n"
   "  vec3 cB = texture2D(uTexB, clamp(coverAsp(vec2(xd, vUv.y), uTexAspB), 0.0, 1.0)).rgb;\n"
@@ -1870,6 +1869,7 @@ static int progMontar(int m) {
   progs[m].sub    = glGetUniformLocation(p, "uSub");
   progs[m].giro   = glGetUniformLocation(p, "uGiro");
   progs[m].din    = glGetUniformLocation(p, "uDin");
+  progs[m].veuLut = glGetUniformLocation(p, "uVeuLut");
   for (int v = 0; v < VID_NU; v++) progs[m].vid[v] = glGetUniformLocation(p, VID_NOMES[v]);
   progs[m].altAtual = -1.0f;
   progs[m].telaAtual[0] = NV_TELA_W; progs[m].telaAtual[1] = NV_TELA_H;
@@ -1888,7 +1888,50 @@ static int progMontar(int m) {
   if (progs[m].amb >= 0) glUniform1i(progs[m].amb, 1);
   if (progs[m].texB >= 0) glUniform1i(progs[m].texB, 2);
   if (progs[m].vid[VID_RUIDO] >= 0) glUniform1i(progs[m].vid[VID_RUIDO], 3);
+  if (progs[m].veuLut >= 0) glUniform1i(progs[m].veuLut, 4);
   return 1;
+}
+
+// TABELA DO VEU DO HERO CHEIO (ver o shader). As MESMAS paradas que o shader
+// calculava por pixel — MEDIDO nos pseudo-elementos .home-modern-hero-media:
+//   ah: horizontal, 65% esquerdos, 1 -> 0.90 em 22% -> 0.80 em 46% -> 0.42 em
+//       76% -> 0 (fracoes de 0,65 da largura);
+//   av: vertical, 0 ate 64% -> 0.35 em 74.8% -> 0.75 em 85.6% -> 1 no fim.
+// Exportadas para o teste comparar a tabela com a formula.
+static float veuClamp01(float v) { return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v; }
+float gfx_veu_lut_ah(float x) {
+  float t = x / 0.65f;
+  float ah = 1.0f - veuClamp01(t / 0.22f) * 0.10f - veuClamp01((t - 0.22f) / 0.24f) * 0.10f
+                  - veuClamp01((t - 0.46f) / 0.30f) * 0.38f - veuClamp01((t - 0.76f) / 0.24f) * 0.42f;
+  return x <= 0.65f ? ah : 0.0f;
+}
+float gfx_veu_lut_av(float y) {
+  return veuClamp01((y - 0.640f) / 0.108f) * 0.35f + veuClamp01((y - 0.748f) / 0.108f) * 0.40f +
+         veuClamp01((y - 0.856f) / 0.144f) * 0.25f;
+}
+#define VEU_LUT_N 256
+static GLuint veuLutTex;
+// Cria (ou recria, depois de perder o contexto) e deixa ligada na unidade 4,
+// que ninguem mais usa. Chamada no inicio de cada quadro (barato: glIsTexture).
+static void veuLutGarantir(void) {
+  unsigned char px[VEU_LUT_N * 4];
+  int i;
+  if (veuLutTex && glIsTexture(veuLutTex)) return;
+  for (i = 0; i < VEU_LUT_N; i++) {
+    float u = ((float)i + 0.5f) / (float)VEU_LUT_N;
+    px[i * 4 + 0] = (unsigned char)(gfx_veu_lut_ah(u) * 255.0f + 0.5f);
+    px[i * 4 + 1] = (unsigned char)(gfx_veu_lut_av(u) * 255.0f + 0.5f);
+    px[i * 4 + 2] = 0; px[i * 4 + 3] = 255;
+  }
+  glGenTextures(1, &veuLutTex);
+  glActiveTexture(GL_TEXTURE4);
+  glBindTexture(GL_TEXTURE_2D, veuLutTex);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VEU_LUT_N, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
+  glActiveTexture(GL_TEXTURE0);
 }
 
 int gfx_iniciar(void) {
@@ -1903,6 +1946,7 @@ int gfx_iniciar(void) {
   }
   glUseProgram(progs[GFX_CARD].prog);
   progAtual = GFX_CARD;
+  veuLutGarantir();
 
   // O quad vai num BUFFER, nao num ponteiro para memoria do processo.
   //
@@ -2364,6 +2408,7 @@ static void vidroFuro(GfxRect r) {
 }
 static void vidroAplicar(Programa *P, GfxRect r);
 void gfx_novo_quadro(void) {
+  veuLutGarantir();   // tabela do veu do hero cheio (unidade 4)
   gfx_quadro_n++;
   gfx_n_rect = gfx_n_prog = gfx_n_bind = gfx_n_outros = 0;
   gfx_ms_rect = gfx_ms_outros = 0.0;

@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "لون الخلفية"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "لون الأزرار المحددة وعلامات الحالة. السمات الاثنتا عشرة هي سمات تطبيق الويب وتتبع الحساب. الديناميكية تأخذ اللون من العنوان المعروض وتبقى على هذا التلفاز فقط."),
   T("Cor viva", "لون متطابق"),
+  T("Cor, fonte e cartazes", "اللون والخط والملصقات"),
   T("Cor, transparência, fonte, animações e relógio", "اللون والشفافية والخط والحركات والساعة"),
   T("Coreano", "الكورية"),
   T("Coreia do Norte", "كوريا الشمالية"),

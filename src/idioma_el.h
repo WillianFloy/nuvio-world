@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Χρώμα φόντου"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Χρώμα των κουμπιών σε εστίαση και των σημάνσεων κατάστασης. Τα δώδεκα θέματα είναι της εφαρμογής web και ακολουθούν τον λογαριασμό. Τα δυναμικά παίρνουν το χρώμα από τον τίτλο στην οθόνη και μένουν μόνο σε αυτή την τηλεόραση."),
   T("Cor viva", "Χρώμα που ταιριάζει"),
+  T("Cor, fonte e cartazes", "Χρώμα, γραμματοσειρά και αφίσες"),
   T("Cor, transparência, fonte, animações e relógio", "Χρώμα, διαφάνεια, γραμματοσειρά, κινήσεις και ρολόι"),
   T("Coreano", "Κορεατικά"),
   T("Coreia do Norte", "Βόρεια Κορέα"),

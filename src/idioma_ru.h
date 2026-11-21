@@ -1485,6 +1485,7 @@
   T("Cor do fundo", "Цвет фона"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Цвет кнопок в фокусе и отметок состояния. Двенадцать тем — из веб-приложения и следуют за учётной записью. Динамические берут цвет из названия на экране и остаются только на этом ТВ."),
   T("Cor viva", "Живой цвет"),
+  T("Cor, fonte e cartazes", "Цвет, шрифт и постеры"),
   T("Cor, transparência, fonte, animações e relógio", "Цвет, прозрачность, шрифт, анимации и часы"),
   T("Coreano", "Корейский"),
   T("Coreia do Norte", "Северная Корея"),

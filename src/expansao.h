@@ -23,9 +23,11 @@
 #include "anim.h"
 
 #define EXP_SAI_N 3
-// Frequencias da mola (rad/s): abre em ~420 ms, fecha em ~300 ms (95%).
-#define EXP_W_ABRE  11.0f
-#define EXP_W_FECHA 15.5f
+// Frequencias da mola (rad/s): abre em ~560 ms, fecha em ~400 ms (95%).
+// 21/11 (dono, na TCL): "melhorou, mas da pra ser mais suave" — eram 11 e 15,5
+// (~440 e ~320 ms).
+#define EXP_W_ABRE  8.5f
+#define EXP_W_FECHA 12.0f
 
 typedef struct { int r, c; float p, v; } ExpCartao;
 typedef struct {
@@ -115,12 +117,22 @@ static inline int exp_fileira_ativa(const ExpEstado *e, int r) {
   return 0;
 }
 
-// Peso da arte DEITADA sobre o cartaz, pela abertura: 0 ate 30%, cruza ate 75%
-// (suave nas duas pontas), 1 dali em diante. O cartaz fica por baixo enquanto
-// o peso nao chega a 1 — nunca um quadro sem arte.
-static inline float exp_mistura_arte(float p) {
-  return anim_suave((p - 0.30f) / 0.45f);
-}
+// A TROCA DE ARTE (21/11, dono: "a troca do poster vertical pro horizontal e
+// muito perceptivel, tem que ser uma transicao perfeita"). Antes o cartaz era
+// esticado em "cover" na moldura que alarga (o corte mudava a cada quadro) e a
+// deitada cruzava por cima entre 30% e 75%. Agora:
+//   - o CARTAZ fica parado, no tamanho e no lugar em que estava fechado (nada
+//     de corte mudando), e se dissolve entre 10% e 50%;
+//   - a DEITADA ocupa a moldura toda e aparece por baixo desde o inicio,
+//     inteira aos 35% — o que a moldura ganha ja nasce com ela.
+// Em 0 o desenho e exatamente o cartao fechado; de 50% em diante, so a
+// deitada. Fechar e o mesmo caminho ao contrario (mesma funcao de p).
+static inline float exp_alfa_deitada(float p) { return anim_suave(p / 0.35f); }
+static inline float exp_alfa_cartaz(float p) { return 1.0f - anim_suave((p - 0.10f) / 0.40f); }
+// A partir daqui so a deitada aparece: ela pode virar a arte principal.
+#define EXP_SO_DEITADA 0.50f
+// Compatibilidade (testes e quem ainda pede o peso da deitada).
+static inline float exp_mistura_arte(float p) { return exp_alfa_deitada(p); }
 
 // Hora de pedir a arte deitada (na largura FINAL do cartao aberto): metade do
 // atraso parado, entre 200 e 600 ms. Antes disso o foco ainda esta passando.

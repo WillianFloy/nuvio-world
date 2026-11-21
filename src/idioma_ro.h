@@ -1485,6 +1485,7 @@
   T("Cor do fundo", "Culoarea fundalului"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Culoarea butoanelor în focus și a marcajelor de stare. Cele douăsprezece teme sunt ale aplicației web și urmează contul. Cele dinamice iau culoarea titlului de pe ecran și rămân doar pe acest TV."),
   T("Cor viva", "Culoare vie"),
+  T("Cor, fonte e cartazes", "Culoare, font și afișe"),
   T("Cor, transparência, fonte, animações e relógio", "Culoare, transparență, font, animații și ceas"),
   T("Coreano", "Coreeană"),
   T("Coreia do Norte", "Coreea de Nord"),

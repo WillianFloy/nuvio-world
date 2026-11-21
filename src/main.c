@@ -61,6 +61,7 @@
 #include "fio1.h"   // so existe corpo com NV_UM_FIO — ver o gancho perto de nv_ceder_quadro
 #include "tex_cache.h"
 #include "miniatura.h"
+#include "pedagio.h"
 #include "webp.h"
 #include "cachearte.h"
 #include "artehero.h"
@@ -2512,6 +2513,10 @@ int main(int argc, char **argv) {
                  ms.lidas, ms.lidas ? ms.msLer / ms.lidas : 0.0, ms.gravadas,
                  ms.gravadas ? ms.msGravar / ms.gravadas : 0.0, ms.bytesGravados / 1024.0,
                  ms.corrompidas, ms.falhas); }
+      // PEDAGIO (pedagio.h): idas ao servico de redimensionamento.
+      { PedagioStats ps; pedagio_stats(&ps, 1);
+        if (ps.pedidos || ps.desligado)
+          printf("[pedagio] pedidos=%d ok=%d falhas=%d disjuntor=%d\n", ps.pedidos, ps.ok, ps.falhas, ps.desligado); }
 #endif
       printf("FPS=%.1f pior=%.1fms janks=%d | pior-quadro: texto %.1fms em %d linhas"
              " | gpu-cache=%d %.1fMB tela=%d/%.1fMB fila-tex=%d tex-despejos=%d(q=%d) disco-direto=%d neg-arte=%d"
@@ -2709,6 +2714,13 @@ int main(int argc, char **argv) {
             if (mini != tex_mini_ligado) {
               tex_mini_ligado = mini;
               printf("[mini] miniaturas locais %s (debug.nuvio.mini)\n", mini ? "ligadas" : "desligadas");
+            } }
+          // Pedagio de imagens (pedagio.h): "0" desliga.
+          pv[0] = 0;
+          { int ped = !(__system_property_get("debug.nuvio.pedagio", pv) > 0 && pv[0] == '0');
+            if (ped != pedagio_ligado) {
+              pedagio_ligado = ped;
+              printf("[pedagio] %s (debug.nuvio.pedagio)\n", ped ? "ligado" : "desligado");
             } } }
 #endif
         // NO CAMPO, SEM ARQUIVO: interface lenta (FPS < 50 com mais de 9

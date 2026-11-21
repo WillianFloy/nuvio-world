@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Háttérszín"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "A kijelölt gombok és az állapotjelzők színe. A tizenkét téma a webes alkalmazásé, és a fiókot követi. A dinamikusak a képernyőn lévő cím színét veszik át, és csak ezen a tévén maradnak."),
   T("Cor viva", "Illeszkedő szín"),
+  T("Cor, fonte e cartazes", "Szín, betűtípus és plakátok"),
   T("Cor, transparência, fonte, animações e relógio", "Szín, átlátszóság, betűtípus, animációk és óra"),
   T("Coreano", "Koreai"),
   T("Coreia do Norte", "Észak-Korea"),

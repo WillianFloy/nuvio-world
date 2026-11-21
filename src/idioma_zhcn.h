@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "背景颜色"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "焦点按钮和状态标记的颜色。十二种主题来自网页版并随账户同步。动态主题从画面中的作品取色，只在此电视上生效。"),
   T("Cor viva", "跟随作品配色"),
+  T("Cor, fonte e cartazes", "颜色、字体和海报"),
   T("Cor, transparência, fonte, animações e relógio", "颜色、透明度、字体、动画和时钟"),
   T("Coreano", "韩语"),
   T("Coreia do Norte", "朝鲜"),

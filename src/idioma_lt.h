@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Fono spalva"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Pažymėtų mygtukų ir būsenos žymių spalva. Dvylika temų yra iš žiniatinklio programos ir seka paskyrą. Dinaminės spalvą ima iš ekrane esančio pavadinimo ir lieka tik šiame televizoriuje."),
   T("Cor viva", "Suderinama spalva"),
+  T("Cor, fonte e cartazes", "Spalva, šriftas ir plakatai"),
   T("Cor, transparência, fonte, animações e relógio", "Spalva, skaidrumas, šriftas, animacijos ir laikrodis"),
   T("Coreano", "Korėjiečių"),
   T("Coreia do Norte", "Šiaurės Korėja"),

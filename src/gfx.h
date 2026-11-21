@@ -873,4 +873,8 @@ void gfx_dissolver_tela(float a);
 // Card carregando: a superficie do esqueleto com a luz passando (GFX_ESQUELETO).
 void gfx_esqueleto(GfxRect r, float raio, float cr, float cg, float cb, float ca);
 
+// Rampas do veu do hero cheio (a tabela uVeuLut do shader), 0..1 na largura e
+// na altura da tela. Para o teste conferir a tabela contra as paradas medidas.
+float gfx_veu_lut_ah(float x);
+float gfx_veu_lut_av(float y);
 #endif

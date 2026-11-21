@@ -1486,6 +1486,7 @@
   T("Cor do fundo", "Cor do fundo"),
   T("Cor dos botões em foco e das marcas de estado. Os doze temas são os do app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV.", "Cor dos botões em foco e das marcas de estado. Os doze temas são os da app web e seguem a conta. Os dinâmicos tiram a cor do título em cena e ficam só nesta TV."),
   T("Cor viva", "Cor viva"),
+  T("Cor, fonte e cartazes", "Cor, tipo de letra e cartazes"),
   T("Cor, transparência, fonte, animações e relógio", "Cor, transparência, tipo de letra, animações e relógio"),
   T("Coreano", "Coreano"),
   T("Coreia do Norte", "Coreia do Norte"),

@@ -3143,8 +3143,12 @@ static int ajOpcaoDisponivel(int op) {
 #ifdef NV_SEM_VIDRO
   // O vidro saiu (ver ajustes_vidro): a opcao e as que dependem dela somem da
   // tela, da busca e do "abrir ajuste".
+  // "Fundo dos painéis" (AJ_FUNDO) tambem: a propria descricao diz que, sem o
+  // vidro, os paineis sao opacos e o efeito e pequeno (21/11, dono: "tem
+  // varias opcoes que falam sobre vidro").
   if (op == AJ_VIDRO || op == AJ_VIDRO_CONTORNO || op == AJ_FOCO_ACENTO ||
-      op == AJ_VIDRO_OPAC || op == AJ_VIDRO_FOSCO || op == AJ_VIDRO_QUALIDADE) return 0;
+      op == AJ_VIDRO_OPAC || op == AJ_VIDRO_FOSCO || op == AJ_VIDRO_QUALIDADE ||
+      op == AJ_FUNDO) return 0;
 #endif
   if (op == AJ_AMPLIAR_UI)
     return painel4k() && !telefoneui_ativo();

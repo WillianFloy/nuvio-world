@@ -1684,7 +1684,19 @@ void sync_passo(unsigned agoraMs) {
     __atomic_store_n(&estruturaCedo, 0, __ATOMIC_RELAXED);
     if (nv_perfil_sessao_travar(sessaoDoCiclo)) {
       if (perfilDoCicloAtual()) {
-        if (aplicarEstruturaDaConta(0)) desc_remontar_fileiras();
+        // World (21/11): a trava de 120-170 ms por ciclo continuou depois de
+        // "account snapshot identical" mesmo sem a reconciliacao. Medido por
+        // parte, para o proximo log dizer onde esta.
+        double tE0 = syncRelogioMs(), tE1, tE2;
+        int mudouE = aplicarEstruturaDaConta(0);
+        tE1 = syncRelogioMs();
+        if (mudouE) desc_remontar_fileiras();
+        tE2 = syncRelogioMs();
+        if (tE2 - tE0 >= 30.0) {
+          printf("[lento] estrutura da conta no fio principal: %.0f ms (aplicar %.0f, mudou=%d, remontar fileiras %.0f)\n",
+                 tE2 - tE0, tE1 - tE0, mudouE, tE2 - tE1);
+          fflush(stdout);
+        }
         PRONTO_PUBLICAR(estruturaSessaoAplicada, sessaoDoCiclo);
         PRONTO_PUBLICAR(estruturaPerfilAplicado, perfilDoCiclo);
         PRONTO_PUBLICAR(estruturaAplicada, 1);

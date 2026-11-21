@@ -47,7 +47,7 @@ int main(void) {
       ant = p;
     }
     OK(mono && ant <= 1.0f, "abertura monotona, sem passar de 1");
-    OK(chegou > 0 && chegou <= 480, "abre (95%) em ate 480 ms");
+    OK(chegou >= 450 && chegou <= 650, "abre (95%) entre 450 e 650 ms (21/11: mais suave)");
     printf("      abertura: 95%% em %d ms, maior passo %.3f por quadro\n", chegou, maxSalto);
     OK(maxSalto < 0.09f, "nenhum quadro da abertura anda mais que 9%"); }
 
@@ -65,7 +65,7 @@ int main(void) {
     }
     printf("      fechamento: 95%% em %d ms, maior queda do empurrao %.0f px por quadro (de %.0f)\n",
            fechou, maxQueda, antes);
-    OK(fechou > 0 && fechou <= 360, "fecha (95%) em ate 360 ms");
+    OK(fechou >= 300 && fechou <= 480, "fecha (95%) entre 300 e 480 ms");
     OK(maxQueda < UN * 0.10f, "o vizinho volta sem salto (< 10% da abertura por quadro; antes 100%)");
     OK(exp_propria(&e, 0, 2) == 0.0f, "o anterior termina fechado de todo");
     OK(exp_propria(&e, 0, 3) > 0.0f && exp_propria(&e, 0, 3) < 0.6f, "o novo so comecou depois do atraso (680 ms de foco, 500 de atraso)"); }
@@ -122,16 +122,23 @@ int main(void) {
     quadro(&p, 3, 0, 0, 0, 300);
     OK(exp_propria(&p, 3, 0) > 0.8f, "foco que vai para fileira que nao abre: fecha animado, nao num quadro"); }
 
-  // 6. Cruzamento da arte.
-  { float ant = -1.0f, maxSalto = 0.0f; int mono = 1;
-    OK(exp_mistura_arte(0.0f) == 0.0f && exp_mistura_arte(0.30f) == 0.0f, "arte deitada ausente ate 30%");
-    OK(exp_mistura_arte(0.75f) == 1.0f && exp_mistura_arte(1.0f) == 1.0f, "arte deitada inteira a partir de 75%");
+  // 6. Troca de arte (21/11): o cartaz parado se dissolve sobre a deitada.
+  { float antD = -1.0f, antC = 2.0f, maxSalto = 0.0f; int mono = 1;
+    OK(exp_alfa_deitada(0.0f) == 0.0f && exp_alfa_cartaz(0.0f) == 1.0f,
+       "em 0 e o cartao fechado: so o cartaz, inteiro");
+    OK(exp_alfa_cartaz(0.10f) == 1.0f, "o cartaz ainda inteiro ate 10% (a deitada ja aparece por baixo)");
+    OK(exp_alfa_cartaz(EXP_SO_DEITADA) == 0.0f && exp_alfa_deitada(EXP_SO_DEITADA) == 1.0f,
+       "de 50% em diante so a deitada: pode virar a arte principal sem diferenca");
     for (i = 0; i <= 100; i++) {
-      float m = exp_mistura_arte(i / 100.0f);
-      if (ant >= 0.0f) { if (m < ant) mono = 0; if (m - ant > maxSalto) maxSalto = m - ant; }
-      ant = m;
+      float d = exp_alfa_deitada(i / 100.0f), c = exp_alfa_cartaz(i / 100.0f);
+      if (antD >= 0.0f) {
+        if (d < antD || c > antC) mono = 0;
+        if (d - antD > maxSalto) maxSalto = d - antD;
+        if (antC - c > maxSalto) maxSalto = antC - c;
+      }
+      antD = d; antC = c;
     }
-    OK(mono && maxSalto < 0.04f, "cruzamento monotono e sem degrau (antes: troca num quadro em 50%)"); }
+    OK(mono && maxSalto < 0.05f, "as duas camadas andam sem degrau (antes: troca num quadro em 50%)"); }
 
   // 7. Pre-pedido da arte deitada.
   { ExpEstado q; unsigned t0;

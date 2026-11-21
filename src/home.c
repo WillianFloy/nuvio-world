@@ -1357,15 +1357,15 @@ static void desenhaArteAusente(GfxRect r, float raio, const CatItem *item,
 // CARD CARREGANDO: a mesma superficie do esqueleto, com a luz passando
 // (gfx_esqueleto) e so o nome do titulo — sem o aviso de indisponivel, que
 // leria como quebrado algo que ainda esta a caminho.
+// O ESQUELETO DE QUEM AINDA CARREGA (World, 21/11, dono: "atualmente e so cinza
+// com o nome do filme; podemos fazer sem o nome e um esqueleto mais bonitinho,
+// para casos raros"). Sem texto: a superficie com profundidade e a luz que
+// passa (GFX_ESQUELETO). O nome so aparece quando a arte FALHOU de vez
+// (desenhaArteAusente) — ai ele e informacao, nao enfeite.
 static void desenhaCarregando(GfxRect r, float raio, const CatItem *item) {
+  (void)item;
   gfx_esqueleto(r, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G,
                 NV_COR_ESQUELETO_B, 1.0f);
-  if (item && item->titulo[0]) {
-    TxtLinha nome = txt_linha_corta(TXT_MINI, item->titulo,
-                                    160, 165, 178, 255, r.w - 32.0f);
-    txt_desenhar_alpha(nome, r.x + (r.w - nome.w) * 0.5f,
-                       r.y + (r.h - nome.h) * 0.5f, 0.78f);
-  }
 }
 
 // Escolha de formato para cards. O helper arteDoItem acima informa se precisou
@@ -7738,7 +7738,10 @@ typedef struct {
   float trailer;   // 0..1: o trailer do modo No card entra por baixo da arte
   // EXPANSAO (World, 20/11): a arte DEITADA por cima do cartaz, com o peso
   // de exp_mistura_arte. Sem ela (tB = 0) so a arte principal.
-  const char *caminhoB; GLuint tB; float misturaB;
+  // misturaB = quanto a deitada ja chegou (0..1, fade de quem chegou tarde);
+  // razao = largura/altura do cartaz FECHADO (o cartaz fica nesse tamanho
+  // enquanto se dissolve — expansao.h, exp_alfa_cartaz).
+  const char *caminhoB; GLuint tB; float misturaB; float razao;
 } CartaoFoco;
 static CartaoFoco cartaoFoco; static float cartaoFocoRaio; static int temCartaoFoco;
 // O caminho da arte mora num buffer que o proximo cartao sobrescreve: copia propria.
@@ -8024,21 +8027,32 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
           // pode tapar o video: o mesmo desenho, com o alfa que sobra.
           arteSobreTrailer = k->trailer > 0.004f;
           if (!arteSobreTrailer || (t && aArteCard > 0.004f)) {
-            // EXPANSAO: o cartaz embaixo e a arte deitada por cima, cruzando
-            // (expansao.h). A de cima nao leva esqueleto por baixo: o cartaz
-            // ja esta la.
-            int sobre = k->tB && k->misturaB > 0.004f;
-            expCoverForcado = sobre;
-            desenhaArteCard(card, tipo, caminho, t, cItem, f, raio, aArteCard,
-                            varreFoco);
-            if (sobre) {
+            // EXPANSAO (expansao.h, 21/11): fundo escuro, a deitada na moldura
+            // toda por baixo e o CARTAZ PARADO no tamanho fechado por cima,
+            // se dissolvendo. Em p = 0 e o cartao fechado, pixel a pixel; de
+            // 50% em diante so a deitada. Nenhuma camada leva esqueleto.
+            int sobre = k->tB && k->misturaB > 0.004f && abre > 0.0f;
+            if (!sobre) {
+              desenhaArteCard(card, tipo, caminho, t, cItem, f, raio, aArteCard,
+                              varreFoco);
+            } else {
               int st = arteSobreTrailer;
+              float aD = exp_alfa_deitada(abre) * k->misturaB;
+              float aC = 1.0f - (1.0f - exp_alfa_cartaz(abre)) * k->misturaB;
+              GfxRect pr = card;
+              if (k->razao > 0.05f && card.h * k->razao < card.w) pr.w = card.h * k->razao;
               arteSobreTrailer = 1;
-              desenhaArteCard(card, tipo, k->caminhoB, k->tB, cItem, f, raio,
-                              aArteCard * k->misturaB, varreFoco);
+              gfx_cor(card, raio, 0.051f, 0.051f, 0.055f, aArteCard);
+              expCoverForcado = 1;
+              if (aD > 0.004f)
+                desenhaArteCard(card, tipo, k->caminhoB, k->tB, cItem, f, raio,
+                                aArteCard * aD, varreFoco);
+              expCoverForcado = 0;
+              if (t && aC > 0.004f)
+                desenhaArteCard(pr, tipo, caminho, t, cItem, f, raio,
+                                aArteCard * aC, varreFoco);
               arteSobreTrailer = st;
             }
-            expCoverForcado = 0;
           }
           arteSobreTrailer = 0;
           if (t) gfx_veu_na_arte = 1; else gfx_veu_card_limpar();
@@ -8200,13 +8214,14 @@ void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, flo
           if (chegouItem != ci) { chegouItem = ci; chegouEm = exp_mistura_arte(abre) > 0.01f ? SDL_GetTicks() : SDL_GetTicks() - 100000u; }
           { float q = (float)(SDL_GetTicks() - chegouEm) / 220.0f; k = q >= 1.0f ? 1.0f : anim_suave(q); }
         }
-        misturaB = exp_mistura_arte(abre) * k;
+        misturaB = k;
       }
     }
   }
-  if (tB && misturaB >= 0.996f) { cam = camD; t = tB; tB = 0; camD = NULL; misturaB = 0.0f; }
+  if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { cam = camD; t = tB; tB = 0; camD = NULL; misturaB = 0.0f; }
   CartaoFoco k = { -1, -1, FILEIRA_NORMAL, ci, cam, t, 1.0f, deitado, temRotulo(FILEIRA_NORMAL),
-                   abre, 1.0f, 0.0f, card.x, card.y, card.w, card.h, 0.0f, 0.0f, camD, tB, misturaB };
+                   abre, 1.0f, 0.0f, card.x, card.y, card.w, card.h, 0.0f, 0.0f, camD, tB, misturaB,
+                   (wFechado > 1.0f && card.h > 1.0f) ? wFechado / card.h : 0.0f };
   gfx_opacidade_grupo = alfa;
   pintarCartao(&k, raio);
   gfx_opacidade_grupo = og;
@@ -8839,9 +8854,10 @@ static void home_desenhar_(Uint32 agora) {
               caminhoB = camB;
               tB = (r == expFileira && c == expColuna) ? tex_obter_foco_larg(caminhoB, wFim)
                                                          : tex_obter_larg(caminhoB, wFim);
-              // So o do foco acompanha a chegada; o que fecha ja tinha a arte.
-              misturaB = !tB ? 0.0f : exp_mistura_arte(abre) *
-                         ((r == expFileira && c == expColuna) ? expArteChegou(r, c, abre, agora) : 1.0f);
+              // misturaB: o quanto a deitada ja chegou. So o do foco acompanha a
+              // chegada; o que fecha ja tinha a arte.
+              misturaB = !tB ? 0.0f
+                         : (r == expFileira && c == expColuna) ? expArteChegou(r, c, abre, agora) : 1.0f;
             }
             if (abre > 0.0f) wPedido = lw * esc;   // o cartaz na largura fechada
           }
@@ -8876,8 +8892,9 @@ static void home_desenhar_(Uint32 agora) {
           GLuint t = caminho ? (cartaoEmFoco
             ? tex_obter_foco_larg(caminho, wPedido)
             : tex_obter_larg(caminho, wPedido)) : 0;
-          // Deitada ja cobre tudo: ela vira a arte principal (o cartaz sai).
-          if (tB && misturaB >= 0.996f) { caminho = caminhoB; t = tB; tB = 0; misturaB = 0.0f; }
+          // Deitada ja cobre tudo (o cartaz ja se dissolveu): ela vira a arte
+          // principal e o desenho volta ao caminho de sempre.
+          if (tB && misturaB >= 0.996f && abre >= EXP_SO_DEITADA) { caminho = caminhoB; t = tB; tB = 0; misturaB = 0.0f; }
           // ARTE CHEGANDO: so esvanece quem foi visto esperando (revela.h).
           float aArte = revela_arte(&revArte[r][c], t != 0, agora);
           // ANEL DE FOCO: 4 px de #FFFFFF, POR FORA da arte.
@@ -8916,7 +8933,7 @@ static void home_desenhar_(Uint32 agora) {
           }
           CartaoFoco ck = { r, c, tipo, cItem, caminho, t, aArte, deitado, rotuloFora, abre, esc, f,
                             px, py, w, h, (!focoHero && focus_indice(&foco, r, c)) ? varreFoco : 0.0f,
-                            trailerCard, caminhoB, tB, misturaB };
+                            trailerCard, caminhoB, tB, misturaB, artH > 0.0f ? lw / artH : 0.0f };
           pintarCartao(&ck, raio);
           // MARCADOR "PRIMEIRA FILEIRA PINTADA" (#7 do handoff de desempenho,
           // 05/10). "primeira fileira da rede pronta" e "catalogo da rede
