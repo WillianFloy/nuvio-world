@@ -161,7 +161,10 @@ float home_vitrine_texto_el(const CatItem *ci, float topo, float teto, float aLo
 void home_vitrine_cartao(const CatItem *ci, GfxRect base, GfxRect card, float alfa);
 // A Vitrine com o cartaz vertical aberto (0..1), arte deitada e logo como na Home.
 int home_vitrine_arte_troca(const CatItem *sai, float alfaSai, const CatItem *entra, float alfaEntra);
-void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, float alfa);
+// wFechado: largura do cartaz fechado (o pedido da arte nao muda durante a
+// abertura); foco: e o cartaz em foco (fura a fila, acompanha a chegada).
+void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, float alfa,
+                                float wFechado, int foco);
 #endif
 int home_foco_fixo_ativo(void);   // 2.0.41: foco numa fileira NORMAL/POSTER de foco fixo (TV)
 const char *home_rastro_foco(void);

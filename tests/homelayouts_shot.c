@@ -498,6 +498,39 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  // NV_EXPANSAO=1 (World, 20/11): a expansao do cartaz em repouso, abrindo e
+  // fechando — fotos no meio do cruzamento das artes e nos quadros logo depois
+  // da tecla (o cartao que fecha e o vizinho que volta). Use com
+  // NV_AJ=$'focusedPosterBackdropExpandEnabled 0\nfocusedPosterBackdropExpandDelaySeconds 1'.
+  if (getenv("NV_EXPANSAO")) {
+    int r;
+    static const int FOTOS[] = { 20, 26, 32, 38, 44 };   // quadros de foco parado (no harness o quadro leva ~40 ms reais)
+    for (r = 0; r < 14; r++) tecla(SDLK_UP);
+    { int d = getenv("NV_EXPANSAO") ? atoi(getenv("NV_EXPANSAO")) : 1;   // fileiras a descer ate a de cartazes
+      for (r = 1; r < d; r++) { tecla(SDLK_DOWN); quadros(90, NULL); } }
+    tecla(SDLK_DOWN); quadros(2, NULL);
+    printf("[exp] foco: %s\n", home_rastro_foco());
+    { int q = 2, k;
+      for (k = 0; k < (int)(sizeof FOTOS / sizeof *FOTOS); k++) {
+        if (FOTOS[k] - 1 > q) quadros(FOTOS[k] - 1 - q, NULL);
+        snprintf(bmp, sizeof bmp, "%s-exp-abre-%03dq.bmp", saida, FOTOS[k]);
+        quadros(1, bmp); q = FOTOS[k];
+      } }
+    quadros(15, NULL);
+    snprintf(bmp, sizeof bmp, "%s-exp-aberto.bmp", saida); quadros(1, bmp);
+    tecla(SDLK_RIGHT);
+    { static const int F2[] = { 1, 4, 8, 14, 30 };
+      int q = 0, k;
+      for (k = 0; k < 5; k++) {
+        if (F2[k] - 1 > q) quadros(F2[k] - 1 - q, NULL);
+        snprintf(bmp, sizeof bmp, "%s-exp-fecha-%02dq.bmp", saida, F2[k]);
+        quadros(1, bmp); q = F2[k];
+      } }
+    tex_encerrar(); txt_encerrar();
+    SDL_GL_DeleteContext(gl); SDL_DestroyWindow(janela); SDL_Quit();
+    return 0;
+  }
+
   // NV_PALCO=N (com NV_TIPOS="pop_movie=13"): desce N fileiras ate a Palco e
   // fotografa o foco andando para a direita — a prova visual de que o cartaz
   // grande segue a fileira em vez de ficar parado no lugar.

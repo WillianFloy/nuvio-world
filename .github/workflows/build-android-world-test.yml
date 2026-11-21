@@ -149,6 +149,8 @@ jobs:
         run: bash tests/miniatura_mod.sh
       - name: Run sync no-op Collections reconciliation test
         run: bash tests/sync_colecoes_iguais.sh
+      - name: Run poster expansion open/close motion test
+        run: bash tests/expansao.sh
       - name: Run 2.0.34 performance guards
         run: bash tests/desempenho_2034.sh
       - name: Run Visual World guards (theme, typography, identity, splash)

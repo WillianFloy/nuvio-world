@@ -2,6 +2,7 @@
 #include "imdbnota.h"
 #include "vertudo_pag.h"
 #include "vertudo.h"
+#include "expansao.h"
 #include "vitgeom.h"
 #include "colcache.h"
 #include "marcastream.h"
@@ -1381,27 +1382,20 @@ static void vitHeroZerar(void) {
 }
 // EXPANSAO DO CARTAZ VERTICAL EM FOCO (Ajustes > Coleções, dono 15/11): o mesmo
 // gesto da Home. Relogio zera a cada movimento; abre depois do atraso parado.
-static int vitExpR = -1, vitExpC = -1;
-static Uint32 vitExpDesde;
-static float vitExpAbre;
-// 2.0.37: o cartaz que ESTAVA aberto fecha animado (antes zerava num quadro
-// so, e a fileira dava um salto). Fica num segundo espaco ate voltar a 0.
-static int vitExpAntR = -1, vitExpAntC = -1;
-static float vitExpAntF;
+// 2.0.37: o cartaz que ESTAVA aberto fecha animado. World (20/11): o relogio
+// e o da Home (expansao.h) — mola de partida macia nas duas direcoes, ate tres
+// cartazes fechando ao mesmo tempo (seta segurada) e a volta a um que fecha
+// continua de onde ele esta.
+static ExpEstado vitExp;
+static int vitExpIniciado;
 #define VIT_EXP_ASPECTO (16.0f / 9.0f)
 
-// Passa o cartaz aberto (se estava realmente aberto) para o espaco que fecha.
-static void vitExpFechar(void) {
-  if (vitExpR >= 0 && vitExpAbre > 0.02f) { vitExpAntR = vitExpR; vitExpAntC = vitExpC; vitExpAntF = vitExpAbre; }
-}
 // Largura extra de um cartaz aberto (ou fechando) para o cartaz (r, c): *propria
 // e o que ele mesmo ganha; o retorno e o quanto os da direita deslocam.
 static float vitExpExtra(int r, int c, float w, float h, float *propria) {
-  float un = h * VIT_EXP_ASPECTO - w, des = 0.0f, p = 0.0f;
-  if (r == vitExpR && vitExpAbre > 0.0f) { if (c == vitExpC) p += un * vitExpAbre; else if (c > vitExpC) des += un * vitExpAbre; }
-  if (r == vitExpAntR && vitExpAntF > 0.0f) { if (c == vitExpAntC) p += un * vitExpAntF; else if (c > vitExpAntC) des += un * vitExpAntF; }
-  *propria = p;
-  return des;
+  float un = h * VIT_EXP_ASPECTO - w;
+  *propria = un * exp_propria(&vitExp, r, c);
+  return exp_empurra(&vitExp, r, c, NULL, NULL, un);
 }
 
 // Cada fileira tem seu pedido; o catalogo unico de Ver tudo continua separado.
@@ -1812,6 +1806,7 @@ static void vitIniciar(void) {
   vitHeroZerar(); vitHeroDes = -1;
   memset(vitLinAlfa, 0, sizeof vitLinAlfa); memset(vitLinEntra, 0, sizeof vitLinEntra);
   vitFocoR = vitFocoC = vitFocoAntR = vitFocoAntC = -1; vitFocoF = vitFocoAntF = 0.0f;
+  exp_zerar(&vitExp); vitExpIniciado = 1;   // nada aberto de uma visita anterior
   vitNomeEm = vitReleEm = 0;
   if (!vitPronto || !collection) { lay = VT_LAY_GRADE; celLay = -1; carregarFonte(); return; }
   if (vitMulti) {
@@ -2716,22 +2711,9 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
     // verdade (nao "Ver tudo"), fora do telefone e sem menu do cartaz aberto.
     int pode = ajustes_col_expandir() && !vtTelefone() && !tabFocus && w < h &&
                vitFR < vitN && vitFC < vitLin[vitFR].n && vitItem(vitFR, vitFC);
-    if (!pode) { vitExpFechar(); vitExpAbre = 0.0f; vitExpR = vitExpC = -1; }
-    else {
-      if (vitFR != vitExpR || vitFC != vitExpC) {
-        vitExpFechar();
-        vitExpR = vitFR; vitExpC = vitFC; vitExpDesde = agora; vitExpAbre = 0.0f;
-        // voltou ao cartaz que fechava: continua de onde ele estava
-        if (vitExpAntR == vitExpR && vitExpAntC == vitExpC) { vitExpAbre = vitExpAntF; vitExpAntR = vitExpAntC = -1; vitExpAntF = 0.0f; }
-      }
-      if (ctx_aberto()) { if (vitExpAbre < 0.999f) vitExpDesde = agora; }
-      else if (vitExpDesde && agora - vitExpDesde >= (Uint32)(ajustes_col_expandir_atraso() * 1000.0f))
-        vitExpAbre = anim_mola(vitExpAbre, 1.0f, dt, NV_MOLA_TELA);
-    }
-    if (vitExpAntR >= 0) {
-      vitExpAntF = anim_mola(vitExpAntF, 0.0f, dt, NV_MOLA_TELA);
-      if (vitExpAntF < 0.01f) { vitExpAntR = vitExpAntC = -1; vitExpAntF = 0.0f; }
-    } }
+    if (!vitExpIniciado) { exp_zerar(&vitExp); vitExpIniciado = 1; }
+    exp_passo(&vitExp, vitFR, vitFC, pode, ctx_aberto(), agora,
+              (unsigned)(ajustes_col_expandir_atraso() * 1000.0f), dt, anim_politica_reduzida); }
   { // O FOCO ENTRA E SAI ANIMADO: anel e zoom crescem no cartaz novo enquanto o
     // anterior volta ao tamanho de repouso (nada de liga/desliga num quadro).
     int r = tabFocus ? -1 : vitFR, c = tabFocus ? -1 : vitFC;
@@ -2777,9 +2759,10 @@ static void vitAtualizarCorpo(float dt, Uint32 agora) {
       vitSxAjuste[r] = 0;
       // Cartaz aberto perto do fim da fileira: ela anda o que falta para ele
       // caber antes da espiada da direita (e volta quando fecha).
-      for (int k = 0; k < 2; k++) {
-        int er = k ? vitExpAntR : vitExpR, ec = k ? vitExpAntC : vitExpC;
-        float ef = k ? vitExpAntF : vitExpAbre;
+      for (int k = 0; k <= EXP_SAI_N; k++) {
+        const ExpCartao *ek = k ? &vitExp.sai[k - 1] : &vitExp.abre;
+        int er = ek->r, ec = ek->c;
+        float ef = ek->p;
         if (r == er && ef > 0.0f) {
           float A = vitAncora(w, passo), extra = (h * VIT_EXP_ASPECTO - w) * ef;
           float dir = A + ec * passo - alvoX + w + extra, lim = vitgeom_limite(A, w, passo, cab);
@@ -4431,7 +4414,7 @@ static void vitDesenhar(float a, float x0) {
       }
       for (int c = 0; c < vitColunas(r); c++) {
         float cx = xr + c * passo - vitSx[r];
-        float abre = r == vitExpR && c == vitExpC ? vitExpAbre : (r == vitExpAntR && c == vitExpAntC ? vitExpAntF : 0.0f);
+        float abre = exp_propria(&vitExp, r, c);
         float propria = 0.0f;
         cx += vitExpExtra(r, c, w, h, &propria);   // os da direita abrem (ou devolvem) espaco
         GfxRect base = { cx, cy, w + propria, h }, card = base;
@@ -4487,7 +4470,8 @@ static void vitDesenhar(float a, float x0) {
           float by = card.y + (card.h - seta.h - 14.0f - rotulo.h) * .5f;
           txt_desenhar_alpha(seta, card.x + (card.w - seta.w) * .5f, by, acc);
           txt_desenhar_alpha(rotulo, card.x + (card.w - rotulo.w) * .5f, by + seta.h + 14.0f, acc);
-        } else if (abre > 0.001f) home_vitrine_cartao_aberto(vitItem(r, c), card, abre, acc);
+        } else if (abre > 0.001f) home_vitrine_cartao_aberto(vitItem(r, c), card, abre, acc,
+                                                             w * (h > 0.0f ? card.h / h : 1.0f), sel);
         else home_vitrine_cartao(vitItem(r, c), base, card, acc);
 #ifdef NV_TOUCH_UI
         if (vtTelefone()) {
