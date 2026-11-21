@@ -43,6 +43,7 @@ static TituloTempo detalheTempo;
 #include "extras.h"
 #include "trailer.h"
 #include "trailerimdb.h"
+#include "trailertt.h"
 #include "trailerapple.h"
 #include "trailerfonte.h"
 #include "player.h"
@@ -491,6 +492,7 @@ static TrailerCinema trailerCinema;
 static char trailerCheiaLogada[32];
 #endif
 static int trailerSemFonteLogado = 0;
+static int ehSerie(void);
 static const char *trailerFonte(int k, int *qual, int cheia) {
   const CatItem *ci = cat_item(idx);
   TrailerCandidatos c;
@@ -505,8 +507,13 @@ static const char *trailerFonte(int k, int *qual, int cheia) {
     // IMDb tambem na Samsung quando a build tem por onde perguntar (#136):
     // MP4 direto no <video> do app, antes do iframe do YouTube.
     if (!tz || trailerfonte_imdb_tizen()) {
-      c.imdb = trailerimdb_url(ci->imdb, NULL);
-      c.imdbRespondeu = trailerimdb_respondeu(ci->imdb);
+      // World 21/11: id do TMDB vira o tt do IMDb (trailertt.h). Sem tt possivel, o IMDb
+      // nao vai responder: o botao nao fica esperando por ele.
+      const char *tt = trailertt_id(ci->imdb, ehSerie());
+      if (tt != ci->imdb) trailerimdb_pedir(tt);
+      c.imdb = trailerimdb_url(tt, NULL);
+      c.imdbRespondeu = trailerimdb_respondeu(tt) ||
+                        (tt == ci->imdb && strncmp(ci->imdb, "tt", 2) && trailertt_respondeu(ci->imdb));
     } else c.imdbRespondeu = 1;
   } else c.appleRespondeu = c.imdbRespondeu = 1;   // sem id nao ha o que esperar
 #ifdef __EMSCRIPTEN__
@@ -549,7 +556,7 @@ static const char *trailerUrlDaFonte(int qual) {
   const CatItem *ci = cat_item(idx);
   switch (qual) {
     case TRF_APPLE: return ci && ci->imdb[0] ? trailerapple_url(ci->imdb) : NULL;
-    case TRF_IMDB:  return ci && ci->imdb[0] && trailerfonte_imdb_tizen() ? trailerimdb_url(ci->imdb, NULL) : NULL;
+    case TRF_IMDB:  return ci && ci->imdb[0] && trailerfonte_imdb_tizen() ? trailerimdb_url(trailertt_id(ci->imdb, ehSerie()), NULL) : NULL;
     case TRF_YOUTUBE:
       return extras_n_trailers() > 0 && extras_trailer_yt(0)[0] ? extras_trailer_yt(0) : NULL;
     default: return NULL;
@@ -1619,7 +1626,7 @@ static void abrirInterno(const HomeItem *it) {
     // CORS dela so aceita imdb.com — #136).
     if (trailer_suportado() && ci && ci->imdb[0]) {
       trailerapple_pedir(ci->imdb, ci->titulo, ci->meta, ehSerie());
-      if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir(ci->imdb);
+      if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir(trailertt_id(ci->imdb, ehSerie()));
     }
   }
   // A aba marcada tem de ser a da temporada de "Continuar assistindo", nao a

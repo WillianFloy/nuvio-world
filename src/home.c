@@ -101,6 +101,7 @@ int player_aberto(void);
 #endif
 int video_registro_negado(void); /* video.h: motivo do trailer bloqueado */
 #include "trailerimdb.h"
+#include "trailertt.h"
 #include "trailerapple.h"
 #include "trailerfonte.h"
 #include "ponteiro.h"
@@ -6445,6 +6446,8 @@ static void heroTrailerGateLog(int motivo, int enabled) {
     fflush(stdout);
   }
 }
+// Sessao de diagnostico comecando: o proximo portao imprime de novo (main.c).
+void home_trailer_diag(void) { heroTrailerGateAnterior = -2; heroTrailerTopoAnterior = NULL; }
 // Raw ligado, efetivo fora: o log acima nao imprime nada (enabled=0) e a tela
 // nao diz por que. Uma linha por sessao, com o nome do veto.
 static void heroTrailerVetoLog(void) {
@@ -6642,7 +6645,9 @@ static void home_trailer_passo_(int topo, float dt, Uint32 agora) {
 #endif
     // O IMDb exige Referer, que navegador nenhum deixa por (e o CORS dele so
     // aceita imdb.com): na Samsung so pelo servico de recomendacoes (#136).
-    if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) trailerimdb_pedir(ci->imdb);
+    // IMDb pelo "tt": id do TMDB vira tt em trailertt (World 21/11); ate la, espera.
+    if (!trailerfonte_tizen() || trailerfonte_imdb_tizen())
+      trailerimdb_pedir(trailertt_id(ci->imdb, ci->tipo[0] ? !strcmp(ci->tipo, "series") : 0));
   } else {
     decorrido = agora - heroTrailerDesde;
 #ifdef __EMSCRIPTEN__
@@ -6709,8 +6714,12 @@ static void home_trailer_passo_(int topo, float dt, Uint32 agora) {
     c.appleRespondeu = trailerapple_respondeu(ci->imdb) || venceu;
     c.appleFalhou = heroTrailerAppleFalhou;
     if (!trailerfonte_tizen() || trailerfonte_imdb_tizen()) {
-      c.imdb = trailerimdb_url(ci->imdb, NULL);
-      c.imdbRespondeu = trailerimdb_respondeu(ci->imdb) || venceu;
+      const char *tt = trailertt_id(ci->imdb, ci->tipo[0] ? !strcmp(ci->tipo, "series") : 0);
+      if (tt != ci->imdb) trailerimdb_pedir(tt);   // o tt chegou depois do foco (idempotente)
+      c.imdb = trailerimdb_url(tt, NULL);
+      // Id do TMDB sem tt (o TMDB nao tem, sem chave): o IMDb nao vai responder; nao esperar por ele.
+      c.imdbRespondeu = (tt == ci->imdb && trailertt_respondeu(ci->imdb) && strncmp(ci->imdb, "tt", 2)) ||
+                        trailerimdb_respondeu(tt) || venceu;
     } else c.imdbRespondeu = 1;
     if(heroTrailerFalhas&(1u<<TRF_APPLE)){c.apple=NULL;c.appleRespondeu=1;c.appleFalhou=1;}
     if(heroTrailerFalhas&(1u<<TRF_IMDB)){c.imdb=NULL;c.imdbRespondeu=1;}

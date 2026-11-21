@@ -160,6 +160,8 @@ jobs:
           "$W/t" "$W"
       - name: Run automatic 720p fallback test (real FPS series)
         run: bash tests/resolucao_720.sh
+      - name: Run trailer IMDb id resolution test (TMDB ids)
+        run: bash tests/trailertt.sh
       - name: Run focus ring concentricity test
         run: bash tests/anel_foco.sh
       - name: Run image toll (pedagio) test

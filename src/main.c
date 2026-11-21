@@ -965,6 +965,13 @@ static void nvDiagCabecalho(SDL_Window *w, double hzInformado) {
          ajustes_rail_moderna(), ajustes_rail_recolhida(), ajustes_menu_topo(), ajustes_tema_preto() ? "preto" : "grafite",
          ajustes_vidro(), ajustes_vidro_fosco(), ajustes_vidro_qualidade(), ajustes_animacoes_reduzidas(), ajustes_gpu_efeitos(),
          ajustes_720p() ? "720p" : ajustes_1080p() ? "1080p" : "auto");
+  // World 21/11 (dono: "trailers nao iniciam"): o estado dos trailers no comeco de toda sessao de
+  // diagnostico. O portao da home so imprime quando MUDA; sem esta linha a sessao nao dizia nada.
+  { extern void home_trailer_diag(void);
+    printf("[diag] trailers destaque=%d cartaz=%d vetado=%d suportado=%d auto-detalhe=%d\n",
+           ajustes_trailer_hero(), ajustes_trailer_cartaz(), ajustes_trailer_hero_vetado(),
+           trailer_suportado(), ajustes_trailer_auto());
+    home_trailer_diag(); }
   printf("[diag] escada nivel=%d degrau=%d vidro-ritmo-escada=%d vidro-ritmo-gfx=%d (degraus: 1 esfumacado, 2 sem fosco, 3 animacoes, 4 sem vidro)\n",
          gpun_nivel(), gpun_degrau(), gpun_vidro_ritmo(), gfx_vidro_nivel());
   printf("[diag] linhas a cada 3 s: [ritmo] (ref = varredura da tela), [swap], FPS=/janks, [vidro-ritmo]; eventos: [gpu-escada], [gpu-nivel], [qd-lento]\n");
