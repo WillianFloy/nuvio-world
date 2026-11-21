@@ -151,6 +151,8 @@ jobs:
         run: bash tests/sync_colecoes_iguais.sh
       - name: Run poster expansion open/close motion test
         run: bash tests/expansao.sh
+      - name: Run focus ring concentricity test
+        run: bash tests/anel_foco.sh
       - name: Run image toll (pedagio) test
         run: bash tests/pedagio.sh
       - name: Run 2.0.34 performance guards

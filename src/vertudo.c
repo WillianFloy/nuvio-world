@@ -2424,6 +2424,11 @@ static void vitEvento(int k) {
 // Medidas das fileiras: as da Home (home_vitrine_medida). O topo da primeira e
 // o da Home Moderna; a fileira em foco sobe para ele e a seguinte espia embaixo.
 #define VIT_TITULO_H 46.0f
+// O TITULO DA FILEIRA SOBE (dono, 21/11: "Top 10 Series fica muito perto do poster focado"):
+// a Home deixa NV_LEGACY_ROW_HEAD_H (64) do titulo aos cartazes; aqui eram 46, e com o anel de
+// 4 px por fora o texto quase encostava. Os cartazes e o passo ficam onde estavam (a espiada da
+// fileira de baixo, tests/vitgeom.c); so o titulo, e o bloco do destaque acima dele, sobem.
+#define VIT_TITULO_SOBE (NV_LEGACY_ROW_HEAD_H - VIT_TITULO_H)
 #define VIT_CAB_FOLGA 24.0f   // entre o pe do cabecalho e o bloco do destaque
 static float vitPasso(void) {
   float w, h, p, rot;
@@ -3862,7 +3867,7 @@ static GfxRect cartaoArte(int i, GfxRect r0, const char *arte, float ac, Uint32 
   float raio = raioCard(r0.w, r0.h), aArte;
   GLuint t;
   if (sel) {
-    if (ajustes_borda_foco()) foco_anel(r0, ajustes_raio_poster_px() / (r0.w < r0.h ? r0.w : r0.h), 1.0f, ac);
+    if (ajustes_borda_foco()) foco_anel(r0, raio, 1.0f, ac);   // o raio da arte (pela altura)
     else r = foco_zoom(r0, 1.0f);
   }
   t = arte && arte[0] ? tex_obter_larg(arte, r0.w) : 0;
@@ -3979,7 +3984,9 @@ static void cartazGrade(int i, const CatItem *it, float cx, float cy, float w, f
   if (lay == VT_LAY_GRADE) {
     // A GRADE DE SEMPRE, pixel por pixel: o mesmo raio e o mesmo foco de antes.
     GfxRect r0 = { cx, cy, w, h }, r = r0;
-    float raio = ajustes_raio_poster_px() / VT_CARD_W, aArte;
+    // World 21/11: o raio dos Ajustes, pela altura (convencao do gfx_cor). Era px / VT_CARD_W:
+    // o canto saia 1,5x o escolhido no cartaz em pe.
+    float raio = raioCard(w, h), aArte;
     const char *arteCard = artePoster(it);
     GLuint t;
     if (sel && !ajustes_borda_foco()) r = foco_zoom(r0, 1.0f);
@@ -3988,7 +3995,7 @@ static void cartazGrade(int i, const CatItem *it, float cx, float cy, float w, f
                        w + 2 * NV_ANEL_FOCO, h + 2 * NV_ANEL_FOCO };
       float ar, ag, ab; ajustes_acento(&ar, &ag, &ab);
       if (ajustes_vidro()) gfx_vidro_cartao(r, raio, 1.0f, ac);
-      else gfx_cor(anel, (ajustes_raio_poster_px() + NV_ANEL_FOCO) / (w + 2 * NV_ANEL_FOCO), ar, ag, ab, ac);
+      else gfx_cor(anel, foco_anel_raio(r0, raio), ar, ag, ab, ac);
     }
     t = arteCard[0] ? tex_obter_larg(arteCard, w) : 0;
     aArte = i < VT_MAX ? revela_arte(&revArte[i], t != 0, agora) : 1.0f;
@@ -4371,7 +4378,7 @@ static void vitDesenhar(float a, float x0) {
       // no meio da animacao), como antes. O alfa e por elemento; a posicao Y tambem.
       float pisoA = i == camN - 1 ? 0.005f : 0.0f, fa = a * (1.0f - sai);
       float al0 = fa * fmaxf(entEl[0], pisoA), al1 = fa * fmaxf(entEl[1], pisoA), al2 = fa * fmaxf(entEl[2], pisoA);
-      float ty = topo - 14.0f * sai;
+      float ty = topo - VIT_TITULO_SOBE - 14.0f * sai;
       float topoBloco = home_vitrine_texto_el(camIt[i], ty, teto, al0, al1, al2,
                                               18.0f * (1.0f - entEl[0]), 18.0f * (1.0f - entEl[1]),
                                               18.0f * (1.0f - entEl[2]));
@@ -4397,7 +4404,7 @@ static void vitDesenhar(float a, float x0) {
     if (y > viewportBottom) break;
     if (y + pas < topo - 8.0f) continue;
     tt = txt_linha_corta(TXT_ROW_TITULO, l->nome[0] ? l->nome : "—", 245, 246, 249, 255, 900);
-    txt_desenhar_alpha(tt, xr, y, ac);
+    txt_desenhar_alpha(tt, xr, y - VIT_TITULO_SOBE, ac);
     if (l->n > 0) {
 #ifdef NV_TOUCH_UI
       if (vtTelefone()) {
@@ -4453,7 +4460,10 @@ static void vitDesenhar(float a, float x0) {
         }
         if (ff > 0.01f) {
           if (ajustes_borda_foco())
-            foco_anel(base, ajustes_raio_poster_px() / (w < h ? w : h), ff, acc);   // 2.0.45: o anel entra com o cartaz (era `a`)
+            // O raio da ARTE desta caixa (home_vitrine_cartao: raioDe(card)), pela altura. Era o
+            // raio em px sobre o MENOR lado da caixa FECHADA: cartaz em pe e cartao aberto saiam com
+            // o canto do anel mais redondo que o da arte, e o anel parecia cortado (TCL, 21/11).
+            foco_anel(base, raioCard(base.w, base.h), ff, acc);   // 2.0.45: o anel entra com o cartaz (era `a`)
           else card = foco_zoom(base, ff);
         }
         if (c == l->n) {

@@ -89,6 +89,7 @@ int main(int argc, char **argv) {
   a = fopen(cam, "w"); assert(a);
   fprintf(a, "idioma 0\n");
   if (getenv("NUVIO_SHOT_FONTE")) fprintf(a, "fonteInterface %d\n", atoi(getenv("NUVIO_SHOT_FONTE")));
+  if (getenv("NV_AJ")) fprintf(a, "%s\n", getenv("NV_AJ"));   // ex.: "modernLandscapePostersEnabled 0"
   fclose(a);
   ajustes_dir(dados_dir());
 
@@ -181,6 +182,8 @@ int main(int argc, char **argv) {
   }
 
   captura(NULL, 60);   // artes chegando ao cache
+  // NV_SO_VITRINE=1: so as fotos da Vitrine (anel de foco e titulo das fileiras, World 21/11).
+  if (getenv("NV_SO_VITRINE")) goto vitrine;
   // PADRAO (#362): pasta com abas, exibicao Automatico -> Grade com a barra de
   // abas, NUNCA a Vitrine.
   layEscolha = VT_LAY_AUTO; lay = VT_LAY_MURAL; celLay = -1; orderN = -1; foco = 1;
@@ -217,6 +220,7 @@ int main(int argc, char **argv) {
   snprintf(nome, sizeof nome, "%s-2-linha-diretor.bmp", saida);
   captura(nome, 80);
 
+vitrine:
   // VITRINE: tres abas viram tres fileiras (semeadas direto; a fila de abas
   // precisa de rede). Topo, e rolada ate a terceira fileira.
   pasta.nSources = 3; tabFocus = 0;
@@ -231,8 +235,11 @@ int main(int argc, char **argv) {
     for (i = 0; i < 3; i++) {
       int k;
       snprintf(vitLin[i].nome, sizeof vitLin[i].nome, "%s", NOMES[i]);
-      vitLin[i].estado = VIT_PRONTA; vitLin[i].n = 12;
-      for (k = 0; k < 12; k++) vitBuf[i * vitCap + k] = semente[(i * 5 + k) % NF];
+      vitLin[i].estado = VIT_PRONTA; vitLin[i].n = vitLin[i].brutoN = 12; vitLin[i].semFonte = 0;
+      // sem addon na harness: a fonte ja "conferida" como desligada nao zera a fileira semeada
+      vitFontes[i] = collection->sources[i]; vitDesligada[i] = 1;
+      snprintf(vitBases[i], sizeof vitBases[i], "%s", baseDaFonte(&collection->sources[i]));
+      for (k = 0; k < 12; k++) vitLinAloc(i)[k] = semente[(i * 5 + k) % NF];
     }
     vitCarga = vitN; vitMexeu = 1; vitFR = 0; vitFC = 2; }
   captura(NULL, 90);
@@ -307,8 +314,11 @@ int main(int argc, char **argv) {
     vitIniciar();
     for (i = 0; i < vitN; i++) {
       int k;
-      vitLin[i].estado = VIT_PRONTA; vitLin[i].n = 12;
-      for (k = 0; k < 12; k++) vitBuf[i * vitCap + k] = semente[(i * 5 + k) % NF];
+      vitLin[i].estado = VIT_PRONTA; vitLin[i].n = vitLin[i].brutoN = 12; vitLin[i].semFonte = 0;
+      // sem addon na harness: a fonte ja "conferida" como desligada nao zera a fileira semeada
+      vitFontes[i] = collection->sources[i]; vitDesligada[i] = 1;
+      snprintf(vitBases[i], sizeof vitBases[i], "%s", baseDaFonte(&collection->sources[i]));
+      for (k = 0; k < 12; k++) vitLinAloc(i)[k] = semente[(i * 5 + k) % NF];
     }
     vitCarga = vitN; vitMexeu = 1; vitFR = 0; vitFC = 2;
     for (L = HOME_LAYOUT_MODERNA; L < HOME_LAYOUT_N; L++) {

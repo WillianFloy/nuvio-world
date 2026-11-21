@@ -6198,13 +6198,12 @@ static void desenhaAtalhos(int r, float y) {
     // O ANEL E OPCIONAL (Ajustes > Foco no cartaz). Sem ele o foco continua
     // dito pelo tamanho e pela animacao do cartaz — o que sai e so a borda.
     if (f > .01f && ajustes_borda_foco()) {
-      float menor = cw < ch ? cw : ch;
       float ar, ag, ab; ajustes_acento(&ar, &ag, &ab);
       if (ajustes_vidro()) gfx_vidro_cartao(card, raio, f, 1.0f);
       else
       gfx_cor((GfxRect){x - NV_ANEL_FOCO, cy - NV_ANEL_FOCO,
         cw + 2*NV_ANEL_FOCO, ch + 2*NV_ANEL_FOCO},
-        (raio * menor + NV_ANEL_FOCO) / (menor + 2*NV_ANEL_FOCO), ar, ag, ab, f);
+        foco_anel_raio(card, raio), ar, ag, ab, f);
     }
     gfx_cor(card, raio, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, 1);
     const ColFolder *folder=col_folder(fileiras[r].folders[c]);if(!folder)continue;
@@ -7248,6 +7247,7 @@ static void desenhaPilha(const Fileira *f, int coluna, int stackN, float px, flo
 // 1 enquanto o pintarCartao desenha a arte POR CIMA do trailer (No card): o
 // esqueleto opaco de baixo taparia o furo.
 static int arteSobreTrailer;
+int home_rastro_cartoes;   // capturas: imprime o retangulo de cada cartao
 // Cruzamento da expansao: as duas camadas em "cover" (o cartaz em pe numa
 // moldura que alarga nao pode cair no contain do GFX_CARD no meio do caminho).
 static int expCoverForcado;
@@ -7985,17 +7985,22 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
                               w + NV_ANEL_FOCO * 2, h + NV_ANEL_FOCO * 2 };
             float ar, ag, ab; ajustes_acento(&ar, &ag, &ab);
             // RAIO DE FORA = raio do cartaz + espessura do anel, em pixels,
-            // normalizado pelo lado menor DA BORDA. Passar o `raio` do cartaz
-            // direto dava um canto de fora mais fechado que o de dentro — as
-            // "pontas feias" da foto do dono (21/09/2026); e a conta que a
-            // fileira de colecoes ja fazia.
-            { float menor = w < h ? w : h;
-              if (ajustes_vidro()) gfx_vidro_cartao((GfxRect){px, py, w, h}, raio, f, 1.0f);
+            // normalizado pela ALTURA da borda (foco_anel_raio, focoprof.h).
+            // Passar o `raio` do cartaz direto dava um canto de fora mais
+            // fechado que o de dentro — as "pontas feias" da foto do dono
+            // (21/09/2026). Pelo lado menor (ate 21/11) o cartaz em pe saia
+            // ~1,5 px mais redondo; dentro das Collections, bem mais.
+            { if (ajustes_vidro()) gfx_vidro_cartao((GfxRect){px, py, w, h}, raio, f, 1.0f);
               else
-              gfx_cor(borda, (raio * menor + NV_ANEL_FOCO) / (menor + 2 * NV_ANEL_FOCO),
+              gfx_cor(borda, foco_anel_raio((GfxRect){px, py, w, h}, raio),
                       ar, ag, ab, f); }
           }
           GfxRect card = { px, py, w, h };
+          // Capturas (tests/homelayouts_shot.c, NV_RECTS): o retangulo de cada
+          // cartao, para as provas de borda desenhadas por cima da foto.
+          if (home_rastro_cartoes)
+            printf("[cartao] %.1f %.1f %.1f %.1f foco=%d deitado=%d raio=%.3f\n", px, py, w, h,
+                   f > 0.5f, deitado || w > h, raio);
           // TRAILER NO CARTAZ (modo No card): o furo arredondado DEPOIS do anel
           // (que fica inteiro, por fora) e ANTES da arte, que sai com 1 - fade
           // por cima — o video entra por baixo dela, como no destaque. No .tpk o

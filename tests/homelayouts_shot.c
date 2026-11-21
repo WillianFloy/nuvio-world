@@ -128,9 +128,13 @@ static void quadros(int n, const char *bmp) {
     // NV_RASTRO=1: lista no ultimo quadro os retangulos grandes (gfx.c,
     // [qd-rect]), para achar camada de tela cheia que nao precisa existir.
     gfx_rastro_grandes = getenv("NV_RASTRO") && i == n - 1 && bmp;
+    { extern int home_rastro_cartoes;
+      home_rastro_cartoes = getenv("NV_RECTS") && i == n - 1 && bmp;
+      if (home_rastro_cartoes) printf("[cartao] --- %s\n", bmp); }
     if (gfx_rastro_grandes) printf("[qd-rect] --- quadro %s\n", bmp);
     home_desenhar(agora);
     gfx_rastro_grandes = 0;
+    { extern int home_rastro_cartoes; home_rastro_cartoes = 0; }
     gfx_deslocar_base(0.0f);
     ctx_atualizar(1.0f / 60.0f, agora);
     ctx_desenhar(agora);
