@@ -45,7 +45,12 @@ int nv_android_cache_name(const char *n) {
 }
 /* Walk only the dedicated cache tree, never symlinks. Temporary cache
  * writes can be evicted too: a failed rename is a recoverable cache miss. */
+/* `semImagens`: a poda deixa de fora a pasta images/ (ver nv_android_cache_trim). */
+static int scanX(const char *dir, Entry **list, size_t *n, uint64_t *bytes, int clear, int depth, int semImagens);
 static int scan(const char *dir, Entry **list, size_t *n, uint64_t *bytes, int clear, int depth) {
+  return scanX(dir, list, n, bytes, clear, depth, 0);
+}
+static int scanX(const char *dir, Entry **list, size_t *n, uint64_t *bytes, int clear, int depth, int semImagens) {
   struct stat st;
   if (depth>24 || lstat(dir,&st) || !S_ISDIR(st.st_mode)) return 0;
   DIR *d=opendir(dir); struct dirent *e; int ok=1;
@@ -58,7 +63,8 @@ static int scan(const char *dir, Entry **list, size_t *n, uint64_t *bytes, int c
       /* Update staging must survive every automatic trim until the installer
        * consumes it. Size reporting and explicit clear still include it. */
       if (list && depth==0 && !strcmp(e->d_name,"atualizacao")) continue;
-      if (!scan(p,list,n,bytes,clear,depth+1)) ok=0;
+      if (semImagens && depth==0 && !strcmp(e->d_name,"images")) continue;
+      if (!scanX(p,list,n,bytes,clear,depth+1,semImagens)) ok=0;
       /* Retain empty cache directories: live writers reuse these paths. */
     } else if (clear) {
       if (unlink(p)) ok=0;
@@ -114,11 +120,25 @@ static double agoraMs(void) {
   struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
   return t.tv_sec*1000.0+t.tv_nsec/1e6;
 }
+/* AS ARTES TEM DONO PROPRIO (World, 21/11; logs da TCL e da SEMP 50SK8300).
+ * images/ (artes e miniaturas .nvm) e podada pelo tex_cache com indice em
+ * memoria e teto proprio (tetoDisco: ate 192 MB ou 15% do espaco). Esta poda
+ * de 80 MB varria a arvore inteira A CADA fclose/rename de arquivo do cache e
+ * apagava as artes por baixo do indice: "cache-arte" dizia 113 MB enquanto o
+ * disco ficava em 80, 409 artes (158 MB) apagadas em 6 min na SEMP e baixadas
+ * de novo (esqueleto voltando), e 1102 varreduras somando 27,5 s na TCL (pior
+ * 806 ms) — no fio de quem gravou, inclusive o principal (catalogo-*.bin,
+ * colrow-*.bin, meta-*.txt). Agora: a poda e a contagem deixam images/ de
+ * fora, e a gravacao so dispara varredura quando o total CONTADO passa do
+ * teto (nv_android_cache_escrito); o total exato volta a cada varredura. */
+static uint64_t s_total; static int s_totalOk;
+static pthread_t s_principal; static int s_principalOk;   /* quem chamou o migrate (main.c, no arranque) */
+uint64_t nv_android_cache_varreduras(void) { return diag.chamadas; }
 void nv_android_cache_trim(uint64_t cap) {
   Entry *list=NULL; size_t n=0; uint64_t bytes=0;
   double t0=agoraMs();
   pthread_mutex_lock(&lock);
-  scan(nv_android_cache_dir(),&list,&n,&bytes,0,0);
+  scanX(nv_android_cache_dir(),&list,&n,&bytes,0,0,1);
   if (n>1) qsort(list,n,sizeof *list,oldest);
   uint64_t antes=bytes, oc[3]={0,0,0}; int apagou=0;
   if (bytes>cap) for (size_t i=0;i<n;i++) oc[classeDe(list[i].path)]+=list[i].bytes;
@@ -128,6 +148,7 @@ void nv_android_cache_trim(uint64_t cap) {
       bytes-=list[i].bytes; apagou=1;
       diag.apagou[c].n++; diag.apagou[c].bytes+=list[i].bytes;
     }
+  s_total=bytes; s_totalOk=1;
   double ms=agoraMs()-t0;
   diag.chamadas++; diag.msTotal+=ms; if (ms>diag.msMax) diag.msMax=ms;
   if (n>diag.varridosMax) diag.varridosMax=(unsigned)n;
@@ -137,6 +158,25 @@ void nv_android_cache_trim(uint64_t cap) {
     diag.versao++;
   }
   free(list); pthread_mutex_unlock(&lock);
+  if (ms>=30.0) printf("[lento] poda do cache: %.0f ms, %u arquivos varridos%s\n", ms, (unsigned)n,
+                       s_principalOk && pthread_equal(pthread_self(),s_principal) ? " (fio principal)" : "");
+}
+static int ehImagem(const char *p) {
+  const char *root=nv_android_cache_dir(); size_t n=strlen(root);
+  return n && !strncmp(p,root,n) && !strncmp(p+n,"/images/",8);
+}
+/* Um arquivo do cache acabou de ser gravado (fclose de escrita ou rename).
+ * Soma o tamanho ao total contado; so varre quando passa do teto. Regravar o
+ * mesmo arquivo conta de novo: o total so cresce, e a proxima varredura o
+ * corrige. Artes (images/) nao entram: o tex_cache cuida delas. */
+void nv_android_cache_escrito(const char *p) {
+  struct stat st; int varrer;
+  if (!p || ehImagem(p)) return;
+  pthread_mutex_lock(&lock);
+  if (!stat(p,&st) && S_ISREG(st.st_mode)) s_total+=(uint64_t)st.st_size;
+  varrer=!s_totalOk || s_total>NV_ANDROID_CACHE_BYTES;
+  pthread_mutex_unlock(&lock);
+  if (varrer) nv_android_cache_trim(NV_ANDROID_CACHE_BYTES);
 }
 /* Uma linha [diag] se houve poda com apagamento desde a ultima leitura; 0 se nada novo. */
 int nv_android_cache_diag(char *buf,size_t tam) {
@@ -168,6 +208,7 @@ void nv_android_cache_touch(const char *p) { utime(p,NULL); }
 void nv_android_cache_migrate(const char *data) {
   /* Discard only known regenerated legacy files, including old subtrees. */
   DIR *d=opendir(data); struct dirent *e;
+  s_principal=pthread_self(); s_principalOk=1;
   if (!d) return;
   while ((e=readdir(d))) if (nv_android_cache_name(e->d_name)) {
     char p[1200]; struct stat st; size_t n=0; uint64_t b=0;
@@ -196,13 +237,13 @@ int __wrap_fclose(FILE *f) {
   int rc=__real_fclose(f);
   if (cached && !rc) {
     nv_android_cache_touch(p);
-    if (writing) nv_android_cache_trim(NV_ANDROID_CACHE_BYTES);
+    if (writing) nv_android_cache_escrito(p);
   }
   return rc;
 }
 int __wrap_rename(const char *a,const char *b) {
   int rc=__real_rename(a,b);
-  if (!rc && cachePath(b)) nv_android_cache_trim(NV_ANDROID_CACHE_BYTES);
+  if (!rc && cachePath(b)) nv_android_cache_escrito(b);
   return rc;
 }
 #endif
@@ -212,6 +253,8 @@ int nv_android_cache_name(const char *n) { (void)n; return 0; }
 uint64_t nv_android_cache_size(void) { return 0; }
 uint64_t nv_android_cache_size_all(void) { return 0; }
 void nv_android_cache_trim(uint64_t cap) { (void)cap; }
+void nv_android_cache_escrito(const char *p) { (void)p; }
+uint64_t nv_android_cache_varreduras(void) { return 0; }
 int nv_android_cache_clear(void) { return 0; }
 void nv_android_cache_touch(const char *p) { (void)p; }
 void nv_android_cache_migrate(const char *p) { (void)p; }

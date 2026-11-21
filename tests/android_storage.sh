@@ -9,7 +9,7 @@ cc -O1 -g -Wall -Wextra -DNV_ANDROID -Isrc -I/opt/homebrew/include -I/opt/homebr
   src/p2p.c src/js.c tests/p2pmotor_teto.c -pthread -o "$work/p2p"
 rc=0
 python3 tests/android_apk_cleanup.py || rc=1
-for regression in durable apk; do
+for regression in durable apk escrita; do
   mkdir "$work/$regression"
   "$work/test" "$work/$regression" "$regression" || rc=1
 done

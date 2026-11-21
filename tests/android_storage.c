@@ -45,6 +45,33 @@ static void apk(const char *root) {
   assert(nv_android_cache_clear()); assert(access(p,F_OK));
   puts("APK larger than cache cap survives until install PASS");
 }
+/* World 21/11 (logs da TCL e da SEMP): gravar no cache nao varre a arvore a cada arquivo e a
+ * poda de 80 MB nao apaga as artes (images/ e do tex_cache, com teto e indice proprios). */
+static void escrita(const char *root) {
+  char p[1200]; struct stat st; uint64_t v0;
+  snprintf(p,sizeof p,"%s/images",root); assert(!mkdir(p,0700));
+  for (int i=0;i<100;i++) {   /* 100 MB de artes: acima dos 80 MB, e nao sao desta poda */
+    snprintf(p,sizeof p,"%s/images/a%03d.jpg",root,i); file(p,1L<<20,10+i);
+    nv_android_cache_escrito(p);
+  }
+  v0=nv_android_cache_varreduras();
+  for (int i=0;i<300;i++) {   /* 300 gravacoes pequenas (catalogo, colrow, meta...) */
+    snprintf(p,sizeof p,"%s/meta-%03d.txt",root,i); file(p,4096,1000+i);
+    nv_android_cache_escrito(p);
+  }
+  printf("varreduras: %llu nas 100 artes, %llu nas 300 gravacoes\n",
+         (unsigned long long)v0, (unsigned long long)(nv_android_cache_varreduras()-v0));
+  assert(v0==0);                                    /* gravar arte nao varre nada */
+  assert(nv_android_cache_varreduras()-v0<=1);      /* so a primeira conta o total */
+  for (int i=0;i<100;i++) { snprintf(p,sizeof p,"%s/images/a%03d.jpg",root,i); assert(!stat(p,&st)); }
+  /* passou do teto com o que e desta poda: apaga os mais velhos dela, nunca as artes */
+  snprintf(p,sizeof p,"%s/epg-grande.xml",root); file(p,90L<<20,5000);
+  nv_android_cache_escrito(p);
+  assert(nv_android_cache_varreduras()-v0>=2);
+  for (int i=0;i<100;i++) { snprintf(p,sizeof p,"%s/images/a%03d.jpg",root,i); assert(!stat(p,&st)); }
+  snprintf(p,sizeof p,"%s/meta-000.txt",root); assert(access(p,F_OK));   /* o mais velho saiu */
+  puts("Cache writes count bytes instead of rescanning; art stays with tex_cache PASS");
+}
 int main(int argc, char **argv) {
   (void)argc;
   char root[1024], data[1024], p[1200], old[1200], hot[1200];
@@ -53,6 +80,7 @@ int main(int argc, char **argv) {
   setenv("NUVIO_CACHE",root,1);
   if (argc>2) {
     if (!strcmp(argv[2],"durable")) durable(data);
+    else if (!strcmp(argv[2],"escrita")) escrita(root);
     else apk(root);
     return 0;
   }
