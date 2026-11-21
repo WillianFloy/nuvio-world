@@ -107,6 +107,7 @@ static void gravar(const char *bmp) {
   free(pix);
 }
 
+static int vseqRastro;   // NV_VSEQ: retangulos de TODOS os quadros (B4, transicao vertical)
 static void quadros(int n, const char *bmp) {
   int i;
   for (i = 0; i < n; i++) {
@@ -129,8 +130,10 @@ static void quadros(int n, const char *bmp) {
     // [qd-rect]), para achar camada de tela cheia que nao precisa existir.
     gfx_rastro_grandes = getenv("NV_RASTRO") && i == n - 1 && bmp;
     { extern int home_rastro_cartoes;
-      home_rastro_cartoes = getenv("NV_RECTS") && i == n - 1 && bmp;
-      if (home_rastro_cartoes) printf("[cartao] --- %s\n", bmp); }
+      static int quadroSeq;
+      home_rastro_cartoes = (getenv("NV_RECTS") && i == n - 1 && bmp) || vseqRastro;
+      if (vseqRastro) printf("[cartao] --- q%03d\n", quadroSeq++);
+      else if (home_rastro_cartoes) printf("[cartao] --- %s\n", bmp); }
     if (gfx_rastro_grandes) printf("[qd-rect] --- quadro %s\n", bmp);
     home_desenhar(agora);
     gfx_rastro_grandes = 0;
@@ -450,6 +453,19 @@ int main(int argc, char **argv) {
     quadros(60, NULL);
   }
 
+  // NV_VSEQ=1 (World 21/11, B4): desce fileira por fileira e imprime o retangulo de todo cartao
+  // em todo quadro de cada descida; tests/vertical_seq.py procura salto (passo fora da curva).
+  if (getenv("NV_VSEQ")) {
+    quadros(90, NULL);
+    for (int k = 0; k < 4; k++) {
+      vseqRastro = 1; printf("[vseq] descida %d\n", k);
+      tecla(SDLK_DOWN); quadros(70, NULL);
+      vseqRastro = 0; quadros(40, NULL);
+    }
+    tex_encerrar(); txt_encerrar();
+    SDL_GL_DeleteContext(gl); SDL_DestroyWindow(janela); SDL_Quit();
+    return 0;
+  }
 #ifdef NV_FUNDO_ESCURO_TEST
   extern int fundo_din_escuro_testar(const char *, void (*)(int, const char *));
   int rc = fundo_din_escuro_testar(dirDados, quadros);

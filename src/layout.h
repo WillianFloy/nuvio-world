@@ -33,12 +33,15 @@ int layout_modo_mobile(void);
 // conteúdo 104px depois dela, como no CSS .home-main + --home-content-start.
 #define NV_LEGACY_RAIL_W        144.0f
 #define NV_LEGACY_CONTENT_X     248.0f
-#define NV_LEGACY_CONTENT_RIGHT 104.0f
+// World 21/11 (B3, decisao do dono de 15/11): margem pequena e IGUAL nos dois lados, ~2,5% da
+// tela (48 px em 1080p), a mesma das Collections (vertudo.c: NV_TELA_W - 48). Era 104 (o CSS
+// do legacy). As previas das pontas continuam esvanecendo (homeFocoFixoFade).
+#define NV_LEGACY_CONTENT_RIGHT 48.0f
 // A regra de verdade, medida nos dois estados: o conteudo tem SEMPRE 104 de
 // recuo, e a rail acrescenta os 144 dela quando esta aberta. Nao sao dois
 // layouts — e `collapseSidebar` em layoutPreferences.js, que o perfil do dono
 // tem em true. Com ela recolhida a home comeca em 104.
-#define NV_CONTENT_PAD          104.0f
+#define NV_CONTENT_PAD          48.0f   // World 21/11 (B3): 2,5%, como a direita (era 104)
 // O MENU DOS LAYOUTS CLASSICOS com a rail fixa (menu.c, mockup Glass UI
 // "ilha"): a borda direita da pilula de icones, em px da tela REAL (o menu
 // desenha em escala fixa, nao segue o Tamanho da interface), e o vao ate o
