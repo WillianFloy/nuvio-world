@@ -908,6 +908,12 @@ static void ajwDesenhar(void) {
   ajwPrevia();
   ajwRodape();
   ajwPergunta();
+  // World 22/11 (dono: "Logs de diagnostico, quando eu clico nao aparece a telinha"): os paineis
+  // proprios de Sobre e ajuda moram no desenho de Ajustes (ajDesenharTela os desenhava no fim);
+  // abriam, tomavam o controle e ficavam invisiveis aqui.
+  if (registro_envio_aberto() || registro_diag_aberto()) ajVeuModal();   // a tela de tras escurece, como nas perguntas
+  if (registro_envio_aberto()) registro_envio_desenhar();
+  if (registro_diag_aberto()) registro_diag_desenhar();
 }
 
 #ifdef AJUSTES_TESTE
@@ -950,7 +956,8 @@ static int ajwTesteOp(const char *n) {
   static const struct { const char *n; int op; } T[] = {
     { "relogio", AJ_RELOGIO }, { "colgif", AJ_COL_GIF }, { "colexib", AJ_COLECAO_EXIBICAO },
     { "leg1tam", AJ_LEG1_TAMANHO }, { "expandir", AJ_EXPANDIR }, { "idioma", AJ_IDIOMA },
-    { "guia", AJ_GUIA },
+    { "guia", AJ_GUIA }, { "logdiag", AJ_LOG_REDE }, { "enviarlog", AJ_ENVIAR_LOG },
+    { "verregistro", AJ_VER_REGISTRO }, { "avisolegal", AJ_AVISO_LEGAL },
   };
   for (size_t i = 0; i < sizeof T / sizeof *T; i++) if (!strcmp(T[i].n, n)) return T[i].op;
   return -1;
@@ -975,4 +982,17 @@ void ajustes_teste_world_buscar(const char *q) {
 }
 int ajustes_teste_world_guia(void) { return guiaAberto; }
 int ajustes_teste_world_sair(void) { return sair; }
+// A arvore como a TV a ve (categoria, grupo, opcao, avancada, disponivel).
+void ajustes_teste_world_arvore(FILE *f) {
+  for (int i = 0; i < AJ_N_TELA; i++) {
+    if (TELA[i].tipo == IT_SEC) fprintf(f, "\n## %s\n", TELA[i].titulo);
+    else if (TELA[i].tipo == IT_ROT) fprintf(f, "  -- %s\n", TELA[i].titulo);
+    else if (TELA[i].tipo == IT_MAIS) fprintf(f, "  [Mais opções]\n");
+    else if (TELA[i].tipo == IT_OPC) {
+      int op = TELA[i].op;
+      fprintf(f, "     %s%s%s  {%s}\n", rotuloOpcao(op), uxAvancada(op) ? " [av]" : "",
+              ajOpcaoDisponivel(op) ? "" : " [oculta]", uxEscopo(op));
+    }
+  }
+}
 #endif

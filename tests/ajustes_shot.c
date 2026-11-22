@@ -9,6 +9,7 @@
 // fileiras.c nao le nem escreve arquivo nenhum: a lista comeca vazia (o estado
 // de quem nunca abriu o app) e a captura nao mexe no fileirasui.txt de quem
 // roda o teste.
+#include "registro.h"
 #include "ajustes.h"
 #include "nvtmp.h"
 #include "ajustes_ux.h"
@@ -96,6 +97,7 @@ extern int ajustes_teste_world_nres(void);
 extern void ajustes_teste_world_buscar(const char *q);
 extern int ajustes_teste_world_guia(void);
 extern int ajustes_teste_world_sair(void);
+extern void ajustes_teste_world_arvore(FILE *f);
 static int quadrosCaptura = 60;
 
 static void tecla(SDL_Keycode k) {
@@ -113,6 +115,27 @@ static void teclaCima(SDL_Keycode k) {
 static int wFalhas;
 #define WCHECA(c, ...) do { if (!(c)) { wFalhas++; printf("FALHOU (%s:%d): ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
 // Comportamento da tela World com teclas de verdade (KEYDOWN/KEYUP).
+// Um quadro dos Ajustes lido de volta (para provar que um painel APARECE, nao so que abriu).
+static unsigned char *quadroAjustes(int *n) {
+  static unsigned char px[1920 * 1080 * 4];
+  GLint vp[4]; glGetIntegerv(GL_VIEWPORT, vp);
+  for (int i = 0; i < 3; i++) {
+    txt_novo_quadro(); tex_novo_quadro(); tex_bombear(6);
+    ajustes_atualizar(1.0f / 60.0f, SDL_GetTicks());
+    glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT);
+    ajustes_desenhar(SDL_GetTicks());
+  }
+  if (vp[2] > 1920) vp[2] = 1920; if (vp[3] > 1080) vp[3] = 1080;
+  glReadPixels(0, 0, vp[2], vp[3], GL_RGBA, GL_UNSIGNED_BYTE, px);
+  *n = vp[2] * vp[3];
+  return px;
+}
+static float quadroMudou(const unsigned char *a, const unsigned char *b, int n) {
+  int m = 0;
+  for (int i = 0; i < n; i++) { const unsigned char *x = a + i * 4, *y = b + i * 4;
+    if (abs(x[0] - y[0]) + abs(x[1] - y[1]) + abs(x[2] - y[2]) > 48) m++; }
+  return n ? (float)m / (float)n : 0.0f;
+}
 static void worldTeste(void) {
   int op, modo, ind, ed, topo, sec, sec0;
   const char *n;
@@ -172,6 +195,32 @@ static void worldTeste(void) {
     tecla(SDLK_DOWN); tecla(SDLK_RIGHT); tecla(SDLK_ESCAPE);
     ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
     WCHECA(ed == 0 && ajustes_teste_world_valor("colexib") == v0, "Voltar sai sem mudar"); }
+  // 5b. (World 22/11, dono: "oq tem telinha tem que ter telinha") OK numa opcao que tem tela
+  // propria abre a tela dela, nao uma pagina de valores nem nada.
+  { static const struct { const char *n; int (*aberto)(void); } T[] = {
+      { "logdiag", registro_diag_aberto }, { "enviarlog", registro_envio_aberto },
+      { "verregistro", registro_aberto }, { "avisolegal", registro_legal_aberto } };
+    for (size_t i = 0; i < sizeof T / sizeof *T; i++) {
+      if (ajustes_teste_world_op(T[i].n) < 0) continue;
+      ajustes_teste_world(1, &n); ajustes_teste_world_focar(T[i].n);
+      WCHECA(!T[i].aberto(), "'%s' comeca fechada", T[i].n);
+      tecla(SDLK_RETURN); teclaCima(SDLK_RETURN);
+      ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+      WCHECA(T[i].aberto() && ed == 0, "OK em '%s' abre a tela propria (aberta=%d editor=%d op=%d)", T[i].n, T[i].aberto(), ed, op);
+      if (T[i].aberto == registro_diag_aberto || T[i].aberto == registro_envio_aberto) {   // desenhados pelos Ajustes
+        static unsigned char antes[1920 * 1080 * 4]; int np; float f;
+        unsigned char *q = quadroAjustes(&np); memcpy(antes, q, (size_t)np * 4);
+        { SDL_Event e = { 0 }; e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE;   /* como app.c: cada painel com o seu */
+          for (int k = 0; k < 3 && T[i].aberto(); k++) { if (!registro_envio_evento(&e) && !registro_diag_evento(&e)) registro_evento(&e); } }
+        q = quadroAjustes(&np); f = quadroMudou(antes, q, np);
+        if (getenv("NUVIO_SHOT_DUMP")) { char cam[128]; FILE *df;
+          snprintf(cam, sizeof cam, "/tmp/q-%s-aberto.raw", T[i].n); if ((df = fopen(cam, "wb"))) { fwrite(antes, 4, (size_t)np, df); fclose(df); }
+          snprintf(cam, sizeof cam, "/tmp/q-%s-fechado.raw", T[i].n); if ((df = fopen(cam, "wb"))) { fwrite(q, 4, (size_t)np, df); fclose(df); } }
+        WCHECA(f > 0.08f, "a tela de '%s' aparece por cima dos Ajustes (%.0f%% dos pixels mudam ao fechar)", T[i].n, f * 100.0f);
+      }
+      { SDL_Event e = { 0 }; e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE;   /* como app.c: cada painel com o seu */
+          for (int k = 0; k < 3 && T[i].aberto(); k++) { if (!registro_envio_evento(&e) && !registro_diag_evento(&e)) registro_evento(&e); } }
+    } }
   // 6. Busca: resultados; OK leva a opcao na categoria.
   ajustes_teste_world_buscar("relógio");
   ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
@@ -633,6 +682,7 @@ int main(int argc, char **argv) {
   }
 
   // AJUSTES WORLD (NV_AJUSTES_CHEIA): as telas do layout aprovado em 21/11.
+  if (getenv("NUVIO_SHOT_WORLD_ARVORE")) { ajustes_teste_world_arvore(stdout); return 0; }
   if (getenv("NUVIO_SHOT_WORLD_TESTE")) { worldTeste(); return wFalhas ? 1 : 0; }
   if (getenv("NUVIO_SHOT_WORLD")) {
     const char *n;
