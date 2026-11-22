@@ -144,6 +144,43 @@ static void bateria(int layout) {
   (void)lumDet; (void)lumHome;
 }
 
+// 6. Origem SEM a Home por baixo (Busca, Biblioteca, Vitrine, Spotlight, menu, ilha, pos-play): o backdrop NAO parte do
+//    retangulo do hero da Home (que nao existe nesta tela): zoom-fade centrado, sem movimento vertical, simetrico na volta.
+int detail_backdrop_info(float *x, float *y, float *w, float *h, float *opac);
+static void quadroOutraTela(void) {   // o que app.c faria com uma tela que nao e a Home: so o detalhe por cima de um fundo liso
+  now += 16; tex_bombear(16); tex_novo_quadro(); txt_novo_quadro(); gfx_novo_quadro();
+  gfx_sem_recorte(); glClearColor(0.20f, 0.20f, 0.22f, 1); glClear(GL_COLOR_BUFFER_BIT);
+  detail_atualizar(1.f / 60, now); detail_desenhar(now); gfx_ambiente_descarregar(); }
+static void bateriaSemHome(void) {
+  printf("\n##### origem sem a Home\n");
+  frames(60);
+  HomeItem it; ok(home_item_focado(&it), "ha um item focado para abrir");
+  it.rect = (GfxRect){ 0, 0, 0, 0 };   // origem sem cartao: nao ha retangulo de origem
+  for (int i = 0; i < 12; i++) quadroOutraTela();   // a Home deixou de ser desenhada
+  detail_abrir(&it);
+  float x, y, w, h, o; int origem = -2, n = 0, centrado = 1, tamanho = 1, opMono = 1; float opAnt = -1, ancMax = 0;
+  for (int i = 0; i < 60; i++) { quadroOutraTela();
+    origem = detail_backdrop_info(&x, &y, &w, &h, &o);
+    if (detail_progresso() > 0.02f && detail_progresso() < 0.98f) { n++;
+      if (fabsf(x + w * 0.5f - 960.0f) > 1.0f || fabsf(y + h * 0.5f - 540.0f) > 1.0f) centrado = 0;
+      if (w < 0.955f * 1920.0f || w > 1920.5f || h < 0.955f * 1080.0f || h > 1080.5f) tamanho = 0;
+      if (fabsf(detail_ancora_dy()) > ancMax) ancMax = fabsf(detail_ancora_dy());
+      if (o + 0.001f < opAnt) opMono = 0; opAnt = o; } }
+  ok(origem == 0, "sem a Home por baixo, o detalhe nasce SEM origem de Home");
+  ok(n > 3 && centrado, "zoom-fade: o backdrop fica centrado na tela (sem movimento vertical)");
+  ok(tamanho, "zoom-fade: tamanho entre 96% e 100% da tela (nao o retangulo do hero da Home)");
+  ok(ancMax < 1e-6f, "zoom-fade: sem ancora deslocada");
+  ok(opMono, "zoom-fade: a opacidade sobe sem retrocesso ao abrir");
+  // volta: simetrica
+  ev(SDLK_AC_BACK); opAnt = 2; int centradoV = 1, opMonoV = 1, nv = 0;
+  for (int i = 0; i < 60; i++) { quadroOutraTela();
+    if (detail_aberto() && detail_progresso() > 0.02f && detail_progresso() < 0.98f) { detail_backdrop_info(&x, &y, &w, &h, &o); nv++;
+      if (fabsf(x + w * 0.5f - 960.0f) > 1.0f || fabsf(y + h * 0.5f - 540.0f) > 1.0f) centradoV = 0;
+      if (o > opAnt + 0.001f) opMonoV = 0; opAnt = o; } }
+  ok(nv > 3 && centradoV && opMonoV, "zoom-fade: a volta e simetrica (centrada, opacidade desce sem retrocesso)");
+  ok(!detail_aberto(), "zoom-fade: o Voltar fechou");
+}
+
 int main(void) {
   assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0); IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -170,6 +207,7 @@ int main(void) {
   ajustes_dir(getenv("NUVIO_DADOS"));
   testeAncora();
   bateria(ajustes_home_layout());
+  bateriaSemHome();
   printf("\n%s\n", falhas ? "detalhe_transicao: FALHOU" : "detalhe_transicao: ok");
   return falhas ? 1 : 0;
 }

@@ -327,6 +327,7 @@ static char pedAssistidoId[24];
 static int  pedDoInicio = 0;         // botao "Reproduzir desde o inicio"
 static Uint32 okDesceEm = 0;
 static float pg = 0.0f;              // 0..1: hero -> pagina rolada
+static int origemHome = 1;   // 2.0.46: a Home estava por baixo quando o detalhe abriu (senao: zoom-fade, sem retangulo de origem)
 static int fundoSobHome;   // 2.0.46: 1 = o fundo ja foi desenhado neste quadro, SOB a Home (detail_fundo_sob_home)
 static float arteAncoraDy;   // 2.0.46: deslocamento da ancora vertical do cover (GFX_DETALHE uPar.y); 0 = centro
 static float pgAlvo = 0.0f;          // para onde pg vai (detail_transicao, vidro)
@@ -1546,6 +1547,7 @@ static void abrirInterno(const HomeItem *it) {
   seriefrases_fechar();
   trocaarte_fechar();
   audAberta = 0; audTempAberta = -1; audTempVista = -1; frasesAberta = 0;
+  if (!aberto || saindo) origemHome = home_desenhou_ha_pouco();
   item = *it;
   aberto = 1; saindo = 0; nivel = 0; botao = 0; focoAmigos = 0;
   amtui_fechar();
@@ -1907,6 +1909,11 @@ static int carDesenhaFundo(void) {
 int detail_aberto(void) { return aberto; }
 // Deslocamento da ancora vertical do cover do backdrop neste quadro (GFX_DETALHE uPar.y); 0 = centro. Para os testes.
 float detail_ancora_dy(void) { return arteAncoraDy; }
+static void backdropRect(GfxRect *r, float *opac);
+// Retangulo e opacidade do backdrop NESTE quadro e se a Home e a origem (para os testes).
+int detail_backdrop_info(float *x, float *y, float *w, float *h, float *opac) {
+  GfxRect r; float o; if (!aberto) return -1; backdropRect(&r, &o);
+  *x = r.x; *y = r.y; *w = r.w; *h = r.h; *opac = o; return origemHome; }
 // [quadro] do main: a pagina rolando para o heroi (sobe) ou para as fileiras.
 const char *detail_transicao(void) {
   if (!aberto || (fabsf(pg - pgAlvo) <= 0.02f && fabsf(velY) < 5.0f)) return "-";
@@ -2081,6 +2088,17 @@ int detail_assentado(void) {
 // divergirem, a home some um quadro antes de a arte cobrir e a tela pisca.
 static void backdropRect(GfxRect *r, float *opac) {
   float s = suave(t);
+  if (!origemHome) {
+    // 2.0.46 (B5): origem SEM cartao da Home (Busca, Biblioteca, Vitrine, Spotlight, menu, ilha, pos-play): o retangulo do
+    // hero da Home nao existe nesta tela, entao a arte NAO parte dele. Zoom-fade simetrico: tela cheia a 96% -> 100%, com a
+    // opacidade no mesmo relogio, sem movimento vertical.
+    float k = 0.96f + 0.04f * s;
+    r->w = NV_TELA_W * k; r->h = NV_TELA_H * k;
+    r->x = (NV_TELA_W - r->w) * 0.5f; r->y = (NV_TELA_H - r->h) * 0.5f;
+    *opac = s;
+    arteAncoraDy = 0.0f;
+    return;
+  }
   GfxRect de;
   home_hero_rect(&de.x, &de.y, &de.w, &de.h);
   r->x = de.x + (0.0f - de.x) * s;
@@ -7982,7 +8000,7 @@ static void detalheFundo(float s) {
 // fundos (Arte, Borrada, Frost): a arte nitida do topo e a mesma em todos.
 float detail_fundo_sob_home(void) {
   fundoSobHome = 0;
-  if (!aberto || carro || trailer_cheia() || carDesenhaFundo()) return -1.0f;
+  if (!aberto || carro || !origemHome || trailer_cheia() || carDesenhaFundo()) return -1.0f;
   if (pg > 0.01f) return -1.0f;   // pagina rolada (e o passo do vidro): fica no caminho de sempre
   { GfxRect r; float opac; backdropRect(&r, &opac);
     detalheFundo(suave(t));
