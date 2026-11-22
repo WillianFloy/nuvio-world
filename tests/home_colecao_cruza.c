@@ -40,17 +40,26 @@ static void desenhar_um(void) { now += 16; tex_novo_quadro(); txt_novo_quadro();
 static long faixa(const unsigned char *a, const unsigned char *b) {
   long s = 0; for (int y = 540; y < 1080; y += 3) for (int x = 0; x < 1920; x += 3) { const unsigned char *pa = a + (y*1920+x)*4, *pb = b + (y*1920+x)*4;
     s += abs(pa[0]-pb[0]) + abs(pa[1]-pb[1]) + abs(pa[2]-pb[2]); } return s; }
+// Luminancia media da arte (lado direito, faixa de cima da tela) e do bloco de texto (lado esquerdo, y do logo/sinopse).
+static double lumReg(const unsigned char *a, int x0, int x1, int y0, int y1) {   // y em px de TELA (de cima para baixo)
+  double s = 0; long n = 0;
+  for (int y = y0; y < y1; y += 2) for (int x = x0; x < x1; x += 2) { const unsigned char *q = a + ((1079 - y) * 1920 + x) * 4; s += 0.3*q[0] + 0.59*q[1] + 0.11*q[2]; n++; }
+  return s / n; }
+static double lumArteIni, lumArteFim, lumArteMin, lumTxtMin, lumTxtMax; static int txtSobeDepoisDeCair;
 static unsigned char guarda[1920*1080*4];
 // Roda ate o foco assentar medindo o passo maximo quadro a quadro e a diferenca total; devolve m intermediarios vistos.
 static void mede(int tecla, int quadros, long *passoMax, long *total, int *intermed) {
   desenhar_um(); memcpy(guarda, captura(), sizeof guarda); unsigned char *ini = malloc(sizeof guarda); memcpy(ini, guarda, sizeof guarda);
+  lumArteIni = lumReg(guarda, 1150, 1800, 120, 420); lumArteMin = 1e9; lumTxtMin = 1e9; lumTxtMax = 0;
   key(tecla); *passoMax = 0; *intermed = 0;
   for (int i = 0; i < quadros; i++) { now += 16; tex_bombear(16); tex_novo_quadro(); txt_novo_quadro(); gfx_novo_quadro();
     gfx_sem_recorte(); glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1); glClear(GL_COLOR_BUFFER_BIT);
     home_atualizar(1.f / 60, now); home_desenhar(now); gfx_ambiente_descarregar();
-    unsigned char *c = captura(); long d = faixa(c, guarda); if (d > *passoMax) *passoMax = d; memcpy(guarda, c, sizeof guarda);
+    unsigned char *c = captura(); { double la = lumReg(c, 1150, 1800, 120, 420), lt = lumReg(c, 110, 900, 140, 560); if (la < lumArteMin) lumArteMin = la; if (lt < lumTxtMin) lumTxtMin = lt; if (lt > lumTxtMax) lumTxtMax = lt; }
+    if (getenv("NV_SHOTS") && i % 3 == 0 && i < 36 && quadros > 8) { char fn[256]; snprintf(fn, sizeof fn, "%s_%d_%02d.rgba", getenv("NV_SHOTS"), tecla, i); FILE *fo = fopen(fn, "wb"); if (fo) { fwrite(c, 1, 1920*1080*4, fo); fclose(fo); } }
+    long d = faixa(c, guarda); if (d > *passoMax) *passoMax = d; memcpy(guarda, c, sizeof guarda);
     if (heroModoPasta > 0.05f && heroModoPasta < 0.95f) (*intermed)++; }
-  *total = faixa(guarda, ini); free(ini); }
+  lumArteFim = lumReg(guarda, 1150, 1800, 120, 420); *total = faixa(guarda, ini); free(ini); }
 int main(void) {
   assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0); IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -93,12 +102,16 @@ int main(void) {
   ok(pastaFocoAtual() >= 0 && heroModoPasta > 0.99f, "chegou na Collection: destaque de pasta assentado");
   ok(inter >= 4, "poster->Collection passa por varios quadros intermediarios (nao pula de 0 a 1)");
   ok(total > 0 && passo < total * 0.6, "poster->Collection: nenhum quadro concentra a mudanca (nao e corte seco)");
+  printf("[medida] arte p->c: ini %.1f fim %.1f min %.1f\n", lumArteIni, lumArteFim, lumArteMin);
+  ok(lumArteMin >= 0.88 * fmin(lumArteIni, lumArteFim), "poster->Collection: a arte nova acende POR CIMA da antiga (sem buraco escuro no meio, como poster->poster)");
   // 2. Collection -> poster
   mede(SDLK_UP, 40, &passo, &total, &inter);
   printf("[medida] colecao->poster: passo max %ld total %ld intermediarios %d\n", passo, total, inter);
   ok(pastaFocoAtual() < 0 && heroModoPasta < 0.01f, "voltou ao poster: destaque de titulo assentado");
   ok(inter >= 4, "Collection->poster tambem passa por quadros intermediarios");
   ok(total > 0 && passo < total * 0.6, "Collection->poster: nenhum quadro concentra a mudanca");
+  printf("[medida] arte c->p: ini %.1f fim %.1f min %.1f\n", lumArteIni, lumArteFim, lumArteMin);
+  ok(lumArteMin >= 0.88 * fmin(lumArteIni, lumArteFim), "Collection->poster: a arte nova acende POR CIMA da antiga (sem buraco escuro no meio)");
   // 3. Animacoes reduzidas: direto.
   anim_politica_reduzida = 1;
   mede(SDLK_DOWN, 8, &passo, &total, &inter);

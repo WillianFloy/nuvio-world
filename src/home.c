@@ -5477,15 +5477,23 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
   txt_desenhar_alpha(sub, x, NV_COLLECTION_HERO_CAPTION_Y + dy[1], a1);
 }
 
-// World 22/11 (dono: "quando troca a fileira de poster comum pra uma de Collection nao tem animacao, vai seco"): o destaque de
-// um TITULO e o de uma PASTA sao dois desenhos independentes, e trocar de um para o outro cortava seco. Agora o desenho
-// que sai e o que entra se cruzam (heroModoPasta, NV_HERO_ARTE_FADE_MS) com a opacidade de grupo. Os overrides fazem a
-// mesma funcao desenhar o modo que SAI mesmo com o foco ja no outro.
+// World 22/11 (dono: "de poster pra poster tem a transicao que muda logo, fundo etc.; de Collection pra Collection tambem;
+// mas de poster pra Collection e o contrario nao tinha"). O destaque de um TITULO e o de uma PASTA sao dois desenhos
+// independentes; agora a troca entre eles usa a MESMA troca coordenada dos dois (herotexto.h): a arte nova acende POR CIMA da
+// antiga (NV_HERO_ARTE_FADE_MS, a antiga fica inteira por baixo) e o texto troca escalonado — o bloco antigo sai (logo, meta,
+// sinopse, subindo HT_SOBE_PX em HT_SAIDA_MS) enquanto os elementos novos entram um depois do outro, de baixo (HT_ENTRA_PX).
+// Os overrides fazem a mesma funcao desenhar o modo que SAI mesmo com o foco ja no outro.
 static int heroOverride = 0;     // 0 = pelo foco; 1 = forca o destaque de titulo; 2 = forca a pasta heroOvPasta
 static int heroOvPasta = -1;
 static int heroPastaUltima = -1; // a ultima pasta que esteve em foco (o que sai ao voltar para um titulo)
-static float heroModoPasta = 0.0f;
+static float heroXArte = 1.0f;   // multiplicador do alfa da ARTE nesta passada
+static const HtInstante *heroXTx = NULL;   // alfa/dy por elemento do TEXTO nesta passada (NULL = o natural)
+static int heroXAlvo = 0;        // modo assentado/de destino: 0 titulo, 1 pasta
+static float heroXT = 1.0e6f;    // ms desde o inicio da troca de modo
+static float heroXA0 = 0.0f;     // alfa com que a arte nova ja comeca (troca interrompida no meio)
+static HtInstante heroXSnap;     // o texto que sai comeca daqui
 static Uint32 heroModoEm = 0;
+static float heroModoPasta = 0.0f;   // 0 = destaque de titulo, 1 = de pasta (andamento, para os testes)
 static void desenhaHero(Uint32 agora, float saida);
 static int pastaFocoAtual(void) {
   if (focoHero || ajustes_home_layout() == HOME_LAYOUT_DINAMICA || foco.fileira < 0 || foco.fileira >= nFileiras) return -1;
@@ -5494,33 +5502,54 @@ static int pastaFocoAtual(void) {
 }
 static void desenhaHeroCruzado(Uint32 agora, float saida, float grupo) {
   const int id = pastaFocoAtual();
-  const float alvo = id >= 0 ? 1.0f : 0.0f;
-  const Uint32 dtMs = heroModoEm ? (Uint32)(agora - heroModoEm) : 0u;
+  const int alvo = id >= 0;
+  const float dtMs = heroModoEm ? (float)(Uint32)(agora - heroModoEm) : 0.0f;
   heroModoEm = agora;
   if (id >= 0) heroPastaUltima = id;
-  if (ajustes_animacoes_reduzidas() || anim_politica_reduzida || gfx_efeitos_minimos() || dtMs > 250u) heroModoPasta = alvo;
-  else {
-    const float passo = (float)dtMs / NV_HERO_ARTE_FADE_MS;
-    heroModoPasta = alvo > heroModoPasta ? fminf(alvo, heroModoPasta + passo) : fmaxf(alvo, heroModoPasta - passo);
+  const int direto = ajustes_animacoes_reduzidas() || anim_politica_reduzida || gfx_efeitos_minimos() || dtMs > 250.0f;
+  if (alvo != heroXAlvo) {
+    heroXAlvo = alvo;
+    if (direto) heroXT = 1.0e6f;
+    else {
+      // Interrompida no meio: o texto que sai parte de onde o novo estava e a arte nova ja comeca com o alfa que ela
+      // tinha por baixo (a soma continua igual: sem salto).
+      heroXSnap = ht_instante(heroXT);
+      heroXA0 = heroXT < NV_HERO_ARTE_FADE_MS ? 1.0f - ht_ease(heroXT / NV_HERO_ARTE_FADE_MS) : 0.0f;
+      heroXT = 0.0f;
+    }
+  } else if (heroXT < 1.0e5f) heroXT += direto ? 1.0e6f : dtMs;
+  { const float p = fminf(1.0f, heroXT / HT_TOTAL_MS); heroModoPasta = alvo ? p : 1.0f - p; }
+  // Sem pasta para sair (voltando a um titulo sem nunca ter visto uma): nada a cruzar.
+  const int temSaida = alvo ? 1 : col_folder(heroPastaUltima) != NULL;
+  if (heroXT >= HT_TOTAL_MS || !temSaida) {   // assentado: um desenho so, o natural
+    heroOverride = 0; heroXArte = 1.0f; heroXTx = NULL; gfx_opacidade_grupo = grupo; desenhaHero(agora, saida); return;
   }
-  const float m = heroModoPasta;
-  if (m <= 0.003f || m >= 0.997f || (id < 0 && !col_folder(heroPastaUltima))) {   // assentado: um desenho so
-    heroOverride = 0; gfx_opacidade_grupo = grupo; desenhaHero(agora, saida); return;
+  gfx_opacidade_grupo = grupo;
+  if (heroXT < NV_HERO_ARTE_FADE_MS) {   // O QUE SAI: por baixo, a arte inteira, o texto apagando e subindo
+    HtInstante sai;
+    for (int i = 0; i < HT_N; i++) {
+      sai.a[i] = heroXT < HT_SAIDA_MS ? ht_saida_alfa(&heroXSnap, i, heroXT) : 0.0f;
+      sai.dy[i] = ht_saida_dy(&heroXSnap, i, heroXT);
+    }
+    heroOverride = alvo ? 1 : 2; heroOvPasta = heroPastaUltima; heroXArte = 1.0f; heroXTx = &sai;
+    desenhaHero(agora, saida);
   }
-  const float e = m * m * (3.0f - 2.0f * m);   // quanto a PASTA ja valeu (0..1)
-  if (id >= 0) {   // titulo -> pasta: o titulo sai por baixo, a pasta acende por cima
-    heroOverride = 1; gfx_opacidade_grupo = grupo * (1.0f - e); desenhaHero(agora, saida);
-    heroOverride = 0; gfx_opacidade_grupo = grupo * e; desenhaHero(agora, saida);
-  } else {         // pasta -> titulo
-    heroOverride = 2; heroOvPasta = heroPastaUltima; gfx_opacidade_grupo = grupo * e; desenhaHero(agora, saida);
-    heroOverride = 0; gfx_opacidade_grupo = grupo * (1.0f - e); desenhaHero(agora, saida);
+  { // O QUE ENTRA: por cima, a arte acendendo e o texto entrando escalonado
+    HtInstante entra;
+    for (int i = 0; i < HT_N; i++) {
+      entra.a[i] = fmaxf(ht_entra_alfa(i, heroXT), HT_PISO);   // o piso rasteriza as linhas ja na troca
+      entra.dy[i] = ht_entra_dy(i, heroXT);
+    }
+    heroOverride = 0; heroXTx = &entra;
+    heroXArte = heroXA0 + (1.0f - heroXA0) * ht_ease(heroXT / NV_HERO_ARTE_FADE_MS);
+    desenhaHero(agora, saida);
   }
-  heroOverride = 0;
+  heroOverride = 0; heroXArte = 1.0f; heroXTx = NULL;
 }
 static void desenhaHero(Uint32 agora, float saida) {
   (void)agora;
   const int motionReduzido = ajustes_animacoes_reduzidas();
-  float aArte = 1.0f;
+  float aArte = heroXArte;   // 1 fora da troca entre destaque de titulo e de pasta (desenhaHeroCruzado)
   if (ajustes_home_layout() == HOME_LAYOUT_DINAMICA && palcoFundoModo == PALCO_ARTE) {
     const CatItem *item = cat_item_exato(palcoFundoItem);
     const char *art = palcoArte(item);
@@ -5714,11 +5743,17 @@ static void desenhaHero(Uint32 agora, float saida) {
     for(int i=0;i<colCamN;i++) {   // ARTE, de baixo para cima (a de cima acende por cima)
       const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
       float la=i==0?1.0f:ht_ease(colCam[i].t/NV_HERO_ARTE_FADE_MS);
-      pastaArteHero(f,r,modoHero,aArte*la,aBase*la,i==colCamN-1);
+      pastaArteHero(f,r,modoHero,aArte*la,aBase*la*heroXArte,i==colCamN-1);
     }
     for(int i=0;i<colCamN;i++) {   // TEXTO/LOGO, cada camada com a sua linha do tempo
       const ColFolder *f=col_folder(colCam[i].pasta); if(!f) continue;
       float al[HT_N],dy[HT_N]; int algum=0;
+      if(heroXTx) {   // troca titulo<->pasta: so a camada de cima fala, na linha do tempo da troca
+        if(i!=colCamN-1) continue;
+        for(int k=0;k<HT_N;k++) { al[k]=heroXTx->a[k]; dy[k]=heroXTx->dy[k]; if(al[k]>0.004f)algum=1; }
+        if(algum || al[0]>=HT_PISO) pastaTextoHero(f,aBase,al,dy,colLogoFator(&colCam[i],f));
+        continue;
+      }
       for(int k=0;k<HT_N;k++) {
         if(colCam[i].coberta) { al[k]=ht_saida_alfa(&colCam[i].snap,k,colCam[i].tCob); dy[k]=ht_saida_dy(&colCam[i].snap,k,colCam[i].tCob); }
         else { al[k]=ht_entra_alfa(k,colCam[i].t); dy[k]=ht_entra_dy(k,colCam[i].t);
@@ -6071,6 +6106,12 @@ static void desenhaHero(Uint32 agora, float saida) {
   // Fora disso (deslizar, reduzidas, efeitos minimos) nada muda.
   HeroEl elAtu, elAnt;
   const HeroEl *pElAtu = NULL;
+  HeroEl elX;
+  if (heroXTx) {   // troca titulo<->pasta (desenhaHeroCruzado): as curvas vem de la
+    float *xa[HT_N] = { &elX.aLogo, &elX.aMeta, &elX.aSin }, *xy[HT_N] = { &elX.dyLogo, &elX.dyMeta, &elX.dySin };
+    for (int i = 0; i < HT_N; i++) { *xa[i] = (i == 0 ? aTexto : aCopy) * heroXTx->a[i]; *xy[i] = heroXTx->dy[i]; }
+    pElAtu = &elX;
+  } else
   if (heroTextoAtivo && !deslizando && cAnt && cAnt != ci) {
     for (int i = 0; i < HT_N; i++) {
       float aA = ht_entra_alfa(i, heroTextoT), dA = ht_entra_dy(i, heroTextoT);
@@ -6125,7 +6166,7 @@ static void desenhaHero(Uint32 agora, float saida) {
       const char *rot = i18n("Ver título");
       // Em cinema o botao e o contador nao se desenham (o itemFoco la embaixo
       // segue valendo: a tecla que devolve a UI nao pode abrir o titulo errado).
-      float aBtn = aBotao * (1.0f - cin) * heroVisivelToque() * (lay == HOME_LAYOUT_MODERNA ? 1.0f : animBotaoHero);
+      float aBtn = aBotao * (1.0f - cin) * heroVisivelToque() * (lay == HOME_LAYOUT_MODERNA ? 1.0f : animBotaoHero) * (heroXTx ? heroXTx->a[0] : 1.0f);
       if (aBtn > 0.004f) {
         // Nos layouts novos o botao existe SEMPRE; so aceso (na cor de realce)
         // com o foco no destaque. Na Moderna ele so aparece com o foco la.
