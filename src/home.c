@@ -5500,6 +5500,25 @@ static int pastaFocoAtual(void) {
   if (fileiras[foco.fileira].tipo != FILEIRA_CATALOGOS || foco.coluna < 0 || foco.coluna >= fileiras[foco.fileira].n) return -1;
   return col_folder(fileiras[foco.fileira].folders[foco.coluna]) ? fileiras[foco.fileira].folders[foco.coluna] : -1;
 }
+// O modo NOVO ja tem arte e logo decodificadas? (a mesma regra das outras duas trocas: "troca so com a arte nova ja
+// decodificada"; sem isto o desenho novo saia vazio na TV e a area escurecia ate a textura chegar e estourar na tela.)
+static unsigned heroXTesteSegura = 0;   // so os testes: finge "ainda nao decodificou" por tantos ms
+static Uint32 heroXPendEm = 0;
+static int heroXPendente = 0;
+static int heroXNovoPronto(int alvo, int id) {
+  if (alvo) { const ColFolder *f = col_folder(id); pastaPrePedir(); return !f || pastaPronta(f); }
+  const int lay = layoutHome();
+  const int cheio = lay != HOME_LAYOUT_PADRAO && (homeRetratoTelefone() || ajustes_hero_cheio() || (lay == HOME_LAYOUT_MODERNA && focoHero));
+  const int idx = heroDesejado >= 0 ? heroDesejado : heroAtual;
+  const CatItem *c = idx >= 0 ? cat_item_exato(idx) : NULL;
+  if (!c) return 1;
+  const char *art = arte_por_identidade(idx, 2);
+  int pronto = !art || tex_obter_hero(art) || tex_falhou(art);
+  heroPedirLogo(c, lay, cheio);
+  const char *uL = artehero_logo_sessao(c);
+  if (uL && uL[0] && !tex_falhou(uL) && !tex_obter_logo_larg_qualquer(uL, heroLogoMaxW(lay, cheio))) pronto = 0;
+  return pronto;
+}
 static void desenhaHeroCruzado(Uint32 agora, float saida, float grupo) {
   const int id = pastaFocoAtual();
   const int alvo = id >= 0;
@@ -5507,7 +5526,26 @@ static void desenhaHeroCruzado(Uint32 agora, float saida, float grupo) {
   heroModoEm = agora;
   if (id >= 0) heroPastaUltima = id;
   const int direto = ajustes_animacoes_reduzidas() || anim_politica_reduzida || gfx_efeitos_minimos() || dtMs > 250.0f;
+  if (alvo == heroXAlvo) heroXPendente = 0;
   if (alvo != heroXAlvo) {
+    if (!direto) {
+      // ESPERA O MODO NOVO FICAR PRONTO, mostrando so o que ja esta na tela, inteiro (ate NV_HERO_ESPERA_MS, como as outras).
+      if (!heroXPendente) { heroXPendente = 1; heroXPendEm = agora; }
+      const Uint32 esp = (Uint32)(agora - heroXPendEm);
+      const int pronto = heroXNovoPronto(alvo, id) && esp >= heroXTesteSegura;
+      if (!pronto && esp < (Uint32)NV_HERO_ESPERA_MS && (alvo || col_folder(heroPastaUltima))) {
+        heroOverride = alvo ? 1 : 2; heroOvPasta = heroPastaUltima; heroXArte = 1.0f; heroXTx = NULL;
+        gfx_opacidade_grupo = grupo; desenhaHero(agora, saida);
+        heroOverride = 0; heroModoPasta = alvo ? 0.0f : 1.0f; return;
+      }
+      // O destaque de titulo novo entra ja assentado: a troca de titulo de dentro do modo nao corre junto com esta.
+      if (!alvo && heroDesejado >= 0 && heroDesejado != heroAtual) {
+        heroAnterior = heroAtual; heroAtual = heroDesejado; heroDesejado = -1;
+        heroSai = 0.0f; heroEntra = 1.0f; heroDesliza = 1.0f; heroTextoAtivo = 0; heroDirDesejado = 0;
+        heroTrocaEm = SDL_GetTicks() + NV_HERO_INTERVALO_MS;
+      }
+    }
+    heroXPendente = 0;
     heroXAlvo = alvo;
     if (direto) heroXT = 1.0e6f;
     else {

@@ -60,6 +60,20 @@ static void mede(int tecla, int quadros, long *passoMax, long *total, int *inter
     long d = faixa(c, guarda); if (d > *passoMax) *passoMax = d; memcpy(guarda, c, sizeof guarda);
     if (heroModoPasta > 0.05f && heroModoPasta < 0.95f) (*intermed)++; }
   lumArteFim = lumReg(guarda, 1150, 1800, 120, 420); *total = faixa(guarda, ini); free(ini); }
+
+// Espera pelo modo novo: enquanto ele nao esta pronto, fica o que ja esta na tela, INTEIRO (sem escurecer), e a troca so
+// comeca quando pronto — ou ao estourar NV_HERO_ESPERA_MS.
+static void espera(int tecla, unsigned segura, int *quadroInicio, double *desvioMax) {
+  heroXTesteSegura = segura;
+  desenhar_um(); unsigned char *c0 = captura(); double l0 = lumReg(c0, 1150, 1800, 120, 420);
+  key(tecla); *quadroInicio = -1; *desvioMax = 0;
+  for (int i = 0; i < 60; i++) { now += 16; tex_bombear(16); tex_novo_quadro(); txt_novo_quadro(); gfx_novo_quadro();
+    gfx_sem_recorte(); glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1); glClear(GL_COLOR_BUFFER_BIT);
+    home_atualizar(1.f / 60, now); home_desenhar(now); gfx_ambiente_descarregar();
+    double l = lumReg(captura(), 1150, 1800, 120, 420);
+    if (*quadroInicio < 0 && (heroModoPasta > 0.02f && heroModoPasta < 0.98f)) *quadroInicio = i;
+    if (*quadroInicio < 0 && fabs(l - l0) > *desvioMax) *desvioMax = fabs(l - l0); }
+  heroXTesteSegura = 0; }
 int main(void) {
   assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0); IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
@@ -117,6 +131,18 @@ int main(void) {
   mede(SDLK_DOWN, 8, &passo, &total, &inter);
   ok(inter == 0 && heroModoPasta > 0.99f, "animacoes reduzidas: troca direto, sem intermediarios");
   anim_politica_reduzida = 0;
+  // 4. Espera pelo modo novo (a arte nova ainda nao decodificou na TV).
+  { int ini; double dv; frames(60);
+    espera(SDLK_UP, 250, &ini, &dv);   // ja estamos na Collection: sobe para o poster, que "demora" 250 ms
+    printf("[medida] espera 250 ms (c->p): troca comeca no quadro %d, desvio max da arte antes disso %.2f\n", ini, dv);
+    ok(ini >= 13 && ini <= 22, "poster ainda nao pronto: a troca so comeca depois da espera (~250 ms), nao na hora");
+    ok(dv < 2.0, "...e ate la a arte antiga fica inteira na tela (sem escurecer, sem buraco)");
+    frames(60);
+    espera(SDLK_DOWN, 5000, &ini, &dv);   // nunca fica pronto: estoura em NV_HERO_ESPERA_MS
+    printf("[medida] espera estourada (p->c): troca comeca no quadro %d, desvio max %.2f\n", ini, dv);
+    ok(ini >= 34 && ini <= 44, "nunca pronto: estoura em NV_HERO_ESPERA_MS (600 ms) e troca mesmo assim");
+    ok(dv < 2.0, "...e ate estourar a arte antiga fica inteira");
+  }
   printf("home_colecao_cruza: %s\n", falhas ? "FALHOU" : "ok");
   return falhas ? 1 : 0;
 }
