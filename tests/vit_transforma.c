@@ -28,7 +28,7 @@ static int liberar(int f) {   // entrega o que o decode ja pediu; devolve quanto
   return falta; }
 static int homeDesenhos, bombear = 16, medePx, libA, libB;   // medePx: le os pixels (caro); libA/B: a "rede" das pastas frias ja responde
 static double fillQ, fillHomeQ;
-static unsigned char *px, *pxAnt; static double lumQ, difQ;
+static unsigned char *px, *pxAnt; static double lumQ, difQ; static int chegadaMedindo;
 // SALTO = um quadro que muda muito mais que os vizinhos (o pop de uma imagem que aparece de uma vez). Movimento
 // continuo (o cartao crescendo) muda bastante em TODO quadro e nao conta.
 // Um fade que comeca rapido (ease-out) tambem muda bastante no 1o quadro, mas o seguinte continua mudando; no
@@ -53,7 +53,13 @@ static void quadro(void) {
   for (int y = 0; y < 1080; y += 8) for (int x = 0; x < 1920; x += 8) { size_t i = ((size_t)y * 1920 + x) * 4;
     double v = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; l += v;
     d += (fabs((double)px[i] - pxAnt[i]) + fabs((double)px[i + 1] - pxAnt[i + 1]) + fabs((double)px[i + 2] - pxAnt[i + 2])) / 3.0; n++; }
-  lumQ = l / n; difQ = d / n; memcpy(pxAnt, px, 1920 * 1080 * 4); }
+  lumQ = l / n; difQ = d / n;
+  if (getenv("NV_DIFLOG") && chegadaMedindo && difQ > 5.0) {   // o par do salto, cru (rapido: nao muda o tempo do teste)
+    static int k; char cam[64]; FILE *f;
+    snprintf(cam, sizeof cam, "/tmp/salto-%d-antes.raw", k); if ((f = fopen(cam, "wb"))) { fwrite(pxAnt, 1, 1920 * 1080 * 4, f); fclose(f); }
+    snprintf(cam, sizeof cam, "/tmp/salto-%d-depois.raw", k); if ((f = fopen(cam, "wb"))) { fwrite(px, 1, 1920 * 1080 * 4, f); fclose(f); }
+    k++; }
+  memcpy(pxAnt, px, 1920 * 1080 * 4); }
 static void quadros(int n) { for (int i = 0; i < n; i++) quadro(); }
 static void ajuste(const char *k, int v) { char path[1024]; snprintf(path, sizeof path, "%s/ajustes.txt", getenv("NUVIO_DADOS")); FILE *f = fopen(path, "a"); assert(f);
   fprintf(f, "%s %d\n", k, v); fclose(f); ajustes_dir(getenv("NUVIO_DADOS")); }
@@ -195,10 +201,11 @@ int main(int argc, char **argv) {
     ok(m.msFim <= TR_TETO_MS + 17, "teto: fim em 1000 ms");
     ok(m.vazios == 0, "teto: cartaz que nao chegou NAO aparece vazio");
     unsigned long v0 = homeTesteCartaoVazio; double difMax = 0, dd[60];
-    libB = 1; medePx = 1;
+    libB = 1; medePx = 1; chegadaMedindo = 1;
     for (int i = 0; i < 60; i++) { SDL_Delay(25); quadro(); dd[i] = difQ; if (difQ > difMax) difMax = difQ;
-      if (pre && getenv("NV_CHEGADA")) { char f[32]; snprintf(f, sizeof f, "chegada-%02d", i); shot(pre, f); printf("[chegada] %02d dif=%.1f\n", i, difQ); } }
-    medePx = 0; int entregues = 0; for (int k = 0; k < 10; k++) entregues += fifoFeito[1][k] > 0;
+      if (pre && getenv("NV_CHEGADA")) { char f[32]; snprintf(f, sizeof f, "chegada-%02d", i); shot(pre, f); printf("[chegada] %02d dif=%.1f\n", i, difQ); }
+      if (getenv("NV_DIFLOG")) printf("[dif] %02d %.1f\n", i, difQ); }
+    medePx = 0; chegadaMedindo = 0; int entregues = 0; for (int k = 0; k < 10; k++) entregues += fifoFeito[1][k] > 0;
     printf("[medida] chegada depois do teto: %d arquivos entregues, dif max %.1f salto max %.1f vazios=%lu\n", entregues, difMax, salto(dd, 60), homeTesteCartaoVazio - v0);
     ok(entregues >= 5, "teto: os cartazes de fato chegaram depois (o teste mede algo)");
     ok(homeTesteCartaoVazio - v0 == 0 && salto(dd, 60) < 8.0, "teto: o que chega depois (cartazes e a arte do titulo) entra com fade, sem salto"); }
