@@ -327,6 +327,8 @@ static char pedAssistidoId[24];
 static int  pedDoInicio = 0;         // botao "Reproduzir desde o inicio"
 static Uint32 okDesceEm = 0;
 static float pg = 0.0f;              // 0..1: hero -> pagina rolada
+static int fundoSobHome;   // 2.0.46: 1 = o fundo ja foi desenhado neste quadro, SOB a Home (detail_fundo_sob_home)
+static float arteAncoraDy;   // 2.0.46: deslocamento da ancora vertical do cover (GFX_DETALHE uPar.y); 0 = centro
 static float pgAlvo = 0.0f;          // para onde pg vai (detail_transicao, vidro)
 static Foco foco;
 static float animFoco[N_SECOES][N_ITENS];
@@ -1475,14 +1477,14 @@ static void desenhaArteDetalhe(GfxRect alvo, GLuint tex, const char *arte,
     if (trailerFade > 0.005f && trailer_aberto() && !trailer_cheia()) {
       gfx_furo(alvo);
       if (trailerFade < 0.995f)
-        gfx_rect(alvo, tex, GFX_DETALHE, veu, 0, 0, 0.0f, 0, 0, 0, alpha * (1.0f - trailerFade));
+        gfx_rect(alvo, tex, GFX_DETALHE, veu, 0, arteAncoraDy, 0.0f, 0, 0, 0, alpha * (1.0f - trailerFade));
       // No modo cinema o bloco de texto saiu: o veu sai junto (fica 15%,
       // para o logo pequeno do canto nao flutuar sobre uma cena clara).
       gfx_rect(alvo, 0, GFX_DETALHE, veu * (1.0f - 0.85f * trailercinema_t(&trailerCinema)), 1.0f, 0, 0.0f, 0, 0, 0, alpha * trailerFade);
     } else {
       GfxRect holes[N_ITENS * 2];
       int n = epFuros(holes);
-      gfx_rect_furos(alvo, tex, GFX_DETALHE, veu, 0, 0, 0, 0, 0, 0, alpha, holes, n);
+      gfx_rect_furos(alvo, tex, GFX_DETALHE, veu, 0, arteAncoraDy, 0, 0, 0, 0, alpha, holes, n);
     }
   } else {
     float ap = gfx_tex_aspect_atual > 0.05f ? gfx_tex_aspect_atual : (2.0f / 3.0f);
@@ -1903,6 +1905,8 @@ static int carDesenhaFundo(void) {
 }
 
 int detail_aberto(void) { return aberto; }
+// Deslocamento da ancora vertical do cover do backdrop neste quadro (GFX_DETALHE uPar.y); 0 = centro. Para os testes.
+float detail_ancora_dy(void) { return arteAncoraDy; }
 // [quadro] do main: a pagina rolando para o heroi (sobe) ou para as fileiras.
 const char *detail_transicao(void) {
   if (!aberto || (fabsf(pg - pgAlvo) <= 0.02f && fabsf(velY) < 5.0f)) return "-";
@@ -2086,6 +2090,8 @@ static void backdropRect(GfxRect *r, float *opac) {
   // Sobe RAPIDO (s*3, nao s): a arte por baixo e a mesma, entao a rampa so
   // troca a vinheta do hero pela do detalhe.
   *opac = anim_clamp(s * 3.0f, 0.0f, 1.0f);
+  // A ancora vertical da arte vai da da HOME (Padrao 0,30) ao centro: no quadro 0 o recorte e o mesmo que ela mostrava.
+  arteAncoraDy = (home_hero_ancora() - 0.5f) * (1.0f - s);
 }
 
 int detail_cobre_tela(void) {
@@ -2114,6 +2120,10 @@ int detail_cobre_tela(void) {
   if (carro) return !(saindo && carEsperaRect > 0) && carFolha() >= 0.999f;
   { GfxRect r; float opac;
     backdropRect(&r, &opac);
+    // 2.0.46 (B5): a Home so deixa de ser desenhada quando ja e quase invisivel (as fileiras e o texto dela saem com
+    // (1 - progresso), e o backdrop agora vai POR BAIXO delas). Antes: assim que o backdrop cobria a tela (t ~ 0,13 na
+    // Moderna) a Home sumia e, na volta, voltava de uma vez com as fileiras a ~67% de opacidade (zona morta + pulo).
+    if (suave(t) < 0.88f) return 0;
     if (opac < 0.999f) return 0;
     return r.x <= 0.5f && r.y <= 0.5f &&
            r.x + r.w >= NV_TELA_W - 0.5f && r.y + r.h >= NV_TELA_H - 0.5f;
@@ -3645,6 +3655,7 @@ static void toquePessoaFocar(int i, int b) { (void)b; pessoaFoco = i; }
 static float blocoAnt[3] = { -1.0f, -1.0f, -1.0f };   // Notas / Numeros / Progresso no quadro anterior
 
 static void detail_atualizar_(float dt, Uint32 agora) {
+  fundoSobHome = 0;   // 2.0.46: so vale dentro do quadro em que a Home o pintou (nao herda de um quadro em que a Home nao desenhou)
   // World 22/11: o botao Trailer pedido antes da fonte responder abre quando ela chegar.
   if (trailerCheioPendente) {
     int k = trailerCheioPendente - 1, qual = 0;
@@ -7886,6 +7897,10 @@ static int epFuros(GfxRect *holes) {
   return n;
 }
 
+// 2.0.46 (B5): o fundo do detalhe e desenhado POR BAIXO da Home (home_desenhar chama detail_fundo_sob_home logo depois
+// do fundo dela). Antes ele vinha DEPOIS da Home: escondia as fileiras e o texto durante quase toda a saida (zona morta) e
+// o veu de s escurecia o que aparecia, e a arte da Home e a dele apareciam duplicadas (dois barcos deslocados).
+
 static void detalheFundo(float s) {
   if (!detail_cobre_tela() && !carDesenhaFundo()) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
@@ -7955,10 +7970,24 @@ static void detalheFundo(float s) {
     // ~30 fps, clr 22 ms + swap 21 ms). O teto de 0,998 que havia aqui
     // obrigava o caminho misturado; sem fundo intacto o caminho continua o
     // misturado (o "vazar"), com alfa 1 em vez de 0,998.
-    gfx_rect(alvo, tex, GFX_DETALHE, 1.0f, 0, 0, 0.0f, 0, 0, 0, aEntrada * (1.0f - pg));
+    gfx_rect(alvo, tex, GFX_DETALHE, 1.0f, 0, arteAncoraDy, 0.0f, 0, 0, 0, aEntrada * (1.0f - pg));
     gfx_tex_aspect_atual = 0.0f;
     nv_ambiente_forca = salva;
   }
+}
+
+// Chamada por home_desenhar quando o detalhe esta em transicao e a Home e a tela de tras. Devolve a opacidade com que o
+// backdrop cobre a arte do hero da Home (0..1), ou -1 se NAO desenhou (o fundo sai no lugar de sempre, depois da Home):
+// carrossel, trailer em tela cheia ou pagina rolada (pg > 0: o passo do vidro fica em detail_desenhar_). Vale para os tres
+// fundos (Arte, Borrada, Frost): a arte nitida do topo e a mesma em todos.
+float detail_fundo_sob_home(void) {
+  fundoSobHome = 0;
+  if (!aberto || carro || trailer_cheia() || carDesenhaFundo()) return -1.0f;
+  if (pg > 0.01f) return -1.0f;   // pagina rolada (e o passo do vidro): fica no caminho de sempre
+  { GfxRect r; float opac; backdropRect(&r, &opac);
+    detalheFundo(suave(t));
+    fundoSobHome = 1;
+    return opac; }
 }
 
 // A ILHA "MAIS OPCOES" por cima da pagina, ancorada no "..." onde ele foi
@@ -8007,7 +8036,8 @@ static void detail_desenhar_(Uint32 agora) {
   // para a cauda da mola (a 2% do fim); a exata volta com pg parado.
   { float d = fabsf(pg - pgAlvo);
     if (d > 0.002f) gfx_vidro_fundo_passo(d > 0.02f ? (int)(pg * 4.0f) : 4); }
-  detalheFundo(s);
+  if (fundoSobHome) fundoSobHome = 0;   // ja pintado sob a Home neste quadro
+  else detalheFundo(s);
   // O veu de leitura do heroi: fora do fundo, para valer sobre qualquer fundo
   // (arte nitida, borrada ou frost). Sai com a rolagem, com o modo cinema do
   // trailer e no cartao do carrossel (que tem o veu proprio).
@@ -8047,10 +8077,10 @@ static void detail_desenhar_(Uint32 agora) {
           dyCar = -CAR_TEXTO_SOBE * carTxt;
           aCar = anim_clamp(1.0f - fabsf(carOff - (float)carAplicado) * 4.0f, 0.0f, 1.0f);
         }
-        heroWeb(a2 * k * f * aCar, -scrollY + (1.0f - a2) * NV_TELA_H * 0.05f + c * NV_CINEMA_DESCE + dyCar);
+        heroWeb(a2 * k * f * aCar, -scrollY + c * NV_CINEMA_DESCE + dyCar);   // 2.0.46: sem a subida de 54 px do texto (so opacidade)
         heroDx = 0.0f;
       } else {
-        heroWeb(NV_TXTGATE_AQUECER, -scrollY + NV_TELA_H * 0.05f);
+        heroWeb(NV_TXTGATE_AQUECER, -scrollY);
         textogate_passo(&gateHero, txt_pendentes - pend0,
                         SDL_GetTicks());
       } }

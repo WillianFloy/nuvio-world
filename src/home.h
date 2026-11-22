@@ -96,6 +96,7 @@ void home_fileiras_vistas(Uint32 agora);
 // isto para nascer com o backdrop no mesmo lugar — o fundo do detalhe E a arte
 // do titulo em foco, e ela nao deve reaparecer, deve continuar.
 void home_hero_rect(float *x, float *y, float *w, float *h);
+float home_hero_ancora(void);   // ancora vertical (0..1) do cover da arte do hero; 0,5 = centro
 // A LINHA DE META do destaque do topo: episodio em andamento, genero, ano e
 // duracao — cada um no seu ajuste, sem buraco (o que some fecha o espaco).
 // Separada do desenho para o teste da combinacao dos ajustes (tests/herometa.c).

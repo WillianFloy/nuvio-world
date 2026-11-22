@@ -820,8 +820,14 @@ static const char *FS_CORPO[GFX_NMODOS] = {
   // A arte entra em "cover" com ancoragem CENTRAL, que e o que o web faz na
   // pratica: a regra e `background-position:100% 0`, mas o backdrop e 16:9 num
   // quadro 16:9 e nao sobra nada para deslocar.
+  //
+  // 2.0.46 (B5): uPar.y = deslocamento da ANCORA vertical do cover (0 = centro, o de sempre). A Home do Padrao ancora a
+  // arte em 0,30 (GFX_VITRINE); com o backdrop ancorado em 0,50 a arte saltava ~130 px na vertical ao abrir/fechar o
+  // detalhe. A transicao passa por aqui a ancora da Home e a leva ao centro junto com a abertura.
   "void main(){\n"
-  "  vec3 c = texture2D(uTex, clamp(cover(vUv), 0.0, 1.0)).rgb;\n"
+  "  vec2 cuv = cover(vUv);\n"
+  "  if (uTexAsp > 0.0 && uAspect / uTexAsp > 1.0) cuv.y += uPar.y * (1.0 - uTexAsp / uAspect);\n"
+  "  vec3 c = texture2D(uTex, clamp(cuv, 0.0, 1.0)).rgb;\n"
   "  vec3 bg = uFundo;\n"   // #0d0d0d fora do estilizado
   "  float x = vUv.x;\n"
   // CURVA LISA NO LUGAR DAS RAMPAS (dono, 29/09/2026: "o gradiente do
