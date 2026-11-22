@@ -99,7 +99,7 @@ int main(void) {
     "{\"id\":\"b\",\"title\":\"Pasta B\",\"heroBackdropUrl\":\"deploy/app/art/05.jpg\",\"coverImageUrl\":\"deploy/app/art/poster/14.jpg\",\"sources\":[{\"provider\":\"tmdb\",\"tmdbSourceType\":\"DISCOVER\",\"title\":\"Popular\"}]}]}]}") == 2);
   cat_definir_tudo(it, ROWS * ITEMS, rows, ROWS);
   char path[1024]; snprintf(path, sizeof path, "%s/ajustes.txt", getenv("NUVIO_DADOS")); FILE *f = fopen(path, "w"); assert(f);
-  fprintf(f, "homeLayoutLocal 1\nvidroLocal 1\ntrailerHero 0\nsocialLocal 0\nidioma 0\n"); fclose(f);
+  fprintf(f, "homeLayoutLocal %s\nvidroLocal 1\ntrailerHero 0\nsocialLocal 0\nidioma 0\n", getenv("NV_LAYOUT") ? getenv("NV_LAYOUT") : "1"); fclose(f);
   ajustes_dir(getenv("NUVIO_DADOS"));
   home_ir_topo(); frames(150);
   int rc = -1; for (int r = 0; r < nFileiras; r++) if (fileiras[r].tipo == FILEIRA_CATALOGOS) rc = r;
@@ -142,6 +142,24 @@ int main(void) {
     printf("[medida] espera estourada (p->c): troca comeca no quadro %d, desvio max %.2f\n", ini, dv);
     ok(ini >= 34 && ini <= 44, "nunca pronto: estoura em NV_HERO_ESPERA_MS (600 ms) e troca mesmo assim");
     ok(dv < 2.0, "...e ate estourar a arte antiga fica inteira");
+  }
+  // 5. O destaque que ENTRA e o do poster em foco, nao um titulo "desejado" velho. Com o foco numa Collection o carrossel do
+  // destaque segue andando (ha "nenhum cartaz em foco") e deixa outro titulo como heroDesejado; o video da TV (f36-f44) mostrou o
+  // destaque pousando nesse titulo errado (Batman) e so depois trocando para o do poster (Coracao Selvagem).
+  { frames(60);
+    key(SDLK_DOWN); frames(90);   // garante o foco na Collection
+    int alvoCol = pastaFocoAtual() >= 0;
+    const int velhoA = 3, velhoB = 7;
+    { const char *av = arte_por_identidade(velhoB, 2); for (int i = 0; i < 60; i++) { if (av) (void)tex_obter_hero(av); frames(1); } }   // como na TV: a arte velha ja esta em cache
+    heroAtual = velhoA; heroDesejado = velhoB;   // o que o carrossel deixou para tras
+    int trocas = 0, ultimo = heroAtual;
+    key(SDLK_UP);
+    for (int i = 0; i < 90; i++) { frames(1); if (heroAtual != ultimo) { trocas++; ultimo = heroAtual; printf("[medida]   quadro %d: heroAtual=%d desejado=%d modo=%.2f\\n", i, heroAtual, heroDesejado, heroModoPasta); } }
+    int idxFoco = foco.fileira >= 0 ? fileiraItemIndice(&fileiras[foco.fileira], foco.coluna) : -1;
+    printf("[medida] titulo do destaque na volta ao poster: foco=%d final=%d trocas=%d (velhos %d e %d)\n", idxFoco, heroAtual, trocas, velhoA, velhoB);
+    ok(alvoCol && pastaFocoAtual() < 0, "voltou da Collection para uma fileira de poster");
+    ok(heroAtual == idxFoco, "o destaque termina no titulo do poster em foco");
+    ok(trocas <= 1, "...pousando direto nele (uma troca so), sem passar por um titulo velho antes");
   }
   printf("home_colecao_cruza: %s\n", falhas ? "FALHOU" : "ok");
   return falhas ? 1 : 0;

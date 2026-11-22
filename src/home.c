@@ -5505,11 +5505,22 @@ static int pastaFocoAtual(void) {
 static unsigned heroXTesteSegura = 0;   // so os testes: finge "ainda nao decodificou" por tantos ms
 static Uint32 heroXPendEm = 0;
 static int heroXPendente = 0;
+// O titulo que o destaque de titulo vai mostrar ao entrar: o do POSTER EM FOCO. Nao o `heroDesejado`: com o foco numa Collection nao
+// ha "cartaz em foco" e o carrossel do destaque segue andando, deixando ali um titulo qualquer (no video da TV: o Batman, com o foco
+// ja no Coracao Selvagem). Com o foco no proprio destaque (focoHero) vale o que ele ja queria.
+static int heroXTituloEntra(void) {
+  if (!focoHero && foco.fileira >= 0 && foco.fileira < nFileiras && fileiras[foco.fileira].tipo != FILEIRA_CATALOGOS &&
+      foco.coluna >= 0 && foco.coluna < fileiras[foco.fileira].n) {
+    const int i = fileiraItemIndice(&fileiras[foco.fileira], foco.coluna);
+    if (i >= 0 && i < cat_n()) return i;
+  }
+  return heroDesejado >= 0 ? heroDesejado : heroAtual;
+}
 static int heroXNovoPronto(int alvo, int id) {
   if (alvo) { const ColFolder *f = col_folder(id); pastaPrePedir(); return !f || pastaPronta(f); }
   const int lay = layoutHome();
   const int cheio = lay != HOME_LAYOUT_PADRAO && (homeRetratoTelefone() || ajustes_hero_cheio() || (lay == HOME_LAYOUT_MODERNA && focoHero));
-  const int idx = heroDesejado >= 0 ? heroDesejado : heroAtual;
+  const int idx = heroXTituloEntra();
   const CatItem *c = idx >= 0 ? cat_item_exato(idx) : NULL;
   if (!c) return 1;
   const char *art = arte_por_identidade(idx, 2);
@@ -5538,12 +5549,15 @@ static void desenhaHeroCruzado(Uint32 agora, float saida, float grupo) {
         gfx_opacidade_grupo = grupo; desenhaHero(agora, saida);
         heroOverride = 0; heroModoPasta = alvo ? 0.0f : 1.0f; return;
       }
-      // O destaque de titulo novo entra ja assentado: a troca de titulo de dentro do modo nao corre junto com esta.
-      if (!alvo && heroDesejado >= 0 && heroDesejado != heroAtual) {
-        heroAnterior = heroAtual; heroAtual = heroDesejado; heroDesejado = -1;
-        heroSai = 0.0f; heroEntra = 1.0f; heroDesliza = 1.0f; heroTextoAtivo = 0; heroDirDesejado = 0;
-        heroTrocaEm = SDL_GetTicks() + NV_HERO_INTERVALO_MS;
-      }
+    }
+    // O destaque de titulo novo entra ja assentado, NO POSTER EM FOCO (tambem sem animacao): a troca de titulo de dentro do modo
+    // nao corre junto com esta, e nao pode pousar num titulo velho para trocar de novo logo depois.
+    if (!alvo) {
+      const int novo = heroXTituloEntra();
+      if (novo != heroAtual) heroAnterior = heroAtual;
+      heroAtual = novo; heroPendente = novo; heroDesejado = -1;
+      heroSai = 0.0f; heroEntra = 1.0f; heroDesliza = 1.0f; heroTextoAtivo = 0; heroDirDesejado = 0;
+      heroTrocaEm = SDL_GetTicks() + NV_HERO_INTERVALO_MS;
     }
     heroXPendente = 0;
     heroXAlvo = alvo;
