@@ -164,6 +164,8 @@ jobs:
         run: bash tests/trailertt.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
+      - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)
+        run: bash tests/ajustes_world_modelo.sh
       - name: Run focus ring concentricity test
         run: bash tests/anel_foco.sh
       - name: Run image toll (pedagio) test

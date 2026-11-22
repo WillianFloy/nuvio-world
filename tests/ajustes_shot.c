@@ -83,6 +83,19 @@ extern void ajustes_teste_tema(int tema, int vidro);
 extern void ajustes_teste_vidro_env(void);
 extern void ajustes_teste_layout(int lista);
 extern int ajustes_teste_quadro(const char *id);
+extern int ajustes_teste_world(int cena, const char **nome);
+extern int ajustes_teste_world_estado(int *op, int *modo, int *indice, int *editor, int *topo);
+extern int ajustes_teste_world_op(const char *n);
+extern int ajustes_teste_world_valor(const char *n);
+extern int ajustes_teste_world_padrao(const char *n);
+extern void ajustes_teste_world_definir(const char *n, int v);
+extern int ajustes_teste_world_rascunho(void);
+extern void ajustes_teste_world_vencer(void);
+extern void ajustes_teste_world_focar(const char *n);
+extern int ajustes_teste_world_nres(void);
+extern void ajustes_teste_world_buscar(const char *q);
+extern int ajustes_teste_world_guia(void);
+extern int ajustes_teste_world_sair(void);
 static int quadrosCaptura = 60;
 
 static void tecla(SDL_Keycode k) {
@@ -92,6 +105,97 @@ static void tecla(SDL_Keycode k) {
   ajustes_evento(&e);
 }
 
+static void teclaCima(SDL_Keycode k) {
+  SDL_Event e = { 0 };
+  e.type = SDL_KEYUP; e.key.keysym.sym = k;
+  ajustes_evento(&e);
+}
+static int wFalhas;
+#define WCHECA(c, ...) do { if (!(c)) { wFalhas++; printf("FALHOU (%s:%d): ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
+// Comportamento da tela World com teclas de verdade (KEYDOWN/KEYUP).
+static void worldTeste(void) {
+  int op, modo, ind, ed, topo, sec, sec0;
+  const char *n;
+  { static char dir[] = "/tmp/nuvio-ajw-XXXXXX"; if (mkdtemp(dir)) ajustes_dir(dir); }
+  // 1. Abas: laterais trocam a categoria; Baixo entra na lista; Cima na 1a linha volta.
+  ajustes_teste_world(0, &n);
+  sec0 = ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ind == 1 && topo == -1, "comeca nas abas (ind=%d topo=%d)", ind, topo);
+  tecla(SDLK_RIGHT); sec = ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(sec == sec0 + 1 && ind == 1, "Direita troca de aba (%d -> %d)", sec0, sec);
+  tecla(SDLK_LEFT); sec = ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(sec == sec0, "Esquerda volta a aba");
+  tecla(SDLK_DOWN); ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ind == 0 && op >= 0, "Baixo entra na lista");
+  for (int i = 0; i < 40; i++) { tecla(SDLK_UP); ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo); if (ind) break; }
+  WCHECA(ind == 1 && topo == -1, "Cima na primeira linha volta as abas");
+  tecla(SDLK_UP); ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(topo == 0, "Cima nas abas vai ao Buscar");
+  // 2. Setas na linha: rascunho, so grava depois da pausa ou ao sair da linha.
+  ajustes_teste_world(1, &n);
+  ajustes_teste_world_definir("colgif", 0); ajustes_teste_world_focar("colgif");
+  tecla(SDLK_RIGHT);
+  WCHECA(ajustes_teste_world_valor("colgif") == 0 && ajustes_teste_world_rascunho() == 1, "Direita so muda o rascunho");
+  ajustes_teste_world_vencer();
+  WCHECA(ajustes_teste_world_valor("colgif") == 1 && ajustes_teste_world_rascunho() == -999, "a pausa grava (valor %d)", ajustes_teste_world_valor("colgif"));
+  tecla(SDLK_RIGHT); tecla(SDLK_RIGHT);
+  WCHECA(ajustes_teste_world_rascunho() == 2, "nao passa do ultimo valor");
+  tecla(SDLK_DOWN);
+  WCHECA(ajustes_teste_world_valor("colgif") == 2, "sair da linha grava o rascunho");
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ed == 0, "gravar nao deixa a pagina aberta");
+  // 3. Interruptor: lateral troca na hora.
+  { int antes = ajustes_teste_world_valor("relogio");
+    ajustes_teste_world_focar("relogio"); tecla(SDLK_LEFT);
+    WCHECA(ajustes_teste_world_valor("relogio") == !antes, "interruptor troca na hora"); }
+  // 4. Segurar OK volta ao padrao, sem abrir a pagina; o soltar nao age.
+  ajustes_teste_world_definir("colgif", 2); ajustes_teste_world_focar("colgif");
+  tecla(SDLK_RETURN);
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ed == 0, "OK com padrao para voltar espera o soltar");
+  ajustes_teste_world_vencer();
+  WCHECA(ajustes_teste_world_valor("colgif") == ajustes_teste_world_padrao("colgif"), "segurar OK restaura (%d)", ajustes_teste_world_valor("colgif"));
+  teclaCima(SDLK_RETURN);
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ed == 0, "o soltar depois de restaurar nao abre nada");
+  // 5. OK curto abre a pagina; setas andam; OK grava; Voltar sai sem mudar.
+  ajustes_teste_world_definir("colgif", 2); ajustes_teste_world_focar("colgif");
+  tecla(SDLK_RETURN); teclaCima(SDLK_RETURN);
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ed == 1, "OK curto abre a pagina de valores");
+  tecla(SDLK_UP); tecla(SDLK_RETURN);
+  WCHECA(ajustes_teste_world_valor("colgif") == 1, "OK na pagina grava (valor %d)", ajustes_teste_world_valor("colgif"));
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ed == 0, "gravou e fechou");
+  ajustes_teste_world_focar("colexib"); tecla(SDLK_RETURN); teclaCima(SDLK_RETURN);
+  { int v0 = ajustes_teste_world_valor("colexib");
+    tecla(SDLK_DOWN); tecla(SDLK_RIGHT); tecla(SDLK_ESCAPE);
+    ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+    WCHECA(ed == 0 && ajustes_teste_world_valor("colexib") == v0, "Voltar sai sem mudar"); }
+  // 6. Busca: resultados; OK leva a opcao na categoria.
+  ajustes_teste_world_buscar("relógio");
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(ajustes_teste_world_nres() > 0 && modo == 1, "busca acha (%d)", ajustes_teste_world_nres());
+  tecla(SDLK_RETURN); teclaCima(SDLK_RETURN);
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(modo == 0 && ind == 0 && op >= 0 && ed == 0, "OK na busca abre na categoria");
+  ajustes_teste_world_buscar("relógio");
+  tecla(SDLK_ESCAPE); ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(modo == 0 && ind == 1 && topo == 0, "Voltar limpa a busca e volta ao Buscar");
+  // 7. Alterados e Guia pelo alto; Voltar nas abas sai.
+  ajustes_teste_world(10, &n);
+  ajustes_teste_world_definir("relogio", !ajustes_teste_world_padrao("relogio"));
+  tecla(SDLK_RIGHT); tecla(SDLK_RETURN);
+  ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);
+  WCHECA(modo == 2 && ind == 0, "Alterados lista o que mudou");
+  ajustes_teste_world(10, &n);
+  tecla(SDLK_RIGHT); tecla(SDLK_RIGHT); tecla(SDLK_RETURN);
+  WCHECA(ajustes_teste_world_guia(), "Guia abre o guia de uso");
+  ajustes_teste_world(0, &n);
+  tecla(SDLK_ESCAPE);
+  WCHECA(ajustes_teste_world_sair(), "Voltar nas abas sai dos Ajustes");
+  printf(wFalhas ? "FALHOU: %d verificacao(oes) do World\n" : "PASS: comportamento dos Ajustes World\n", wFalhas);
+}
 static void captura(const char *nome, SDL_Window *win) {
   int i;
   rail_shot_aplicar();
@@ -528,6 +632,16 @@ int main(int argc, char **argv) {
     goto fim_capturas;
   }
 
+  // AJUSTES WORLD (NV_AJUSTES_CHEIA): as telas do layout aprovado em 21/11.
+  if (getenv("NUVIO_SHOT_WORLD_TESTE")) { worldTeste(); return wFalhas ? 1 : 0; }
+  if (getenv("NUVIO_SHOT_WORLD")) {
+    const char *n;
+    for (i = 0; ajustes_teste_world(i, &n); i++) {
+      snprintf(nome, sizeof nome, "%s-w-%02d-%s.png", saida, i, n);
+      captura(nome, w);
+    }
+    goto fim_capturas;
+  }
   // Cenários do novo contrato: categoria, seleção, cancelamento,
   // dependência e restauração. Só fixtures em memória, sem dados pessoais.
   static const char *const cenarios[] = {

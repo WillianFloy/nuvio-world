@@ -200,6 +200,10 @@ typedef enum {
   TXT_SINOPSE_28, TXT_SINOPSE_29, TXT_SINOPSE_30, TXT_SINOPSE_31,
   TXT_SINOPSE_33, TXT_SINOPSE_34, TXT_SINOPSE_35, TXT_SINOPSE_39,
   TXT_SINOPSE_20, // 125% de 16px; append-only, preserva os estilos anteriores
+  // AJUSTES WORLD (TV, 21/11; ajustes_ux_world.inc): o mockup de 1280 a 1,5x.
+  TXT_W_ABA_B,    // aba ativa, valor em foco, botoes (28 / 700)
+  TXT_W_LN,       // rotulo da linha (30 / 500)
+  TXT_W_LN_B,     // rotulo da linha em foco (30 / 700)
   TXT_NFONTES
 } TxtEstilo;
 

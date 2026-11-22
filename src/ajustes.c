@@ -2804,6 +2804,14 @@ static int ajOpcaoDisponivel(int op);
 static int uxTemPadrao(int op);
 static int uxDiferente(int op);
 static void uxCancelar(void);
+// AJUSTES WORLD (TV, ajustes_ux_world.inc): a tela de tela cheia aprovada em 21/11.
+static int ajwAtivo(void);
+static int ajwEvento(SDL_Keycode k);
+static int ajwEventoBruto(const SDL_Event *e);
+static void ajwReiniciar(void);
+static void ajwAtualizar(float dt);
+static void ajwTecladoLer(void);
+static void ajwDesenhar(void);
 
 int ajustes_pediu_busca(void) { int p = uxPediuBusca; uxPediuBusca = 0; return p; }
 void ajustes_abrir_opcao(int op) {
@@ -3165,7 +3173,8 @@ float ajustes_tamanho_ajustes(void) {
   return ajRetrato() ? s * 1.25f : s;
 }
 // The phone always uses List. Keep the stored TV preference unchanged.
-static int ajLayoutSelecionavel(void) { return !telefoneui_ativo(); }
+// World (TV): um menu so (ajustes_ux_world.inc); o Painel e a Lista nao valem.
+static int ajLayoutSelecionavel(void) { return !telefoneui_ativo() && !ajCheiaTv(); }
 static int ajOpcaoDisponivel(int op) {
 #ifdef NV_SEM_VIDRO
   // O vidro saiu (ver ajustes_vidro): a opcao e as que dependem dela somem da
@@ -6742,6 +6751,7 @@ int ajustes_iniciar(void) {
 #endif
   ppReconciliar();
   ajMovReiniciar();
+  ajwReiniciar();
   faRetornarFolha = 0; faAddonEditar[0] = 0; ajFalhaEspelhar(); ajLegendaEspelhar(); ajIptvEspelhar();
   uxVeioBusca = uxAbrirOp >= 0;
   montarTela();
@@ -9760,6 +9770,10 @@ void ajustes_evento(const SDL_Event *e) {
   AJ_ESCALA_INI();
   if (guiaAberto) { guiaEvento(e); AJ_ESCALA_FIM(); return; }
   if (apoioAberto) { apoioEvento(e); AJ_ESCALA_FIM(); return; }
+  if (ajwAtivo() && ajwEventoBruto(e)) {
+    if (!(emEdicao && focoOp == AJ_FIL_LIMITE) || sair) fil_confirmar_limite();
+    AJ_ESCALA_FIM(); return;
+  }
   eventoTela(e);
   // FIM DA EDICAO DO LIMITE (issue #197): qualquer tecla que solte a linha
   // (OK, Voltar, cima/baixo, sair da tela) confirma a rajada. Sem rajada em
@@ -9807,7 +9821,7 @@ static void eventoTela(const SDL_Event *e) {
   if (frAberta) { frEvento(k); return; }
   // A folha de fileiras e modal, como a do vinculo acima.
   if (filAberta) { eventoFileiras(k); return; }
-  if (uxEvento(k)) return;
+  if (ajwAtivo() ? ajwEvento(k) : uxEvento(k)) return;
 
   if (k == SDLK_RETURN || k == SDLK_KP_ENTER) {
     // OK NUM GRUPO abre ou fecha (sanfona: abrir um fecha o outro). O foco
@@ -10121,6 +10135,7 @@ void ajustes_atualizar(float dt, Uint32 agora) {
   // TECLADO_NADA na segunda, e por isso a gravacao acontece aqui, uma vez.
   // COM A MODAL DE PESSOAS ABERTA O TECLADO E DELA: ler aqui consumiria o
   // resultado antes de ela ver (e o apelido digitado se perderia em silencio).
+  if (ajwAtivo()) { ajwTecladoLer(); ajwAtualizar(dt); }
   if (!pessoas_aberto()) hcTecladoLer();
   { int r = pessoas_aberto() ? TECLADO_NADA : teclado_resultado();
     if (configCopiaPendente && r != TECLADO_NADA) {
@@ -10915,6 +10930,7 @@ static AjPreview familiaPreviaOpcao(int op) {
 }
 
 #include "ajustes_ux_desenho.inc"
+#include "ajustes_ux_world.inc"
 
 #ifdef AJUSTES_TESTE
 void teclado_teste_texto(const char *t);
@@ -10941,7 +10957,7 @@ static void ajDesenharTudo(Uint32 agora) {
 #endif
   montarTela();
   if (guiaAberto) { ponteiro_camada(); guiaDesenhar(); return; }
-  ajDesenharTela();
+  if (ajwAtivo()) ajwDesenhar(); else ajDesenharTela();
 
   // A folha de fileiras cobre a lista; o vinculo cobre as duas, porque ele e a
   // unica coisa aqui com prazo (o codigo do dispositivo expira).
@@ -10991,6 +11007,7 @@ static void ajDesenharTudo(Uint32 agora) {
 float ajustes_ilha_x(void) { return aj2X0() * ajustes_tamanho_ajustes(); }
 int ajustes_edicao_ativa(void) { return uxEditor != 0; }
 int ajustes_relogio_cabe(void) {
+  if (ajwAtivo()) return 0;   // World: o alto e dos botoes Buscar/Alterados/Guia
   TraEstado ta = traktauth_estado();
   SmkEstado sa = simklauth_estado();
   if (teclado_aberto() || (ajModalAberto() && !filAberta)) return 0;
