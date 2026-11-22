@@ -1967,6 +1967,9 @@ float menu_topo_padrao_base(void) {
     + TK(9.0f) * esc;
   return b * NV_MENU_ESCALA;
 }
+// World 22/11: quanto o menu do topo ja esta aberto POR CIMA da tela (0 recolhido, 1 aberto).
+// A Vitrine usa para apagar o cabecalho da colecao enquanto a barra ocupa o lugar dele.
+float menu_topo_abertura(void) { return topo() ? limita01(anim_suave(desliza)) : 0.0f; }
 void menu_topo_geo(MenuTopoGeo *o) {
   TopoTira t;
   float e = NV_MENU_ESCALA, x0;
@@ -2023,7 +2026,7 @@ static void topoGeoLog(int id, float capX, float capW, float cobre, float cx, fl
 }
 static void topoDesenharPadrao(void) {
   TopoTira t;
-  int k, focos = aberto || desliza >= 0.002f || expande > 0.004f;
+  int k, deslocou = 0, focos = aberto || desliza >= 0.002f || expande > 0.004f;
   float a, x0, y, fAv, ar, ag, ab;
   topoMedir(&t);
   x0 = topoX0(&t);
@@ -2041,6 +2044,13 @@ static void topoDesenharPadrao(void) {
   // so (alto da tela, sem borda: termina em zero) e da sombra do proprio texto.
   gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, TOPO_Y + TOPO_H * 3.2f }, 1, 1.5f, 1.0f,
               a * (0.58f + 0.24f * anim_suave(desliza)));
+  // World 22/11 (TCL: na Padrao o menu "aparece de repente"): so o alfa mudava, sem nenhum movimento. Agora a
+  // tira DESCE do alto enquanto acende (e sobe ao apagar), como o menu da Moderna chega junto do destaque. O veu
+  // acima fica parado; com Animacoes reduzidas, ou dentro de outra transformacao, so o alfa (como antes).
+  if (!(anim_politica_reduzida || ajustes_animacoes_reduzidas()) && !gfx_transformado()) {
+    float dy = -TS(34.0f) * (1.0f - limita01(a));
+    if (dy < -0.5f) { gfx_transformar(0.0f, 0.0f, 1.0f, 0.0f, dy); deslocou = 1; }
+  }
   if (aberto) ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroFora, 0, 0);
   // Perfil.
   fAv = focos ? animFoco[MENU_RODAPE] : 0.0f;
@@ -2096,6 +2106,7 @@ static void topoDesenharPadrao(void) {
       txt_desenhar_tom(l, tx, y + (TOPO_PILULA_H - l.h) * 0.5f, 0.953f, 0.949f, 0.937f, ta);
     }
   }
+  if (deslocou) gfx_sem_transformar();
 }
 
 static void topoDesenhar(void) {

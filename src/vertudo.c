@@ -176,8 +176,11 @@ int vertudo_cobre_tela(void) {
   if (!aberta) return 0;
   if (!vooTem) return 1;
   if (vooSaindo) return 0;
+  // World 22/11: com o destaque em faixa (Padrao) a Home so sai de cena quando as fileiras dela terminaram de
+  // apagar (revelacao r >= 0,45, ver tr_fundo_padrao): antes ela sumia assim que o cartao chegava e a metade de
+  // baixo da tela ficava PRETA ate as fileiras da Colecao entrarem.
+  if (!vooDestCobre) return vitTr.r >= 0.45f;
   if (vitTr.p >= TR_P_SAIDA) return 1;
-  if (!vooDestCobre) return 0;
   GfxRect r = vooRect();
   return r.x <= 0.5f && r.y <= 0.5f && r.x + r.w >= NV_TELA_W - 0.5f && r.y + r.h >= NV_TELA_H - 0.5f;
 }
@@ -185,7 +188,8 @@ int vertudo_home_oculta_origem(void) { return vooTem && !vooSaindo; }
 float vertudo_home_recuo(float *textoVisivel) {
   float rec = 0.0f, tx = 1.0f;
   if (vooTem) {
-    rec = tr_home_recuo(vitTr.p); tx = tr_home_texto(vitTr.p);
+    rec = vooDestCobre ? tr_home_recuo(vitTr.p) : 0.0f;   // Padrao: a Home nao recua (o destaque dela e a Vitrine se encontram no mesmo lugar)
+    tx = tr_home_texto(vitTr.p);
     if (vooSaindo) { rec *= anim; tx = 1.0f - (1.0f - tx) * anim; }
   }
   if (textoVisivel) *textoVisivel = tx;
@@ -233,18 +237,12 @@ static int vtTimelineRetrato(void) { return timeline && vtTelefone() && NV_TELA_
 static float vtInicio(void) {
   return vtTelefone() ? 48.0f + ajustes_rail_largura_fixa() / vtEscala() : ajustes_conteudo_x();
 }
-// World 22/11 (TCL, "Coleção Ação" embaixo do avatar e da busca): com o MENU NO TOPO a faixa
-// do cabecalho da colecao desce para baixo da barra (o mesmo que a Home Padrao faz com o
-// destaque, menuTeto). Sem menu no topo, NV_ILHA_Y de sempre.
-static float vtIlhaY(void) {
-  MenuTopoGeo g;
-  float base;
-  if (vtTelefone() || !ajustes_menu_topo()) return NV_ILHA_Y;
-  menu_topo_geo(&g);
-  if (g.h <= 0.0f) return NV_ILHA_Y;
-  base = (g.y + g.h) / vtEscala() + 14.0f;
-  return base > NV_ILHA_Y ? base : NV_ILHA_Y;
-}
+// World 22/11: o cabecalho da colecao fica SEMPRE no lugar de sempre (NV_ILHA_Y). Antes ele descia para baixo do
+// menu do topo, e sem o menu fixo (ele so aparece ao ganhar o foco) o nome ficava baixo demais, longe do
+// topo, sem motivo. Agora o menu e o cabecalho TROCAM de lugar: o nome da colecao apaga enquanto a barra abre
+// por cima dele, e volta quando ela recolhe (vtCabMenu).
+static float vtIlhaY(void) { return NV_ILHA_Y; }
+static float vtCabMenu(void) { return vtTelefone() ? 1.0f : 1.0f - menu_topo_abertura(); }
 static float vtFim(void) { return vtTelefone() ? NV_TELA_W - 48.0f : VT_PAN_X - VT_PAN_VAO; }
 static float vtCabecalhoLargura(float x, float original) {
   if (!vtTelefone()) return original;
@@ -3642,10 +3640,11 @@ static void themeHeader(float a,float x0) {
     ?txt_linha_corta(TXT_HERO_META,rotuloGrupo(),197,202,211,255,vtCabecalhoLargura(x0,960))
     :txt_linha(TXT_HERO_META,rotuloGrupo(),197,202,211,255);
   float ey=vtIlhaY()+(NV_ILHA_H-eyebrow.h)*.5f,fim;
+  const float aOri=a;   // o resto do cabecalho (legenda, botoes) nao some com o menu
+  a*=vtCabMenu();
   if(!grupo("Streaming"))txt_desenhar_alpha(eyebrow,x0,ey,a);
   cabEb=(GfxRect){x0,ey,eyebrow.w,eyebrow.h};
   int ehDiretor=collection&&!strcasecmp(collection->group,"Directors");
-  float dTopo=vtIlhaY()-NV_ILHA_Y;   // World 22/11: com o menu no topo, o cabecalho desce para baixo dele
   // O wordmark de uma coleção de diretores pode conter cabeça ou lettering
   // composto. No cabeçalho da filmografia, o nome textual e o retrato limpo
   // deixam a identidade legível sem duplicar a mesma informação visual.
@@ -3657,9 +3656,7 @@ static void themeHeader(float a,float x0) {
     // Wordmark oficial, grande o bastante para leitura a distancia. O PNG
     // transparente e importado em ate 800px, portanto 560px nao interpola para
     // cima nem perde a silhueta original da marca.
-    float w=vtCabecalhoLargura(x0,560),h=w/aspect,y=(grupo("Streaming")?56:83)+dTopo;if(h>108){h=108;w=h*aspect;}
-    // World 22/11: abaixo do menu no topo a marca encolhe para caber antes das abas/legenda.
-    { float hm=(nAbas()?VT_AB_Y-NV_CTRL_H*.5f-24.0f:VT_TOPO-80.0f)-y; if(hm<40.0f)hm=40.0f; if(h>hm){h=hm;w=h*aspect;} }
+    float w=vtCabecalhoLargura(x0,560),h=w/aspect,y=(grupo("Streaming")?56:83);if(h>108){h=108;w=h*aspect;}
     gfx_rect((GfxRect){x0,y,w,h},logo,tex_marca_escura(wm)?GFX_MARCA:GFX_TEXTO,0,0,0,0,.96f,.97f,.98f,a);
     fim=y+h;
   } else {
@@ -3668,15 +3665,15 @@ static void themeHeader(float a,float x0) {
     float lw=vtCabecalhoLargura(x0,940);
     if(vtTelefone()||txt_linha(TXT_TITULO1,titulo,242,243,247,255).w<=lw) {
       TxtLinha title=txt_linha_corta(TXT_TITULO1,titulo,242,243,247,255,lw);
-      txt_desenhar_alpha(title,x0,80+dTopo,a);
-      cabTt=(GfxRect){x0,80+dTopo,title.w,title.h};fim=80+dTopo+title.h;
+      txt_desenhar_alpha(title,x0,80,a);
+      cabTt=(GfxRect){x0,80,title.w,title.h};fim=80+title.h;
     } else {
-      float h=txt_bloco_corta(TXT_TITULO2,titulo,242,243,247,x0,86+dTopo,lw,62,a,nAbas()||dTopo>0.0f?1:2);
-      cabTt=(GfxRect){x0,86+dTopo,lw,h};fim=86+dTopo+h;
+      float h=txt_bloco_corta(TXT_TITULO2,titulo,242,243,247,x0,86,lw,62,a,nAbas()?1:2);
+      cabTt=(GfxRect){x0,86,lw,h};fim=86+h;
     }
   }
+  a=aOri;
   cabCy=fmaxf(218.0f,fim+40.0f);
-  if(dTopo>0.0f&&!nAbas())cabCy=fminf(cabCy,VT_TOPO-36.0f);
   if(nAbas())cabCy=fminf(cabCy,VT_AB_Y-NV_CTRL_H*.5f-6.0f);   // acima da fileira das abas
   char caption[180];int n=nItens();
   if(semFonte) {
@@ -4315,13 +4312,20 @@ static void vitDesenhar(float a, float x0) {
   else if (vitBannerAtivo && vooDestCobre && a >= 0.99f && sai <= 0.0f) fundoPintado = 0;
   if (fundoPintado && base > 0.004f) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+    // Padrao na abertura: o destaque (o mesmo banner da Home) ocupa a faixa de cima e nao muda; o escuro so
+    // precisa existir da parte de baixo do degrade para baixo (economiza ~0,35 tela de preenchimento por quadro).
+    if (trVivo && !vooDestCobre) { tela.y = NV_TELA_H * 0.35f; tela.h = NV_TELA_H - tela.y; }
     gfx_cor(tela, 0.0f, NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, base); }
   a *= 1.0f - sai;   // daqui para baixo tudo e conteudo: sai junto na troca
   // D1 (2.0.45): o BANNER DA PASTA e a primeira camada de destaque (o mesmo do hero da Home e do cartao):
   // aparece quando o cartao chega ao destino e assenta de 1,02 para 1,00; o titulo entra depois por cima.
   if (vitBannerAtivo && collection) {
     float ab = trVivo ? (vitTr.p >= TR_P_SAIDA && tr_cartao_alfa(vitTr.r) < 0.999f ? 1.0f : 0.0f) : 1.0f;
-    if (home_vitrine_arte_banner(col_banner(collection), a * ab, vooTem ? tr_escala(vitTr.p) : 1.0f) && ab > 0.0f) arte = 1;
+    float esc = vooTem ? tr_escala(vitTr.p) : 1.0f;
+    // Padrao: nada cresce. O banner JA esta na tela (e o destaque da Home); a Vitrine o acende por cima, no mesmo
+    // retangulo e sem o assentamento 1,02 -> 1,00, e as fileiras cruzam depois (abertura em dissolucao).
+    if (trVivo && !vooDestCobre) { ab = tr_suave(vitTr.p / 0.40f); esc = 1.0f; }
+    if (home_vitrine_arte_banner(col_banner(collection), a * ab, esc) && ab > 0.0f) arte = 1;
   }
   int dTroca = 0, dAnt = 0, dHero = 0;   // DIAGNOSTICO 2.0.35: codigos de home_vitrine_diag_arte
   if (hero) {
@@ -4590,6 +4594,9 @@ static void vitDesenhar(float a, float x0) {
   float aCab = a * (vooTem ? (vooSaindo ? 1.0f : fmaxf(tr_cabecalho(vitTr.p), vitTr.r))   // 2.0.45: durante o movimento
                            : vitEntradaT >= HT_ENT_TOTAL_MS ? 1.0f : ht_ent_cab(vitEntradaT));
   if (vooTem && !vooSaindo && aCab < 0.006f && a > 0.01f) aCab = 0.006f;   // o texto rasteriza antes de aparecer
+  // World 22/11: o nome/logo da faixa de cima apaga enquanto o menu do topo abre por cima (vtCabMenu); o anel e o
+  // botao "Exibição", abaixo da barra, ficam.
+  const float aIlha = aCab * vtCabMenu(), aFaixa = a * vtCabMenu();
   // A faixa de cima: a colecao a que isto pertence e o botao "Exibição".
   { TxtLinha eb = txt_linha(TXT_HERO_META, rotuloGrupo(), 214, 219, 227, 255);
     const char *wm = wordmarkServico();
@@ -4607,7 +4614,7 @@ static void vitDesenhar(float a, float x0) {
       GfxRect de = vooLogoDe, rr = { de.x + (x0 - de.x) * k, de.y + (vtIlhaY() - de.y) * k,
                                      de.w + (wl - de.w) * k, de.h + (hl - de.h) * k };
       gfx_rect(rr, tm, tex_marca_escura(tm == tl ? wm : vooLogoTex) ? GFX_MARCA : GFX_TEXTO,
-               0, 0, 0, 0, .96f, .97f, .98f, a);
+               0, 0, 0, 0, .96f, .97f, .98f, aFaixa);
     } else if (wm[0] && !tl && !tex_falhou(wm)) {
       // 2.0.45: logo do servico configurada e ainda a caminho: o lugar fica reservado (nunca o nome em texto
       // como substituto, a mesma regra da 2.0.44 para a logo da pasta na Home).
@@ -4615,7 +4622,7 @@ static void vitDesenhar(float a, float x0) {
       float wl = 420.0f, hl = wl / ap;
       if (hl > NV_ILHA_H) { hl = NV_ILHA_H; wl = hl * ap; }
       gfx_rect((GfxRect){ x0, vtIlhaY(), wl, hl }, tl, tex_marca_escura(wm) ? GFX_MARCA : GFX_TEXTO,
-               0, 0, 0, 0, .96f, .97f, .98f, aCab);
+               0, 0, 0, 0, .96f, .97f, .98f, aIlha);
     } else {
       // UMA LINHA SO (dono, 14/10): sobretitulo e nome lado a lado, na mesma
       // linha de base, centrados na ilha do relogio; o nome corta antes dela.
@@ -4623,7 +4630,7 @@ static void vitDesenhar(float a, float x0) {
       TxtLinha tt = txt_linha_corta(TXT_TITULO3, titulo, 246, 247, 250, 255,
                                     NV_TELA_W - NV_ILHA_MARGEM_D - NV_ILHA_REP_W - 40.0f - ex);
       float ty = vtIlhaY() + (NV_ILHA_H - tt.h) * 0.5f, base = ty + tt.h * 0.8f;
-      if (!grupo("Streaming")) txt_desenhar_alpha(eb, x0, base - eb.h * 0.8f, aCab * 0.85f);
+      if (!grupo("Streaming")) txt_desenhar_alpha(eb, x0, base - eb.h * 0.8f, aIlha * 0.85f);
       if (vooNomeVoa() && vooTem && !vooSaindo && vooNomeDe.h > 1.0f && tt.h > 0) {
         // O NOME VIAJA: sai do retangulo em que a Home o escreveu (TITULO1) e assenta no do cabecalho
         // (TITULO3) em p = 0,60, como a logo. A linha grande e escalada no caminho e cede a do
@@ -4635,11 +4642,11 @@ static void vitDesenhar(float a, float x0) {
                        vooNomeDe.w + ((float)tt.w - vooNomeDe.w) * sk, vooNomeDe.h + ((float)tt.h - vooNomeDe.h) * sk };
         TxtLinha big = txt_linha_corta(TXT_TITULO1, titulo, 241, 243, 247, 255, vooNomeDe.w + 8.0f);
         if (big.tex && fim < 0.999f)
-          gfx_rect(rr, big.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, a * (1.0f - fim));
+          gfx_rect(rr, big.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, aFaixa * (1.0f - fim));
         if (tt.tex && fim > 0.001f)
-          gfx_rect(rr, tt.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, a * fim);
+          gfx_rect(rr, tt.tex, GFX_TEXTO, 0, 0, 0, 0.0f, 1, 1, 1, aFaixa * fim);
       } else
-      txt_desenhar_alpha(tt, ex, ty, aCab);
+      txt_desenhar_alpha(tt, ex, ty, aIlha);
       cabEb = (GfxRect){ x0, base - eb.h * 0.8f, eb.w, eb.h }; cabTt = (GfxRect){ ex, ty, tt.w, tt.h };
     } }
   // Anel e seletor na linha de baixo, como nas outras exibicoes.
@@ -4666,6 +4673,20 @@ static void vooDesenhar(void) {
   const char *capa = col_capa(collection), *ban = col_banner(collection);
   GLuint tc = capa && capa[0] ? tex_obter_larg_qualquer(capa, vooOrigem.w) : 0;
   GLuint tb = ban && ban[0] && mb > 0.004f ? tex_obter_hero(ban) : 0;
+  if (!vooDestCobre) {
+    // Padrao (destaque em faixa): o cartaz NAO vira um retangulo que cresce por cima da Home (borda dura, sem o
+    // degrade do destaque: "abre so o fundo"). Ele cresce um pouco NO LUGAR e se dissolve enquanto o destaque e
+    // as fileiras da Colecao acendem por baixo.
+    const float alc = al * (1.0f - tr_suave(p / 0.70f));
+    if (alc <= 0.004f) return;
+    const float sc = 1.0f + 0.10f * p;
+    const float cx = vooOrigem.x + vooOrigem.w * 0.5f, cy = vooOrigem.y + vooOrigem.h * 0.5f;
+    GfxRect o2 = { cx - vooOrigem.w * sc * 0.5f, cy - vooOrigem.h * sc * 0.5f, vooOrigem.w * sc, vooOrigem.h * sc };
+    const float raio2 = o2.h > 0.0f ? vooRaioPx / o2.h : 0.0f;
+    if (tc) { gfx_tex_aspect_atual = tex_aspecto(capa); gfx_rect(o2, tc, GFX_CARD, 1.0f - p, 0, 0, raio2, 0, 0, 0, alc); gfx_tex_aspect_atual = 0; }
+    else gfx_cor(o2, raio2, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, alc);
+    return;
+  }
   const float foco = 1.0f - p;   // o brilho do foco do cartao vai embora ao crescer
   // A capa so enquanto o banner nao a cobre inteira: depois disso o cartao e UMA camada (preenchimento da TV).
   if (!(tb && mb >= 0.999f)) {

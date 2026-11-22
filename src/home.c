@@ -440,6 +440,10 @@ static float okDip = 1.0f;   // escala do card sob o OK apertado (pressdip.h)
 // nada disso — ele tem um item por vez e ocupa a tela. Um bit de estado ao lado
 // do foco descreve melhor o que a tela faz: existe um degrau ACIMA da fileira 0.
 static int focoHero = 1;
+// World 22/11: quanto o botao "Ver titulo" do destaque esta aceso (1 com o foco no destaque, 0 nas fileiras). Nos layouts
+// em que o bloco do destaque fica na tela com o foco nas fileiras (Padrao), o botao so existe para o DESTAQUE: sem
+// isto ele aparecia, apagado, para cada cartaz que ganhava o foco.
+static float animBotaoHero = 1.0f;
 // Quando a ultima tecla foi vista. O carrossel do destaque so anda depois de o
 // controle ficar QUIETO: com o destaque em foco ha um contador na tela ("3 / 10")
 // e uma arte que a pessoa escolheu — trocar por baixo dela a cada sete segundos
@@ -4243,6 +4247,8 @@ static void home_atualizar_(float dt, Uint32 agora) {
     if (layoutHome() == HOME_LAYOUT_DINAMICA) alvoY = dinRolagemCentrada(r, alvoY);
   }
   scrollY = homeScrollYPasso(alvoY, dt, motionReduzido);
+  animBotaoHero = motionReduzido ? (focoHero ? 1.0f : 0.0f)
+                : anim_mola(animBotaoHero, focoHero ? 1.0f : 0.0f, dt, NV_MOLA_FOCO);
   for (int r = 0; r < nFileiras && r < MAX_FIL; r++)
     (void)anim_borda_passo(&bordaFil[r], dt, motionReduzido);
   (void)anim_borda_passo(&bordaPag, dt, motionReduzido);
@@ -6081,7 +6087,7 @@ static void desenhaHero(Uint32 agora, float saida) {
       const char *rot = i18n("Ver título");
       // Em cinema o botao e o contador nao se desenham (o itemFoco la embaixo
       // segue valendo: a tecla que devolve a UI nao pode abrir o titulo errado).
-      float aBtn = aBotao * (1.0f - cin) * heroVisivelToque();
+      float aBtn = aBotao * (1.0f - cin) * heroVisivelToque() * (lay == HOME_LAYOUT_MODERNA ? 1.0f : animBotaoHero);
       if (aBtn > 0.004f) {
         // Nos layouts novos o botao existe SEMPRE; so aceso (na cor de realce)
         // com o foco no destaque. Na Moderna ele so aparece com o foco la.
