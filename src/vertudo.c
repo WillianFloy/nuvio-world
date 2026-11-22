@@ -179,8 +179,8 @@ int vertudo_cobre_tela(void) {
   // World 22/11: com o destaque em faixa (Padrao) a Home so sai de cena quando as fileiras dela terminaram de
   // apagar (revelacao r >= 0,45, ver tr_fundo_padrao): antes ela sumia assim que o cartao chegava e a metade de
   // baixo da tela ficava PRETA ate as fileiras da Colecao entrarem.
-  if (!vooDestCobre) return vitTr.r >= 0.45f;
-  if (vitTr.p >= TR_P_SAIDA) return 1;
+  if (vitTr.p >= TR_P_SAIDA) return 1;   // Padrao: as fileiras da Home ja esmaeceram por inteiro (tr_fundo_padrao)
+  if (!vooDestCobre) return 0;
   GfxRect r = vooRect();
   return r.x <= 0.5f && r.y <= 0.5f && r.x + r.w >= NV_TELA_W - 0.5f && r.y + r.h >= NV_TELA_H - 0.5f;
 }
@@ -199,9 +199,11 @@ float vertudo_home_recuo(float *textoVisivel) {
 // banner cobre so a metade de cima; as fileiras da Home apagavam com o recuo e a metade de
 // baixo ficava preta ate o conteudo chegar. Agora as fileiras da Home ficam ate a REVELACAO
 // e cruzam com as da Colecao (o fundo escuro acende junto, tr_fundo_padrao).
-static float tr_fundo_padrao(float r) { return tr_suave(r / 0.45f); }
+#define TR_PADRAO_RITMO 0.62f
+// A Home ESMAECE e o escuro acende junto, durante toda a SAIDA (p 0 -> TR_P_SAIDA), em vez de cortar na revelacao.
+static float tr_fundo_padrao(float p) { return tr_suave(p / TR_P_SAIDA); }
 float vertudo_home_fileiras(float recuo) {
-  if (vooTem && !vooDestCobre && !vooSaindo) return 1.0f - tr_fundo_padrao(vitTr.r);
+  if (vooTem && !vooDestCobre && !vooSaindo) return 1.0f - tr_fundo_padrao(vitTr.p);
   return 1.0f - recuo;
 }
 #ifdef NV_TOUCH_UI
@@ -3075,7 +3077,10 @@ void vertudo_atualizar(float dt, Uint32 agora) {
       vooDestCobre = vooDestino.x <= 0.5f && vooDestino.y <= 0.5f && vooDestino.w >= tela.w - 0.5f &&
                      vooDestino.h >= tela.h - 0.5f && ban && ban[0] && !tex_falhou(ban);
       vooAquecer();
-      tr_passo(&vitTr, dt * 1000.0f, vitTrPronto());
+      // World 22/11 (dono: "um esmaecimento mais profissional e mais lentinho"): com o destaque em faixa (Padrao) o
+      // relogio da transformacao corre a 0,62x (o escurecimento da Home dura ~480 ms em vez de 300). Os tempos
+      // (SAIDA, REVELA, TETO) seguem sendo os do relogio da transformacao; so o ritmo na parede e que muda.
+      tr_passo(&vitTr, dt * 1000.0f * (vooDestCobre ? 1.0f : TR_PADRAO_RITMO), vitTrPronto());
       if (vitTr.fase >= TR_REVELA && !vitRevelaEm) vitRevelaEm = agora ? agora : 1u;
       if (!tr_ativo(&vitTr)) { vooTem = 0; vitBannerSolta = agora ? agora : 1u; }
       // Vitrine: cada parte tem a propria curva (anim = 1). Grade/outras exibicoes da pasta: o fundo opaco delas
@@ -4308,7 +4313,7 @@ static void vitDesenhar(float a, float x0) {
   // 2.0.45: na transformacao o fundo escuro so existe onde o destaque nao cobre (Padrao) e acende com o
   // relogio; com o banner cobrindo a tela (Moderna/Dinamica) nada e pintado por baixo dele.
   const int trVivo = vooTem && !vooSaindo;
-  if (trVivo) { fundoPintado = !vooDestCobre; base = vooDestCobre ? tr_fundo(vitTr.p) : tr_fundo_padrao(vitTr.r); }
+  if (trVivo) { fundoPintado = !vooDestCobre; base = vooDestCobre ? tr_fundo(vitTr.p) : tr_fundo_padrao(vitTr.p); }
   else if (vitBannerAtivo && vooDestCobre && a >= 0.99f && sai <= 0.0f) fundoPintado = 0;
   if (fundoPintado && base > 0.004f) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };

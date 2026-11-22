@@ -9,7 +9,7 @@ def ok(c, msg):
 ok("vooTem = anima && vooPedido;" in v and "!ajustes_animacoes_reduzidas() && !gfx_efeitos_minimos() && !vtTelefone()" in v, "so com o ajuste ligado, sem reduzidas/efeitos minimos/telefone")
 ok("vertudo_colecao_voo(fo, orig, raioDe(orig.w / homeUnidade(), orig.h / homeUnidade()) * orig.h);" in h, "a Home passa o retangulo real do cartao (tela)")
 ok("if (!detail_cobre_tela() && !vertudo_cobre_tela()) {" in a, "app.c: a Home fica por baixo ate o destino cobrir")
-ok("tr_passo(&vitTr, dt * 1000.0f, vitTrPronto());" in v, "o relogio adaptativo le o portao do conteudo")
+ok("tr_passo(&vitTr, dt * 1000.0f * (vooDestCobre ? 1.0f : TR_PADRAO_RITMO), vitTrPronto());" in v, "o relogio adaptativo le o portao do conteudo")
 ok("gfx_transformar(homeRecuoOx, homeRecuoOy, 1.0f - TR_HOME_ESCALA * recuo, 0.0f, 0.0f)" in h, "a Home recua so por escala (dx = dy = 0: sem deslocamento vertical)")
 ok("(1.0f-cinema)*vertudo_home_fileiras(recuo)" in h and "return 1.0f - recuo;" in v, "as fileiras da Home apagam com o recuo (no Padrao, cruzam com as da Collection na revelacao)")
 ok("home_vitrine_arte_banner(col_banner(collection)" in v, "D1: o banner da pasta e a camada de destaque da Vitrine")

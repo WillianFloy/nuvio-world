@@ -5477,6 +5477,46 @@ static void pastaTextoHero(const ColFolder *folder, float a, const float *al, co
   txt_desenhar_alpha(sub, x, NV_COLLECTION_HERO_CAPTION_Y + dy[1], a1);
 }
 
+// World 22/11 (dono: "quando troca a fileira de poster comum pra uma de Collection nao tem animacao, vai seco"): o destaque de
+// um TITULO e o de uma PASTA sao dois desenhos independentes, e trocar de um para o outro cortava seco. Agora o desenho
+// que sai e o que entra se cruzam (heroModoPasta, NV_HERO_ARTE_FADE_MS) com a opacidade de grupo. Os overrides fazem a
+// mesma funcao desenhar o modo que SAI mesmo com o foco ja no outro.
+static int heroOverride = 0;     // 0 = pelo foco; 1 = forca o destaque de titulo; 2 = forca a pasta heroOvPasta
+static int heroOvPasta = -1;
+static int heroPastaUltima = -1; // a ultima pasta que esteve em foco (o que sai ao voltar para um titulo)
+static float heroModoPasta = 0.0f;
+static Uint32 heroModoEm = 0;
+static void desenhaHero(Uint32 agora, float saida);
+static int pastaFocoAtual(void) {
+  if (focoHero || ajustes_home_layout() == HOME_LAYOUT_DINAMICA || foco.fileira < 0 || foco.fileira >= nFileiras) return -1;
+  if (fileiras[foco.fileira].tipo != FILEIRA_CATALOGOS || foco.coluna < 0 || foco.coluna >= fileiras[foco.fileira].n) return -1;
+  return col_folder(fileiras[foco.fileira].folders[foco.coluna]) ? fileiras[foco.fileira].folders[foco.coluna] : -1;
+}
+static void desenhaHeroCruzado(Uint32 agora, float saida, float grupo) {
+  const int id = pastaFocoAtual();
+  const float alvo = id >= 0 ? 1.0f : 0.0f;
+  const Uint32 dtMs = heroModoEm ? (Uint32)(agora - heroModoEm) : 0u;
+  heroModoEm = agora;
+  if (id >= 0) heroPastaUltima = id;
+  if (ajustes_animacoes_reduzidas() || anim_politica_reduzida || gfx_efeitos_minimos() || dtMs > 250u) heroModoPasta = alvo;
+  else {
+    const float passo = (float)dtMs / NV_HERO_ARTE_FADE_MS;
+    heroModoPasta = alvo > heroModoPasta ? fminf(alvo, heroModoPasta + passo) : fmaxf(alvo, heroModoPasta - passo);
+  }
+  const float m = heroModoPasta;
+  if (m <= 0.003f || m >= 0.997f || (id < 0 && !col_folder(heroPastaUltima))) {   // assentado: um desenho so
+    heroOverride = 0; gfx_opacidade_grupo = grupo; desenhaHero(agora, saida); return;
+  }
+  const float e = m * m * (3.0f - 2.0f * m);   // quanto a PASTA ja valeu (0..1)
+  if (id >= 0) {   // titulo -> pasta: o titulo sai por baixo, a pasta acende por cima
+    heroOverride = 1; gfx_opacidade_grupo = grupo * (1.0f - e); desenhaHero(agora, saida);
+    heroOverride = 0; gfx_opacidade_grupo = grupo * e; desenhaHero(agora, saida);
+  } else {         // pasta -> titulo
+    heroOverride = 2; heroOvPasta = heroPastaUltima; gfx_opacidade_grupo = grupo * e; desenhaHero(agora, saida);
+    heroOverride = 0; gfx_opacidade_grupo = grupo * (1.0f - e); desenhaHero(agora, saida);
+  }
+  heroOverride = 0;
+}
 static void desenhaHero(Uint32 agora, float saida) {
   (void)agora;
   const int motionReduzido = ajustes_animacoes_reduzidas();
@@ -5553,13 +5593,11 @@ static void desenhaHero(Uint32 agora, float saida) {
 
   sinW = homeTextoLargura(sinW);
   // 2.0.43: pasta de uma Collection da Home em foco (Moderna/Padrao)? Fora disso a camada zera.
-  int pastaFocoId = -1;
-  if(!focoHero&&lay!=HOME_LAYOUT_DINAMICA&&foco.fileira>=0&&foco.fileira<nFileiras&&
-     fileiras[foco.fileira].tipo==FILEIRA_CATALOGOS&&foco.coluna>=0&&foco.coluna<fileiras[foco.fileira].n&&
-     col_folder(fileiras[foco.fileira].folders[foco.coluna]))
-    pastaFocoId=fileiras[foco.fileira].folders[foco.coluna];
+  int pastaFocoId = pastaFocoAtual();
+  if (heroOverride == 1) pastaFocoId = -1;
+  else if (heroOverride == 2) pastaFocoId = col_folder(heroOvPasta) ? heroOvPasta : -1;
   const int pastaFoco=pastaFocoId>=0;
-  if(!pastaFoco) { colCamN=0; colDes=-1; }
+  if(!pastaFoco && !heroOverride) { colCamN=0; colDes=-1; }
   if(!focoHero && lay==HOME_LAYOUT_MODERNA && foco.fileira>=0 && foco.fileira<nFileiras && fileiras[foco.fileira].tipo==FILEIRA_SOCIAL) {
     float x=homeConteudoX(),a=(1-saida)*heroVisivelToque();
     const Fileira *s=&fileiras[foco.fileira];
@@ -8481,8 +8519,7 @@ static void home_desenhar_(Uint32 agora) {
   const int vazioQr = homevazio_ativo(nFileiras);   // sem add-ons: o cartao com o QR no lugar da Home
   if ((ajustes_hero_ligado() || dinPalcoSplit() || palcoFundoModo != PALCO_ATUAL) &&
       !vazioQr && palcoFundoAlpha > 0.004f) {
-    gfx_opacidade_grupo = palcoFundoModo == PALCO_ATUAL ? palcoFundoAlpha : 1.0f;
-    desenhaHero(agora, fmaxf(pd, 1.0f - recTexto));
+    desenhaHeroCruzado(agora, fmaxf(pd, 1.0f - recTexto), palcoFundoModo == PALCO_ATUAL ? palcoFundoAlpha : 1.0f);
     gfx_opacidade_grupo = 1.0f;
   }
   if (ajustes_hero_ligado() && !vazioQr && heroVisivelToque() > 0.25f) {
