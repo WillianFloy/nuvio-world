@@ -57,42 +57,54 @@ int main(void) {
   ok(rp >= 0 && !homeFocoFixo(rp), "palco fica como antes");
   ok(rh >= 0 && !homeFocoFixo(rh), "heroi dividido fica como antes");
   ok(home_foco_fixo_ativo() == (foco.fileira == rc), "home_foco_fixo_ativo segue o foco");
-  // 2. O foco para na mesma posicao; o tempo do deslize e o tempo-base (350 ms).
-  TXT_INI(); float x0 = homeConteudoX() + bordaX(rc); int N = homeFixoN(rc), total = homeFixoTotal(rc); float passo = passoFil(rc); TXT_FIM();
+  // 2. (World 22/11) ESPIADA DO ANTERIOR: da coluna 1 em diante o foco fica no mesmo x, `esp` px a
+  // direita do titulo, e o cartaz anterior aparece inteiro o bastante para ser reconhecido; o tempo
+  // do deslize e o tempo-base (350 ms).
+  TXT_INI(); float x0 = homeConteudoX() + bordaX(rc); int N = homeFixoN(rc), total = homeFixoTotal(rc);
+  float passo = passoFil(rc), w = larguraFil(rc), esp = vitgeom_espia_ant(w); TXT_FIM();
   ok(N >= 3 && total > N + 3, "a fileira de teste e maior que a tela");
-  int fixoOk = 1, tempoOk = 1, passoMax = 0;
-  for (int k = 1; k <= total - N; k++) {
+  ok(esp >= 64.0f && esp <= 150.0f && esp > passo - w + 40.0f, "a espiada mostra mais que o vao (o anterior aparece)");
+  int fixoOk = 1, tempoOk = 1, anteriorOk = 1, fimOk = 1, kFim = 0;
+  for (int k = 1; k <= total - 1; k++) {
     float s0 = scrollX[rc]; key(SDLK_RIGHT); float a = alvo(rc, foco.coluna); int t90 = -1;
-    for (int i = 1; i <= 90; i++) { frames(1); float p = (scrollX[rc] - s0) / (a - s0); if (t90 < 0 && p >= 0.9f) t90 = i * 16; }
-    if (fabsf(fx(rc, foco.coluna) - x0) > 0.75f) fixoOk = 0;
-    if (t90 < 320 || t90 > 380) tempoOk = 0;
-    passoMax = k;
+    for (int i = 1; i <= 90; i++) { frames(1); float p = (scrollX[rc] - s0) / (a - s0); if (fabsf(a - s0) < 0.01f) p = 1; if (t90 < 0 && p >= 0.9f) t90 = i * 16; }
+    float nominal = (float)foco.coluna * passo - esp;
+    if (fabsf(a - nominal) < 0.75f) {   // meio da fileira: foco no x fixo, anterior na espiada
+      if (fabsf(fx(rc, foco.coluna) - (x0 + esp)) > 0.75f) fixoOk = 0;
+      if (fx(rc, foco.coluna - 1) + w < x0 + esp - (passo - w) - 0.75f) anteriorOk = 0;
+      if (fabsf(a - s0) > 1.0f && (t90 < 320 || t90 > 380)) tempoOk = 0;
+      kFim = k;
+    } else {                            // fim: a fileira parou antes, com o ultimo junto da margem
+      TXT_INI(); float dirUlt = homeFileiraX(rc, total - 1) + larguraFil(rc), md = homeConteudoDireita(); TXT_FIM();
+      if (a > nominal || dirUlt > md + 1.0f || fx(rc, foco.coluna) < x0 + esp - 0.75f) fimOk = 0;
+    }
   }
-  ok(fixoOk, "o foco fica no mesmo x (o do 1o cartaz) em toda a navegacao ate o fim da janela");
+  ok(kFim >= 3, "a navegacao passou por varias colunas no meio da fileira");
+  ok(fixoOk, "do 2o cartaz em diante o foco fica no mesmo x (titulo + espiada)");
+  ok(anteriorOk, "o cartaz anterior aparece a esquerda do foco (a faixa da espiada)");
+  ok(fimOk, "no fim a fileira para (nunca passa do ultimo) e o foco anda para a direita");
   ok(tempoOk, "a fileira chega a 90% em ~350 ms (320..380 ms)");
-  (void)passoMax;
-  ok(foco.coluna == total - N && fabsf(scrollX[rc] - (float)(total - N) * passo) < 0.75f, "rolagem = coluna x passo");
-  // 3. No fim a fileira para e o foco anda ate o ultimo cartaz inteiro.
-  for (int k = 0; k < total; k++) { key(SDLK_RIGHT); frames(3); } frames(60);
-  float fim = (float)(total - N) * passo;
+  // 3. No fim a fileira para (o ultimo cartaz encosta na margem direita) e o foco anda ate ele.
+  for (int k = 0; k < total; k++) { key(SDLK_RIGHT); frames(3); } frames(90);
   ok(foco.coluna == foco.nColunas[rc] - 1 || foco.coluna == total - 1, "foco chegou ao ultimo cartaz");
-  ok(fabsf(scrollX[rc] - fim) < 0.75f, "no fim a fileira para no maximo (total - n) x passo");
-  { TXT_INI(); ok(homeFileiraX(rc, total - 1) + larguraFil(rc) <= homeConteudoDireita() + 1.0f, "o ultimo cartaz nao passa da margem direita"); TXT_FIM(); }
+  { TXT_INI(); float dirUlt = homeFileiraX(rc, total - 1) + larguraFil(rc);
+    ok(dirUlt <= homeConteudoDireita() + 1.0f && dirUlt >= homeConteudoDireita() - passo, "no fim o ultimo cartaz fica junto da margem direita, sem passar dela"); TXT_FIM(); }
   // 4. Volta ao comeco: foco no 1o cartaz alinhado ao titulo, rolagem zero.
   for (int k = 0; k < total + 2; k++) { key(SDLK_LEFT); frames(3); } frames(80);
   ok(foco.coluna == 0 && fabsf(scrollX[rc]) < 0.75f && fabsf(fx(rc, 0) - x0) < 0.75f, "no inicio: coluna 0, rolagem 0, 1o cartaz alinhado ao titulo");
+  key(SDLK_RIGHT); frames(90);
+  ok(foco.coluna == 1 && fabsf(fx(rc, 1) - (x0 + esp)) < 0.75f && fx(rc, 0) < x0, "no 2o cartaz a fileira ja anda: o 1o vira a espiada");
   // 5. Descer e subir: a posicao horizontal da fileira e a coluna lembrada sobrevivem.
-  for (int k = 0; k < 8; k++) { key(SDLK_RIGHT); frames(3); } frames(80);
+  for (int k = 0; k < 7; k++) { key(SDLK_RIGHT); frames(3); } frames(80);
   float antes = scrollX[rc]; int colAntes = foco.coluna;
   key(SDLK_DOWN); frames(90);
   ok(foco.fileira != rc && fabsf(scrollX[rc] - antes) < 0.75f, "ao descer a fileira anterior nao se mexe na horizontal");
   key(SDLK_UP); frames(90);
-  // O pouso vertical e o de sempre (#205: a coluna cujo centro esta mais perto do cartaz de onde se veio);
-  // o que a 2.0.41 garante e que a fileira nao anda por isso e que o foco pousa DENTRO da janela, sem
-  // pedir rolagem nenhuma.
-  (void)colAntes;
-  ok(foco.fileira == rc && foco.coluna >= total - N && fabsf(scrollX[rc] - antes) < 0.75f && fabsf(alvo(rc, foco.coluna) - scrollX[rc]) < 0.75f,
-     "ao subir a fileira nao se mexe e o foco pousa dentro da janela, sem pedir rolagem");
+  frames(90);
+  { TXT_INI(); float xf = homeFileiraX(rc, foco.coluna); TXT_FIM();
+      (void)colAntes;   // o pouso e o #205 (o centro mais perto do cartaz de onde se veio)
+    ok(foco.fileira == rc && fabsf(scrollX[rc] - antes) < 0.75f && xf >= x0 - 0.75f,
+       "ao subir a fileira nao se mexe e o foco pousa num cartaz inteiro (nunca no da espiada)"); }
   // 6. Outros tipos: rolagem so na borda como antes (os 2 primeiros passos nao rolam).
   { int bate = 1; TXT_INI();
     for (int t = 1; t < 3; t++) { int r = t == 0 ? rd : t == 1 ? rp : rh; if (r < 0) continue;
@@ -111,11 +123,16 @@ int main(void) {
       ir_para(r);
       for (int k = 0; k < 8; k++) { key(SDLK_LEFT); frames(2); } frames(120);
       TXT_INI(); int N = homeFixoN(r), total = homeFixoTotal(r); TXT_FIM();
-      float x0 = fx(r, foco.coluna);   // o x do cartaz em foco no comeco (alguns estilos tem recuo proprio)
+      key(SDLK_RIGHT); frames(90);     // World 22/11: o x fixo e o do 2o cartaz em diante (espiada)
+      float x0 = fx(r, foco.coluna);   // (alguns estilos tem recuo proprio)
       int bom = homeFocoFixo(r);
-      int passos = total - N < 6 ? total - N : 6;
+      int passos = total - N - 1 < 6 ? total - N - 1 : 6;
       float dx = 0; int fk = -1;
-      for (int k = 1; k <= passos && bom; k++) { key(SDLK_RIGHT); frames(90); dx = fx(r, foco.coluna) - x0; if (foco.fileira != r || fabsf(dx) > 1.0f) { bom = 0; fk = k; } }
+      for (int k = 1; k <= passos && bom; k++) {
+        key(SDLK_RIGHT); frames(90);
+        TXT_INI(); float nominal = (float)foco.coluna * passoFil(r) - vitgeom_espia_ant(larguraFil(r)); float at = alvoScrollFil(r, foco.coluna, scrollX[r], 0); TXT_FIM();
+        if (fabsf(at - nominal) > 0.75f) { if (k < 3) { bom = 0; fk = k; } break; }   // chegou ao fim da fileira
+        dx = fx(r, foco.coluna) - x0; if (foco.fileira != r || fabsf(dx) > 1.0f) { bom = 0; fk = k; } }
       if (!bom) { todos = 0; snprintf(falhou + strlen(falhou), sizeof falhou - strlen(falhou), " %d(t%d fil=%d/%d col=%d k=%d dx=%.0f)", tp, (int)fileiras[r].tipo, foco.fileira, r, foco.coluna, fk, dx); }
     }
     if (!todos) printf("FAIL: (detalhe) estilos sem foco fixo:%s\n", falhou);

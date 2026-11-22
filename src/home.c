@@ -2041,13 +2041,17 @@ static float homeW1(void) {
 // gfx_recorte (layout), como o resto da Home.
 static void homeFocoFixoFade(int r) {
   float x0 = homeConteudoX() + bordaX(r), ov = sobraDireitaFoco(r, 0.0f) + 1.0f;
-  float zero = x0 - ANC(NV_CONTENT_PAD), cheio = x0 - ov;
+  float zero = 0.0f, cheio;
   float fimInt = x0 + (float)(homeFixoN(r) - 1) * passoFil(r) + larguraFil(r) + ov;
   // A RAIL na tela: o cartaz anterior ao foco some ANTES dela (antes passava por
   // baixo dos icones). 12 px de folga depois da borda da rail.
   { float rail = menu_rail_borda();
     if (rail > 0.0f) { rail = rail / gfx_escala() + 12.0f; if (zero < rail) zero = rail; } }
-  if (zero < 0.0f) zero = 0.0f;
+  // World 22/11: o cartaz ANTERIOR aparece (a espiada, vitgeom_espia_ant) e so a ponta
+  // esvanece, em 40 px. Era uma rampa da borda ate o foco: com a margem de 2,5% o
+  // anterior virava uma faixa translucida estranha ou sumia de vez.
+  cheio = zero + 40.0f;
+  if (cheio > x0 - ov) cheio = x0 - ov;
   if (cheio < zero + 1.0f) cheio = zero + 1.0f;
   if (fimInt > NV_TELA_W - 1.0f) fimInt = NV_TELA_W - 1.0f;
   gfx_esvanecer_x(zero, cheio, fimInt, NV_TELA_W);
@@ -2074,7 +2078,10 @@ static float alvoScrollFil(int r, int col, float atual, float abre) {
   // podem pedir um pouco mais, para nao passar da margem direita (a conta de
   // sempre, #103), e a fileira nunca anda alem do fim.
   if (homeFocoFixo(r)) {
-    alvo = vitgeom_fixo_alvo(col, homeFixoTotal(r), homeFixoN(r), passo);
+    // World 22/11: da coluna 1 em diante o foco fica a "espiada" a direita do titulo e o cartaz
+    // anterior aparece (vitgeom_espia_*); a coluna 0 continua alinhada ao titulo.
+    float w = larguraFil(r);
+    alvo = vitgeom_espia_alvo(col, homeFixoTotal(r), w, passo, util - xOffTipo(fileiras[r].tipo), vitgeom_espia_ant(w));
     if (dir + folga - alvo > util) alvo = dir + folga - util;
     return alvo < 0.0f ? 0.0f : alvo;
   }
@@ -2633,7 +2640,13 @@ static int focoVertical(int dy) {
   int r = foco.fileira;
   int melhor = foco.coluna;
   if (fileiras[r].tipo == FILEIRA_HEROI_DIVIDIDO) return 1;   // o painel nao tem x de coluna
+  // World 22/11: na fileira de foco fixo o cartaz da espiada (o anterior, meio escondido a esquerda
+  // do titulo) nao e pouso: o foco cai sempre num cartaz inteiro.
+  float x0 = homeConteudoX() + bordaX(r);
+  if (homeFocoFixo(r) && melhor > 0 && homeFileiraX(r, melhor) < x0 - 1.0f) melhor++;
+  if (melhor >= foco.nColunas[r]) melhor = foco.nColunas[r] - 1;
   for (int c = 0; c < foco.nColunas[r]; c++) {
+    if (homeFocoFixo(r) && c > 0 && homeFileiraX(r, c) < x0 - 1.0f) continue;
     if (fabsf(homeFileiraX(r, c) + larguraFil(r) * 0.5f - cx) <
         fabsf(homeFileiraX(r, melhor) + larguraFil(r) * 0.5f - cx)) melhor = c;
   }
@@ -7727,7 +7740,8 @@ float home_vitrine_texto_el(const CatItem *ci, float topo, float teto, float aLo
                             float aSin, float dyLogo, float dyMeta, float dySin) {
   int lay = home_vitrine_layout();
   float alfa = fmaxf(aLogo, fmaxf(aMeta, aSin));
-  float base = topo - NV_HERO_COPY_GAP - 24.0f;
+  // World 22/11: o mesmo vao de VIT_VAO_FIL (vertudo.c) da sinopse ao titulo da 1a fileira.
+  float base = topo - 80.0f;
   float logoH = lay == HOME_LAYOUT_PADRAO ? NV_PAD_LOGO_H : lay == HOME_LAYOUT_DINAMICA ? NV_DIN_LOGO_H : 150.0f;
   float sinW = lay == HOME_LAYOUT_PADRAO ? NV_PAD_SIN_W : lay == HOME_LAYOUT_DINAMICA ? 760.0f : NV_HERO_SIN_W;
   if (!ci || alfa <= 0.004f) return teto;

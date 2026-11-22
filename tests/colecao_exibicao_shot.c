@@ -50,6 +50,8 @@ static void captura(const char *nome, int quadros) {
     glClear(GL_COLOR_BUFFER_BIT);
     vertudo_atualizar(1.0f / 60.0f, agora);
     vertudo_desenhar(agora);
+    // NV_MENU=1: a barra por cima, como app.c (rail fixa, menu do topo).
+    if (getenv("NV_MENU")) { static int mi; if (!mi) mi = menu_iniciar(); menu_atualizar(1.0f / 60.0f, agora); menu_desenhar(agora); }
     if (nome && i == quadros - 1) {
       unsigned char *pix = malloc(1920 * 1080 * 4);
       SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, 1920, 1080, 32, SDL_PIXELFORMAT_RGBA32);
@@ -325,6 +327,7 @@ vitrine:
       a = fopen(cam, "w"); assert(a);
       fprintf(a, "idioma 0\nhomeLayoutLocal %d\n", L);
       if (getenv("NUVIO_SHOT_FONTE")) fprintf(a, "fonteInterface %d\n", atoi(getenv("NUVIO_SHOT_FONTE")));
+      if (getenv("NV_AJ")) fprintf(a, "%s\n", getenv("NV_AJ"));
       fclose(a);
       ajustes_dir(dados_dir());
       snprintf(nome, sizeof nome, "%s-9-streaming-vitrine-%s.bmp", saida,

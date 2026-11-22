@@ -75,6 +75,28 @@ static inline float vitgeom_fixo_alvo(int col, int total, int n, float passo) {
   return (float)(col > max ? max : col) * passo;
 }
 
+// --- ESPIADA DO ANTERIOR (World 22/11, dono: "quando nao ta horizontal ele nao
+// mostra o anterior") ------------------------------------------------------------
+// A coluna 0 fica no inicio do conteudo, alinhada ao titulo. Da coluna 1 em diante
+// o cartaz em foco fica `esp` px a direita, e o anterior aparece na faixa que sobra
+// (esp menos o vao). Com a margem de 2,5% (B3) a espiada antiga tinha so 48 px e
+// esvanecia inteira: o cartaz em pe sumia (o deitado, mais largo, ainda mostrava
+// uma tira). O valor: ~42% do cartaz, entre 64 e 150 px.
+#define VG_ESPIA_ANT_FRAC 0.42f
+static inline float vitgeom_espia_ant(float w) {
+  float e = w * VG_ESPIA_ANT_FRAC;
+  return e < 64.0f ? 64.0f : e > 150.0f ? 150.0f : e;
+}
+// Rolagem da fileira com o foco em `col`: coluna 0 em 0; depois col x passo - esp,
+// sem passar do fim (o ultimo cartaz encosta na borda direita da `janela`, a
+// largura entre o inicio do conteudo e a margem direita).
+static inline float vitgeom_espia_alvo(int col, int total, float w, float passo, float janela, float esp) {
+  float alvo = col > 0 ? (float)col * passo - esp : 0.0f;
+  float max = (float)total * passo - (passo - w) - janela;
+  if (alvo > max) alvo = max;
+  return alvo < 0.0f ? 0.0f : alvo;
+}
+
 // PRE-CARGA DIRECIONAL (2.0.36). A Vitrine pedia cada cartaz so quando ele
 // aparecia (0 chamadas a tex_lookahead_* em vertudo.c): na TV de 932 MB cada
 // passo para uma fileira/coluna nova mostrava cartazes cinza ate a rede e o

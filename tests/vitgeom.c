@@ -144,5 +144,30 @@ int main(void) {
     assert(vitgeom_prebusca(0, 0, 0, 1, 1, 0, nCols, lemb, 5, o, 8) == 0);   // sem fileiras
     assert(vitgeom_prebusca(9, 0, 0, 1, 1, 6, nCols, lemb, 5, o, 8) == 0);   // foco fora
     puts("vitgeom pre-carga direcional: ok"); }
+  // ESPIADA DO ANTERIOR (World 22/11): o foco da coluna 1 em diante fica `esp` a direita do inicio,
+  // o anterior aparece numa faixa maior que o vao, nada passa do fim e o ultimo encosta na direita.
+  { const float ws[] = { 160.0f, 213.0f, 284.0f, 380.0f, 50.0f, 600.0f };
+    for (unsigned k = 0; k < sizeof ws / sizeof ws[0]; k++) {
+      float w = ws[k], passo = w + 22.0f, janela = 1600.0f, esp = vitgeom_espia_ant(w);
+      int total = 30;
+      float max = total * passo - (passo - w) - janela;
+      assert(esp >= 64.0f && esp <= 150.0f);
+      assert(vitgeom_espia_alvo(0, total, w, passo, janela, esp) == 0.0f);            // coluna 0 alinhada
+      for (int c = 1; c < total; c++) {
+        float a = vitgeom_espia_alvo(c, total, w, passo, janela, esp);
+        float xf = c * passo - a, xa = (c - 1) * passo - a;                              // relativos ao inicio
+        assert(a >= 0.0f && a <= max + 0.01f);
+        assert(xf + w <= janela + 0.01f);                                                 // foco inteiro
+        if (a < max - 0.01f) {
+          assert(fabsf(xf - esp) < 0.01f);                                                 // foco no mesmo x
+          assert(xa + w > 0.0f && xa + w - 0.0f >= esp - (passo - w) - 0.01f);             // a faixa do anterior aparece
+        }
+        if (c > 1) assert(a >= vitgeom_espia_alvo(c - 1, total, w, passo, janela, esp));  // monotono
+      }
+      float aUlt = vitgeom_espia_alvo(total - 1, total, w, passo, janela, esp);
+      assert(fabsf((total - 1) * passo - aUlt + w - janela) < 0.01f);                      // o ultimo encosta na direita
+      assert(vitgeom_espia_alvo(1, 2, w, passo, janela, esp) == 0.0f);                    // fileira que cabe nao rola
+    }
+    puts("vitgeom espiada do anterior: ok"); }
   return 0;
 }
