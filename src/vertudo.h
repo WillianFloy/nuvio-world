@@ -32,6 +32,7 @@ void vertudo_colecao_voo(const ColFolder *folder, GfxRect origem, float raioPx);
 int  vertudo_cobre_tela(void);
 // Do voo (testes): 1 enquanto o cartao esta em cena; p = progresso do crescimento 0..1; rect = onde ele esta.
 int  vertudo_voo_ativo(float *p, GfxRect *rect);
+float vertudo_home_fileiras(float recuo);   // World 22/11: opacidade das fileiras da Home na abertura
 
 // Abre com o catalogo de uma fileira da home.
 void vertudo_abrir(const char *base, const char *tipo, const char *catId,

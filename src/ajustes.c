@@ -757,6 +757,7 @@ typedef enum {
   AJ_TEMA_FUNDO,           // 0 Grafite (o de sempre) | 1 Preto puro (#000, estilo AMOLED)
   AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
   AJ_COL_GIF,              // World 21/11: GIF das Collections: 0 Automatico | 1 Ligado | 2 Desligado (local)
+  AJ_RAIL_TAMANHO,         // World 22/11: tamanho da barra lateral: 0 Pequeno | 1 Medio (o de sempre) | 2 Grande (local)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -1639,7 +1640,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Contorno do vidro",               V_LIGA, 2),   // local: vidroContornoLocal
   ESC("Som do trailer",              V_LIGA, 2),   // local: trailerDestaqueSomLocal; #509: vale para todo trailer
   // Em DECIMOS de segundo (0,2 s a 10 s): textoValor escreve "2,2 s".
-  NUM("Espera do trailer no destaque",   2, 100, 2, " s"), // local: trailerDestaqueEsperaLocal
+  NUM("Tempo parado antes do trailer",   2, 100, 2, " s"), // local: trailerDestaqueEsperaLocal
   // Era o 90 fixo de montarContinuar/home_registrar_retorno/proximo.h. Local:
   // o web nao tem a escolha.
   NUM("Percentual assistido",            70, 98, 1, "%"),  // local: cwConcluidoLocal
@@ -1907,6 +1908,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Tom da interface",                V_TEMA_FUNDO, 2),       // temaFundoLocal
   ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
   ESC("GIF animado nas Collections",     V_COL_GIF, 3),          // colGifLocal (World 21/11)
+  ESC("Tamanho do menu lateral",         V_MENU_TOPO_TAMANHO, 3), // railTamanhoLocal (World 22/11)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2249,6 +2251,7 @@ static const char *CHAVE[] = {
   "temaFundoLocal",
   "aberturaVideoLocal",
   "colGifLocal",
+  "railTamanhoLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3604,6 +3607,13 @@ int ajustes_menu_topo(void) {
 int ajustes_menu_topo_modo(void) { return valor[AJ_MENU_TOPO_MODO] == 0 ? 0 : 1; }
 int ajustes_menu_topo_icones(void) { return ajustes_menu_topo_modo() == 0; }
 int ajustes_menu_topo_tamanho(void) { int v = valor[AJ_MENU_TOPO_TAMANHO]; return v >= 0 && v < 3 ? v : 1; }
+// World 22/11 (dono: "Padrao > Lateral > Moderno nao tem como ajustar o tamanho"): o fator da
+// barra lateral (classica e moderna). Medio = 1,0, o tamanho de sempre.
+float ajustes_rail_fator(void) {
+  static const float f[3] = { 0.85f, 1.0f, 1.18f };
+  int v = valor[AJ_RAIL_TAMANHO];
+  return f[v >= 0 && v < 3 ? v : 1];
+}
 int ajustes_menu_topo_fixo(void) { return valor[AJ_MENU_TOPO_FIXO] == 0; }
 int ajustes_menu_topo_foco_expandido(void) { return valor[AJ_MENU_TOPO_FOCO_EXPANDIDO] == 0; }
 
@@ -3983,6 +3993,7 @@ float ajustes_rail_largura_fixa(void) {
   // (diagnostico, social) get that real width; a layer that already carries
   // the text scale (every layer when it is on) keeps the constants in its own
   // units.
+  borda *= ajustes_rail_fator();   // World 22/11: Tamanho do menu lateral
   return borda * (gfx_escala() != 1.0f ? 1.0f : gfx_escala_txt()) + NV_MENU_RAIL_VAO - NV_CONTENT_PAD;
 }
 void ajustes_area_conteudo(float padEsq, float padDir, float *x, float *w) {
@@ -7389,6 +7400,7 @@ static int inativa(int op) {
     case AJ_MENU_TOPO_MODO: case AJ_MENU_TOPO_ORDEM: return 0;
     case AJ_MENU_TOPO_TAMANHO:
     case AJ_MENU_TOPO_FIXO: case AJ_MENU_TOPO_FOCO_EXPANDIDO: return !ajustes_menu_topo();
+    case AJ_RAIL_TAMANHO: return ajustes_menu_topo() || ajustes_home_layout() == HOME_LAYOUT_DINAMICA;
     case AJ_RAIL_BLUR:    return !ajustes_rail_moderna();
     case AJ_HERO_CATALOGOS: return !ajustes_hero_ligado();
     // O fundo em tela cheia e da Moderna: no Padrao o destaque e um banner e na
@@ -7439,7 +7451,7 @@ static int inativa(int op) {
                valor[AJ_FOCO_TRAILER] != AJ_TRAILER_CARTAZ_DESLIGADO ||
                lig(AJ_DET_TRAILER_AUTO)) ||
              !trailerfonte_com_som(trailerfonte_tizen());
-    case AJ_HERO_TRAILER_ESPERA: return !lig(AJ_HERO_TRAILER);
+    case AJ_HERO_TRAILER_ESPERA: return !lig(AJ_HERO_TRAILER) && valor[AJ_FOCO_TRAILER] == AJ_TRAILER_CARTAZ_DESLIGADO;
     // AJ_FOCO_TRAILER nao depende mais de nada (tres modos, 08/10/2026): a
     // regra do cartaz em pe sem Expandir mora no modo No card (home.c).
     // AJ_ATUALIZAR NAO APAGA MAIS (01/10/2026): sem versao nova conhecida
@@ -7645,6 +7657,7 @@ static const char *ajudaOpcaoBase(int op) {
         op == AJ_MENU_TOPO_FIXO || op == AJ_MENU_TOPO_FOCO_EXPANDIDO)
       return "Ative o menu superior para personalizar a apresentação e a ordem das abas.";
     if (op == AJ_RAIL_BLUR) return "Ative a barra lateral moderna para usar o desfoque.";
+    if (op == AJ_RAIL_TAMANHO) return "Vale para a barra lateral. Com o menu no topo, use Tamanho do menu superior.";
     if (op == AJ_HERO_CATALOGOS) return "Ative Mostrar destaque para exibir os catálogos no topo da Home.";
     if (op == AJ_HERO_CHEIO) return "Só vale no layout Moderna. No Padrão o destaque é um banner, e na Dinâmica ele ocupa a largura toda e sobe junto com a rolagem.";
     // #205: uma frase por causa, na mesma ordem de inativa().
@@ -7673,7 +7686,7 @@ static const char *ajudaOpcaoBase(int op) {
     if (op == AJ_HERO_TRAILER_SOM)
       return "Ative um trailer automático — destaque, cartaz em foco ou página do título — para ajustar o som.";
     if (op == AJ_HERO_TRAILER_ESPERA)
-      return "Ative Trailer no destaque para ajustar o trailer do topo da Home.";
+      return "Ative o trailer no destaque ou no cartaz em foco para ajustar a espera.";
     if (op > AJ_TMDB_LIGADO && op <= AJ_TMDB_CW)
       return "Ative TMDB para ajustar o que ele enriquece.";
     if (op > AJ_MDB_LIGADO && op <= AJ_MDB_MAL)
@@ -7815,7 +7828,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_HERO_TRAILER: return "Com o foco parado no destaque do topo, o trailer do título toca no lugar da arte, sem som a menos que Som do trailer esteja ligado. Mover o foco volta para a arte.";
     case AJ_HERO_TRAILER_SOM: return "Ligado: os trailers que tocam sozinhos — destaque, cartaz em foco e página do título — saem com som. Desligado: tocam sem som.";
     case AJ_DET_TRAILER_SOM: return "Ligado: o trailer que toca sozinho na página do título sai com som. Desligado: toca sem som; OK abre em tela cheia com som.";
-    case AJ_HERO_TRAILER_ESPERA: return "Quanto tempo o destaque fica parado num título antes de trocar a arte pelo trailer.";
+    case AJ_HERO_TRAILER_ESPERA: return "Quanto tempo o destaque ou o cartaz em foco fica parado num título antes de o trailer começar. No cartaz, o trailer nunca começa antes da expansão.";
     case AJ_ADDON_POSTER: return "Com um serviço de pôsteres ligado, o título que veio de um catálogo de addon fica com o pôster que o próprio addon manda, e o serviço só entra nos outros (Continuar assistindo, listas do Trakt, pôster genérico do Cinemeta). Sem o serviço, o pôster já é o do addon.";
     case AJ_ADDON_FUNDO: return "O card deitado, o destaque e a página do título usam o fundo que o addon manda no catálogo, mesmo com outro Background do hero ou com Destaque com outra arte. O addon que não manda fundo cai na fonte escolhida. A arte escolhida à mão em Trocar arte continua valendo mais.";
     case AJ_ADDON_LOGO: return "O logo do título que o addon manda não é trocado pelo logo traduzido do TMDB (Arte localizada) ao abrir o título. O addon que não manda logo continua recebendo o do TMDB.";
@@ -7850,6 +7863,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_MENU_TOPO: return "Na lateral: o menu fica na esquerda, como sempre. No topo: o menu vira uma barra no alto da tela e o conteúdo usa a largura toda. Para cima no primeiro item da tela chega à barra e Para baixo volta. Vale para este perfil.";
     case AJ_MENU_TOPO_MODO: return "Somente ícones mantém todas as abas compactas. Ícones Mistos expande suavemente a aba focada e revela seu nome; ao perder o foco, ela volta a ser apenas um ícone. Busca e avatar do Perfil mantêm seus formatos.";
     case AJ_MENU_TOPO_TAMANHO: return "Ajusta o tamanho das cápsulas, ícones, textos e avatar do menu superior. Médio é um pouco maior que o tamanho anterior. Vale para este perfil.";
+    case AJ_RAIL_TAMANHO: return "Ajusta o tamanho dos ícones, nomes e avatar da barra lateral, clássica ou moderna. Médio é o tamanho de sempre. Vale só nesta TV.";
     case AJ_MENU_TOPO_ORDEM: return "Reordena as abas do menu superior. A Busca mantém seu ícone quadrado e o avatar do perfil permanece separado. Vale para este perfil nesta TV.";
     case AJ_MENU_TOPO_FIXO: return "Mantém a barra superior e o avatar do perfil visíveis na tela inicial, mesmo quando o foco está nas fileiras.";
     case AJ_MENU_TOPO_FOCO_EXPANDIDO: return "Aumenta levemente a barra superior quando ela recebe foco e retorna ao tamanho normal ao sair. A transição é animada.";

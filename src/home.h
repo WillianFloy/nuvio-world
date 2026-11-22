@@ -155,6 +155,7 @@ unsigned long home_vitrine_diag_arte_info(const CatItem *ci, int *ehPoster);
 int  home_vitrine_arte(const CatItem *ci, float alfa);
 int  home_vitrine_layout(void);
 float home_vitrine_topo(float filH);
+float home_vitrine_bloco_min(void);   // World 22/11: logo + meta + 3 linhas de sinopse
 float home_vitrine_texto(const CatItem *ci, float topo, float teto, float alfa);
 float home_vitrine_texto_el(const CatItem *ci, float topo, float teto, float aLogo, float aMeta,
                             float aSin, float dyLogo, float dyMeta, float dySin);   // 2.0.42

@@ -191,6 +191,15 @@ float vertudo_home_recuo(float *textoVisivel) {
   if (textoVisivel) *textoVisivel = tx;
   return rec;
 }
+// World 22/11 (dono: "a abertura da collection no layout padrao ta estranha"): no Padrao o
+// banner cobre so a metade de cima; as fileiras da Home apagavam com o recuo e a metade de
+// baixo ficava preta ate o conteudo chegar. Agora as fileiras da Home ficam ate a REVELACAO
+// e cruzam com as da Colecao (o fundo escuro acende junto, tr_fundo_padrao).
+static float tr_fundo_padrao(float r) { return tr_suave(r / 0.45f); }
+float vertudo_home_fileiras(float recuo) {
+  if (vooTem && !vooDestCobre && !vooSaindo) return 1.0f - tr_fundo_padrao(vitTr.r);
+  return 1.0f - recuo;
+}
 #ifdef NV_TOUCH_UI
 static int toqueLivre;
 static ToqueRolagem toqueAbas;
@@ -2459,7 +2468,18 @@ static float vitRailZero(void) {
   return rail > 0.0f ? rail / gfx_escala() + 12.0f : 0.0f;
 }
 // Topo da primeira fileira: o do layout da Home (home_vitrine_topo).
-static float vitTopo(void) { return home_vitrine_topo(vitPasso()); }
+// O teto do bloco do destaque (o pe do cabecalho da colecao): o mesmo de vitDesenhar.
+static float vitTetoBloco(void) { return vtIlhaY() + NV_ILHA_H + 14.0f + NV_CTRL_H * 0.5f + 34.0f + VIT_CAB_FOLGA; }
+static float vitTopo(void) {
+  float t = home_vitrine_topo(vitPasso());
+  // World 22/11: o bloco do destaque (logo, meta, 3 linhas de sinopse) cabe inteiro entre o
+  // cabecalho e a 1a fileira; senao a fileira desce (no telefone, como sempre).
+  if (!vtTelefone() && home_vitrine_layout() != HOME_LAYOUT_DINAMICA) {
+    float min = vitTetoBloco() + home_vitrine_bloco_min() + VIT_VAO_FIL;
+    if (t < min) t = min;
+  }
+  return t;
+}
 // Janela vertical da Vitrine (TV), como na referencia da Home: a fileira em foco
 // fica SEMPRE no mesmo ponto (topo), logo abaixo da sinopse, inclusive a ultima;
 // a janela vai do topo ate o pe da tela, entao a fileira seguinte espia embaixo
@@ -4291,7 +4311,7 @@ static void vitDesenhar(float a, float x0) {
   // 2.0.45: na transformacao o fundo escuro so existe onde o destaque nao cobre (Padrao) e acende com o
   // relogio; com o banner cobrindo a tela (Moderna/Dinamica) nada e pintado por baixo dele.
   const int trVivo = vooTem && !vooSaindo;
-  if (trVivo) { fundoPintado = !vooDestCobre; base = tr_fundo(vitTr.p); }
+  if (trVivo) { fundoPintado = !vooDestCobre; base = vooDestCobre ? tr_fundo(vitTr.p) : tr_fundo_padrao(vitTr.r); }
   else if (vitBannerAtivo && vooDestCobre && a >= 0.99f && sai <= 0.0f) fundoPintado = 0;
   if (fundoPintado && base > 0.004f) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };

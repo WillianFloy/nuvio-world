@@ -104,6 +104,10 @@ static int ajwCenaDe(int op, int *alvo) {
     case AJ_DET_TRAILER_AUTO: *alvo = AJW_A_TITULO_TOPO; return AJW_C_TITULO;
     case AJ_HERO_TRAILER: case AJ_HERO_TRAILER_ESPERA: case AJ_HERO_TRAILER_SOM: *alvo = AJW_A_HERO; return AJW_C_INICIO;
     case AJ_FOCO_TRAILER: *alvo = AJW_A_CARTAZ; return AJW_C_INICIO;
+    case AJ_RAIL_TAMANHO: *alvo = AJW_A_RAIL; return AJW_C_INICIO;
+    case AJ_NOTAS_HOME: case AJ_SELO_VISTO: *alvo = AJW_A_CARTAZ; return AJW_C_INICIO;
+    case AJ_ABAS_ESTILO: *alvo = AJW_A_TUDO; return AJW_C_COLECAO;
+    case AJ_FILTROS_FONTES: *alvo = AJW_A_LISTA; return AJW_C_FONTES;
     case AJ_MENU_TOPO: case AJ_MENU_TOPO_MODO: case AJ_MENU_TOPO_TAMANHO: case AJ_MENU_TOPO_ORDEM:
     case AJ_MENU_TOPO_FIXO: case AJ_MENU_TOPO_FOCO_EXPANDIDO:
       *alvo = ajustes_menu_topo() || op == AJ_MENU_TOPO_TAMANHO || op == AJ_MENU_TOPO_FIXO ||
@@ -132,7 +136,7 @@ static int ajwCenaDe(int op, int *alvo) {
   }
   if (ajwSecaoChamada(s, "Fontes e addons")) {
     if (!strcmp(b, "Debrid")) { *alvo = AJW_A_SELOS; return AJW_C_FONTES; }
-    if (!strcmp(b, "Falha na reprodução")) { *alvo = AJW_A_LISTA; return AJW_C_FONTES; }
+    if (!strcmp(b, "Provedores e falhas")) { *alvo = AJW_A_LISTA; return AJW_C_FONTES; }
     return AJW_C_ADDONS;
   }
   if (ajwSecaoChamada(s, "TV ao vivo")) {
@@ -141,7 +145,8 @@ static int ajwCenaDe(int op, int *alvo) {
     *alvo = AJW_A_CANAL; return AJW_C_TVVIVO;
   }
   if (ajwSecaoChamada(s, "Tela inicial")) {
-    if (!strcmp(b, "Estilo")) {
+    if (!strcmp(b, "Destaque")) { *alvo = AJW_A_HERO; return AJW_C_INICIO; }
+    if (!strcmp(b, "Layout")) {
       *alvo = op == AJ_HOME_LAYOUT || op == AJ_LANDSCAPE ? AJW_A_TUDO : AJW_A_HERO;
       if (op == AJ_LANDSCAPE) *alvo = AJW_A_FILEIRAS;
       return AJW_C_INICIO;
@@ -159,11 +164,11 @@ static int ajwCenaDe(int op, int *alvo) {
   }
   if (ajwSecaoChamada(s, "Página do título")) {
     if (!strcmp(b, "Notas")) { *alvo = AJW_A_NOTAS; return AJW_C_TITULO; }
-    *alvo = !strcmp(b, "O que aparece") ? AJW_A_TITULO_TOPO : AJW_A_TUDO;
+    *alvo = !strcmp(b, "Layout") ? AJW_A_TITULO_TOPO : AJW_A_TUDO;
     return AJW_C_TITULO;
   }
   if (ajwSecaoChamada(s, "Cartazes e trailers")) {
-    if (!strcmp(b, "De onde vem a arte") || !strcmp(b, "Som e imagem")) { *alvo = AJW_A_HERO; return AJW_C_INICIO; }
+    if (!strcmp(b, "De onde vem a arte")) { *alvo = AJW_A_HERO; return AJW_C_INICIO; }
     if (!strcmp(b, "Trailers")) { *alvo = AJW_A_HERO; return AJW_C_INICIO; }
     *alvo = AJW_A_CARTAZ; return AJW_C_INICIO;
   }

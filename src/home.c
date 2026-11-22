@@ -747,6 +747,12 @@ static int heroTrailerTocando(void);
 // A espera e ajuste; a janela da Apple (NV_TRAILER_HERO_JANELA_MS) conta a
 // partir dela, senao uma espera longa venceria a janela antes de abrir.
 static Uint32 heroTrailerEspera(void) { return ajustes_trailer_hero_espera_ms(); }
+// World 22/11 (dono: "uma opcao de quanto tempo parado pra iniciar o trailer"): o trailer do
+// cartaz em foco espera o "Tempo parado antes do trailer", nunca antes da expansao do cartaz.
+static Uint32 cartazTrailerEspera(void) {
+  Uint32 exp = (Uint32)(ajustes_expandir_poster_atraso() * 1000.0f), e = ajustes_trailer_hero_espera_ms();
+  return e > exp ? e : exp;
+}
 // Destino pedido ao trailer; o furo usa o plano final aplicado em video_tpk.c.
 static GfxRect cartaoVideoRect(GfxRect c) {
 #if defined(NV_TPK) && !defined(__EMSCRIPTEN__)
@@ -6505,7 +6511,7 @@ static void shotTrailerPasso(int topo, float dt, Uint32 agora, int heroSetting, 
   float alvo;
   if (topo && heroAtual >= 0 && heroPendente == heroAtual && heroDesejado < 0) {
     if (focoHero) { if (heroSetting) dest = 0; }
-    else if (agora - heroPendenteEm >= (Uint32)(ajustes_expandir_poster_atraso() * 1000.0f)) {
+    else if (agora - heroPendenteEm >= cartazTrailerEspera()) {
       if (posterSetting == AJ_TRAILER_CARTAZ_CHEIA) dest = 0;
       else if (posterSetting == AJ_TRAILER_CARTAZ_CARD && cartaoTrailerItem == heroAtual &&
                cartaoTrailerServe) dest = 1;
@@ -6574,7 +6580,7 @@ static void home_trailer_passo_(int topo, float dt, Uint32 agora) {
     int noCartaz = !focoHero && posterSetting &&
                    (destCartao || (ajustes_hero_ligado() && ajustes_home_layout() != HOME_LAYOUT_DINAMICA)) &&
                    (destCartao || heroPendente == heroAtual) &&
-                   agora - heroPendenteEm >= (Uint32)(ajustes_expandir_poster_atraso() * 1000.0f);
+                   agora - heroPendenteEm >= cartazTrailerEspera();
     // No card: the focused card drawn last frame must accept the video.
     if (destCartao) noCartaz = noCartaz && cartaoTrailerPode && itemAtual >= 0;
     if (destCartao && !cartaoAssentado(agora)) cartaoTrailerServe = 0;
@@ -7605,6 +7611,15 @@ float home_vitrine_topo(float filH) {
     default:                   return ANC(NV_SHELF_TOP);
   }
 }
+// World 22/11 (dono: "o texto cortando", foto 1): a altura MINIMA do bloco de texto do
+// destaque da Vitrine para caber o nome/logo (88), a linha de meta, a de notas e TRES
+// linhas de sinopse. A Vitrine desce a primeira fileira quando o cabecalho (ou o menu
+// no topo) nao deixa esse espaco; antes a sinopse perdia linhas ate sumir.
+float home_vitrine_bloco_min(void) {
+  float meta = (float)txt_linha(TXT_HERO_META, "Ag", 255, 255, 255, 255).h;
+  float sin = 3.0f * heroSinEntrelinha();
+  return 88.0f + 2.0f * (meta + ANC(NV_HERO_COPY_LINHA)) + sin + 0.5f * heroSinEntrelinha() + 24.0f;
+}
 void home_vitrine_medida(float *w, float *h, float *passo, float *rotH) {
   *w = larguraDe(FILEIRA_NORMAL); *h = alturaDe(FILEIRA_NORMAL);
   *passo = *w + gapDe(FILEIRA_NORMAL);
@@ -8548,7 +8563,7 @@ static void home_desenhar_(Uint32 agora) {
     // No retrato a visibilidade acompanha o recorte real, inclusive antes
     // do primeiro gesto; a memoria do foco nao esconde fileiras acessiveis.
     float fade=alfaFileiraHome(r, y, topoFil, corte);
-    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema)*(1.0f-recuo);
+    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema)*vertudo_home_fileiras(recuo);   // World 22/11: no Padrao ficam ate a revelacao
     const float grupoFil = gfx_opacidade_grupo;
     { int n = fileiras[r].n;
       int visivel = y < NV_TELA_H && y + NV_LEGACY_ROW_HEAD_H + alturaFil(r) > corte;

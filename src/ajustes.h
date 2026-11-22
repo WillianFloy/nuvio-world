@@ -327,6 +327,7 @@ int   ajustes_menu_topo(void);
 int   ajustes_menu_topo_modo(void); // 0 somente ícones, 1 ícones mistos
 int   ajustes_menu_topo_icones(void); // compatibilidade: 1 = somente ícones
 int   ajustes_menu_topo_tamanho(void); // 0 pequeno, 1 médio, 2 grande
+float ajustes_rail_fator(void);         // World 22/11: tamanho da barra lateral (0,85 | 1 | 1,18)
 int   ajustes_menu_topo_fixo(void); // mantém barra e avatar visíveis na Home
 int   ajustes_menu_topo_foco_expandido(void); // amplia suavemente a barra quando recebe foco
 #define AJ_MENU_TOPO_ORDEM_N 8

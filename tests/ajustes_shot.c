@@ -96,6 +96,9 @@ extern void ajustes_teste_world_focar(const char *n);
 extern int ajustes_teste_world_nres(void);
 extern void ajustes_teste_world_buscar(const char *q);
 extern int ajustes_teste_world_guia(void);
+extern void ajustes_teste_world_caminho(const char *n, char *b, size_t t);
+extern const char *ajustes_teste_world_aba(int s);
+extern int ajustes_teste_world_inativa(const char *n);
 extern int ajustes_teste_world_sair(void);
 extern void ajustes_teste_world_arvore(FILE *f);
 static int quadrosCaptura = 60;
@@ -221,6 +224,39 @@ static void worldTeste(void) {
       { SDL_Event e = { 0 }; e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE;   /* como app.c: cada painel com o seu */
           for (int k = 0; k < 3 && T[i].aberto(); k++) { if (!registro_envio_evento(&e) && !registro_diag_evento(&e)) registro_evento(&e); } }
     } }
+  // 5c. (World 22/11) A NOVA ORDEM (mapa R3 aprovado): abas e opcoes que mudaram de lugar.
+  { static const char *const ABAS[] = { "Tela inicial", "Aparência", "Cartazes e trailers", "Coleções", "Página do título",
+      "Reprodução", "Idiomas e legendas", "Fontes e addons", "TV ao vivo", "Conta e serviços", "Esta TV", "Sobre e ajuda" };
+    int certas = 1;
+    for (int k = 0; k < 12; k++) if (strcmp(ajustes_teste_world_aba(k), ABAS[k])) { certas = 0; printf("  aba %d = %s\n", k, ajustes_teste_world_aba(k)); }
+    WCHECA(certas, "as 12 abas na ordem aprovada, Tela inicial primeiro");
+    static const struct { const char *n, *onde; } M[] = {
+      { "notashome", "Cartazes e trailers > No pôster" }, { "selovisto", "Cartazes e trailers > No pôster" },
+      { "abasestilo", "Coleções > Exibição" }, { "cwminimo", "Tela inicial > Continuar assistindo" },
+      { "psfundo", "Conta e serviços > Escolha de perfil" }, { "filtros", "Reprodução > Escolha da fonte" },
+      { "railtam", "Tela inicial > Barra lateral" }, { "trailerespera", "Cartazes e trailers > Trailers" } };
+    for (size_t k = 0; k < sizeof M / sizeof *M; k++) {
+      char b[200]; ajustes_teste_world_caminho(M[k].n, b, sizeof b);
+      WCHECA(!strcmp(b, M[k].onde), "'%s' mora em %s (esta em %s)", M[k].n, M[k].onde, b);
+    } }
+  // 5d. (World 22/11) TAMANHO DO MENU LATERAL: a seta muda na linha e o fator da barra acompanha;
+  // com o menu no topo a linha fica apagada (vale o tamanho do menu superior).
+  { ajustes_teste_world(1, &n);
+    ajustes_teste_world_definir("menutopo", 0); ajustes_teste_world_definir("railtam", 1);
+    float f1 = ajustes_rail_fator();
+    ajustes_teste_world_focar("railtam"); tecla(SDLK_RIGHT); ajustes_teste_world_vencer();
+    WCHECA(ajustes_teste_world_valor("railtam") == 2 && ajustes_rail_fator() > f1, "Direita aumenta a barra lateral (fator %.2f -> %.2f)", f1, ajustes_rail_fator());
+    tecla(SDLK_LEFT); tecla(SDLK_LEFT); ajustes_teste_world_vencer();
+    WCHECA(ajustes_teste_world_valor("railtam") == 0 && ajustes_rail_fator() < f1, "Esquerda diminui (fator %.2f)", ajustes_rail_fator());
+    WCHECA(ajustes_teste_world_inativa("railtam") == 0, "com a barra lateral a linha esta ativa");
+    ajustes_teste_world_definir("menutopo", 1);
+    WCHECA(ajustes_teste_world_inativa("railtam") == 1, "com o menu no topo a linha fica apagada");
+    ajustes_teste_world_definir("menutopo", 0); ajustes_teste_world_definir("railtam", 1); }
+  // 5e. (World 22/11) Tempo parado antes do trailer: vale para o destaque OU o cartaz em foco.
+  { ajustes_teste_world_definir("herotrailer", 1); ajustes_teste_world_definir("focotrailer", 0);
+    WCHECA(ajustes_teste_world_inativa("trailerespera") == 1, "sem trailer automatico a espera fica apagada");
+    ajustes_teste_world_definir("focotrailer", 2);
+    WCHECA(ajustes_teste_world_inativa("trailerespera") == 0, "so com o trailer do cartaz ligado a espera ja vale"); }
   // 6. Busca: resultados; OK leva a opcao na categoria.
   ajustes_teste_world_buscar("relógio");
   ajustes_teste_world_estado(&op, &modo, &ind, &ed, &topo);

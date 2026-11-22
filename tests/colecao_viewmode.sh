@@ -54,8 +54,9 @@ assert "static float vitAlturaViewport(void)" in source
 # e as colunas sao adaptativas com foco fixo e espiadas iguais (vitgeom.h, tests/vitgeom.sh).
 assert "conteudo / 3.0f" not in source
 assert '#include "vitgeom.h"' in source
-assert "vitgeom_fixo_n(" in source and "vitgeom_fixo_alvo(" in source and "vitgeom_fixo_ancora(" in source
-assert "gfx_esvanecer_x(z0, fmaxf(esp, z0 + 1.0f), NV_TELA_W - esp, NV_TELA_W)" in source   # World 20/11: zera na borda da rail
+# World 22/11: as fileiras comecam no inicio do conteudo e o foco deixa a espiada do anterior.
+assert "vitgeom_cabem(vtInicio()" in source and "vitgeom_espia_alvo(" in source and "vitgeom_espia_ant(w)" in source
+assert "gfx_esvanecer_x(z0, z0 + 40.0f, fimInt, NV_TELA_W)" in source   # so a ponta esvanece, depois da rail
 assert "gfx_recorte(0.0f, topo - 8.0f, NV_TELA_W, vitAlturaViewport())" in source
 assert "Fontes nao-addon ficam visiveis, mas vazias" not in source
 

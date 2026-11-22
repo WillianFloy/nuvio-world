@@ -47,8 +47,14 @@
 static float tvAumento(void) {
   return ajustes_home_layout() == HOME_LAYOUT_DINAMICA && gfx_escala_ui_base() <= 0.9f + 0.001f ? 1.2f : 1.0f;
 }
+// World 22/11: "Tamanho do menu lateral" (ajustes_rail_fator) vale para a barra lateral
+// classica e moderna; o menu no topo tem o proprio (topoEscalaTamanho) e a barra da
+// Dinamica fica como esta.
+static float railFator(void) {
+  return ajustes_menu_topo() || ajustes_home_layout() == HOME_LAYOUT_DINAMICA ? 1.0f : ajustes_rail_fator();
+}
 static float menuEscala(void) {
-  return NV_MENU_ESCALA_BASE * (ajustes_home_layout() == HOME_LAYOUT_MODERNA ? NV_MENU_MODERNA_AUMENTO : 1.0f) * tvAumento() * fminf(gfx_escala_ui_base(), 1.0f) * gfx_escala_txt();
+  return NV_MENU_ESCALA_BASE * (ajustes_home_layout() == HOME_LAYOUT_MODERNA ? NV_MENU_MODERNA_AUMENTO : 1.0f) * tvAumento() * fminf(gfx_escala_ui_base(), 1.0f) * gfx_escala_txt() * railFator();
 }
 #define NV_MENU_ESCALA (menuEscala())
 #define MK(v) ((v) / NV_MENU_ESCALA_BASE)

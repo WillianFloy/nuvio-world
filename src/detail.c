@@ -492,6 +492,13 @@ static TrailerCinema trailerCinema;
 static char trailerCheiaLogada[32];
 #endif
 static int trailerSemFonteLogado = 0;
+// World 22/11 (dono: "as vezes nem o botao de trailer aparece"): a ultima decisao de
+// trailerFonte. TRF_ESPERA = a fonte da vez ainda vai responder: o botao ja existe e,
+// pedido nesse meio tempo, o trailer abre quando a fonte chegar (trailerCheioPendente).
+static int trailerUltimaDecisao = TRF_ESPERA;
+static int trailerCheioPendente, trailerCheioIdx = -1;
+static Uint32 trailerCheioAte;
+#define NV_TRAILER_BOTAO_ESPERA_MS 10000u
 static int ehSerie(void);
 static const char *trailerFonte(int k, int *qual, int cheia) {
   const CatItem *ci = cat_item(idx);
@@ -526,6 +533,7 @@ static const char *trailerFonte(int k, int *qual, int cheia) {
   c.youtubeRespondeu = !extras_carregando();
   d = cheia ? trailerfonte_escolher_cheia(aj, tz, trailerfonte_com_som(tz), &c, &u, &q)
             : trailerfonte_escolher(aj, tz, &c, &u, &q);
+  trailerUltimaDecisao = d;
   if (d == TRF_ABRE) {
     if (qual) *qual = q;
 #ifdef NV_TPK
@@ -1554,6 +1562,7 @@ static void abrirInterno(const HomeItem *it) {
   trailerDesde = 0; trailerTentado = 0; trailerFade = 0.0f;
   trailerEtapa = 0; trailerPrazo = 0;
   trailerSemFonteLogado = 0;
+  trailerUltimaDecisao = TRF_ESPERA; trailerCheioPendente = 0;   // World 22/11
   trailercinema_zerar(&trailerCinema);
   idx = it->indice;
   { const CatItem *ci = cat_item(idx);
@@ -2551,6 +2560,9 @@ static int temTrailer(void) {
   const CatItem *ci = cat_item(idx);
   if (!ci || (strcmp(ci->tipo, "movie") && strcmp(ci->tipo, "series"))) return 0;
   if (trailer_suportado() && trailerFonte(0, NULL, 1)) return 1;
+  // World 22/11: a Apple/o IMDb ainda vao responder (o id do TMDB vira tt num fio,
+  // trailertt.h): o botao fica, e o OK espera a fonte (tocarTrailerCheio).
+  if (trailer_suportado() && trailerUltimaDecisao == TRF_ESPERA) return 1;
   return extras_n_trailers() > 0;
 }
 // "EXPLORAR" (Explorar 2.0): linha da ilha "Mais opcoes". Abre a toca
@@ -2638,6 +2650,15 @@ static int acaoEm(int n) {
 static void tocarTrailerCheio(int k) {
   int qual = 0;
   const char *u = trailer_suportado() ? trailerFonte(k, &qual, 1) : NULL;
+  trailerCheioPendente = 0;
+  if (!u && trailer_suportado() && trailerUltimaDecisao == TRF_ESPERA) {
+    // World 22/11: a fonte ainda nao respondeu. Em vez de cair no YouTube (ou em nada),
+    // espera ate NV_TRAILER_BOTAO_ESPERA_MS e abre quando chegar (detail_atualizar_).
+    trailerCheioPendente = k + 1; trailerCheioIdx = idx;
+    trailerCheioAte = SDL_GetTicks() + NV_TRAILER_BOTAO_ESPERA_MS;
+    printf("[trailer] detalhe: botao pedido, esperando a fonte responder\n"); fflush(stdout);
+    return;
+  }
   if (u) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
     trailerEtapa = 0; trailerPrazo = 0;   // tela cheia: so o teclado fecha
@@ -3624,6 +3645,21 @@ static void toquePessoaFocar(int i, int b) { (void)b; pessoaFoco = i; }
 static float blocoAnt[3] = { -1.0f, -1.0f, -1.0f };   // Notas / Numeros / Progresso no quadro anterior
 
 static void detail_atualizar_(float dt, Uint32 agora) {
+  // World 22/11: o botao Trailer pedido antes da fonte responder abre quando ela chegar.
+  if (trailerCheioPendente) {
+    int k = trailerCheioPendente - 1, qual = 0;
+    const char *u;
+    if (trailerCheioIdx != idx || !aberto) trailerCheioPendente = 0;
+    else if ((u = trailerFonte(k, &qual, 1)) != NULL) { (void)u; tocarTrailerCheio(k); }
+    else if (trailerUltimaDecisao == TRF_NENHUMA || (Sint32)(agora - trailerCheioAte) >= 0) {
+      trailerCheioPendente = 0;
+      printf("[trailer] detalhe: botao sem fonte (%s)\n", trailerUltimaDecisao == TRF_NENHUMA ? "nenhuma" : "prazo");
+      fflush(stdout);
+#ifndef __EMSCRIPTEN__
+      if (extras_n_trailers() > k) extras_trailer_abrir(k);
+#endif
+    }
+  }
   if (aberto) revalidarIdx();
   pessoaBuscaAtualizar();
 #ifdef NV_TOUCH_UI

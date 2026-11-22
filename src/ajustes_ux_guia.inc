@@ -42,7 +42,11 @@ typedef struct {
 // O cartao do P2P (gerado de guia.json) descreve so o servidor da rede. Num
 // pacote com o motor embutido (p2pmotor.h) isso seria falso: a TV baixa e
 // compartilha. A busca continua sobre o texto gerado (nao abre o motor).
+static int ajwAtivo(void);
 static const char *guiaTxt(const GuiaEnt *g) {
+  // World 22/11: os Ajustes de tela cheia (abas, setas na linha, Faixa clara).
+  if (!strcmp(g->id, "c-ajustes") && ajwAtivo())
+    return "Doze categorias em abas, começando pela Tela inicial. As setas mudam o valor na própria linha, OK abre a lista de valores ou a tela da opção, segurar OK volta ao padrão, e a prévia mostra onde a mudança aparece.";
   if (g->alvo == AJ_P2P_LIGADO && p2pmotor_disponivel())
     return "Toca torrents sem link. Sem servidor na rede, o próprio aparelho baixa e compartilha enquanto toca, com teto de disco, e apaga tudo ao fechar o player. O automático nunca escolhe P2P.";
   return g->txt;
@@ -99,6 +103,9 @@ int ajustes_guia_aberto(void) { return guiaAberto; }
 // saiu do Android e o guia ainda mostrava "Vidro ou solido" com um botao que
 // nao abria nada) fica fora do guia: lista, contagens e busca.
 static int guiaVisivel(int i) {
+#ifdef NV_ANDROID
+  if (!strcmp(GUIA_ENT[i].id, "c-ponteiro")) return 0;   // World 22/11: o Magic Remote e da LG
+#endif
   return !(GUIA_ENT[i].alvo >= 0 && !ajOpcaoDisponivel(GUIA_ENT[i].alvo));
 }
 // O subtitulo do capitulo sem o que saiu (o vidro, no Android).
@@ -305,9 +312,21 @@ static float guiaTrilha(const char *onde, float x, float y, float w, float a) {
   return y - y0;
 }
 // Botao 56 do inspetor (.acoes .btn): icone 22, texto 19/600.
+// World 22/11 (dono: "arrumar o guia e deixar padronizado"): aberto pelos Ajustes de tela
+// cheia, o guia usa a mesma linguagem deles: pagina chapada (sem ilhas), foco na Faixa
+// clara (cinza translucido, cantos de 8 px, texto branco) e cantos menores. A miniatura
+// do guia (guiaDesenhandoMini) e o telefone ficam como eram.
+static int guiaW(void) { return ajwAtivo() && !guiaDesenhandoMini; }
+static void guiaFaixa(GfxRect r, float al, float a) { gfx_cor(r, 8.0f / r.h, 1, 1, 1, al * a); }
 static float guiaBotao(const char *rot, const char *ic, float x, float y, int foco, float a) {
-  TxtLinha t = foco ? ajTxtT(TXT_AJ_SEG, rot) : ajTxt(TXT_AJ_SEG, rot);
+  TxtLinha t = foco && !guiaW() ? ajTxtT(TXT_AJ_SEG, rot) : ajTxt(TXT_AJ_SEG, rot);
   float w = 24 + 22 + 12 + t.w + 24;
+  if (guiaW()) {
+    guiaFaixa((GfxRect){ x, y, w, 56 }, foco ? 0.18f : 0.05f, a);
+    ajIcone(ic, x + 24, y + 17, 22, (foco ? 1.0f : 0.7f) * a);
+    txt_desenhar_alpha(t, x + 24 + 34, y + (56 - t.h) * 0.5f, (foco ? 1.0f : 0.8f) * a);
+    return w;
+  }
   if (foco) ajPilulaAcento((GfxRect){ x, y, w, 56 }, 28, a);
   else ajNeutro((GfxRect){ x, y, w, 56 }, 28, 0.08f, AJ_CHIP_SOL, a);
   if (foco) ajIconeT(ic, x + 24, y + 17, 22, a);
@@ -324,7 +343,8 @@ static void guiaDicas(const AjDica *d, int n, GfxRect ir, float a) {
   for (i = 0; i < n; i++) {
     TxtLinha k = ajTxt(TXT_AJ_KBD, d[i].k), l = ajTxt(TXT_ILHA_APOIO, d[i].l);
     float kw = k.w + 18.0f < 34.0f ? 34.0f : k.w + 18.0f;
-    ajNeutro((GfxRect){ x, y, kw, 30 }, 15, 0.09f, AJ_CHIP_SOL, a);
+    if (guiaW()) guiaFaixa((GfxRect){ x, y, kw, 30 }, 0.09f, a);
+    else ajNeutro((GfxRect){ x, y, kw, 30 }, 15, 0.09f, AJ_CHIP_SOL, a);
     txt_desenhar_alpha(k, x + (kw - k.w) * 0.5f, y + (30 - k.h) * 0.5f, 0.82f * a);
     txt_desenhar_alpha(l, x + kw + 9, y + (30 - l.h) * 0.5f, 0.5f * a);
     x += kw + 9 + l.w + 18.0f;
@@ -648,7 +668,7 @@ static void guiaDesenharIndice(const GuiaVista *v, float a) {
   float y = il.y + 14, ar, ag, ab;
   int j;
   ajustes_acento(&ar, &ag, &ab);
-  ajIlha(il, 32, a, 0);
+  if (!guiaW()) ajIlha(il, 32, a, 0);
 #ifdef NV_TOUCH_UI
   if (ajTelaCheia() && !guiaDesenhandoMini) {
     float total = (GI_CAP0 + GUIA_NCAPS) * 56.0f + 43.0f;
@@ -670,7 +690,9 @@ static void guiaDesenharIndice(const GuiaVista *v, float a) {
       ponteiro_alvo_faixa(r.x, r.y, r.w, r.h, il.y, il.y + il.h,
                           guiaPontIndice, guiaPontIndiceAbrir, j, 0);
 #endif
-    if (foco) ajNeutro(r, 27, 0.14f, 0.169f, 0.176f, 0.204f, a);
+    if (foco && guiaW()) guiaFaixa(r, 0.12f, a);
+    else if (foco) ajNeutro(r, 27, 0.14f, 0.169f, 0.176f, 0.204f, a);
+    else if (at && guiaW()) guiaFaixa(r, 0.05f, a);
     else if (at) gfx_cor((GfxRect){ r.x + 7, r.y + 24.5f, 5, 5 }, 0.5f, ar, ag, ab, a);
     ajIcone(ic, r.x + 18, r.y + 15, 24, (foco || at ? 1.0f : 0.55f) * a);
     { char n[16];
@@ -717,10 +739,12 @@ static void guiaDesenharEnt(int e, float x, float y, float w, int foco, int sel,
   const GuiaEnt *g = &GUIA_ENT[e];
   float tx = x + 88, tw = w - 88 - 22 - 24 - 12;
   if (a <= 0.004f) return;
-  if (foco) ajFocoLinha(r, 22, 1, a);
+  if (guiaW()) { if (foco) guiaFaixa(r, 0.12f, a); else if (sel) guiaFaixa(r, 0.05f, a); }
+  else if (foco) ajFocoLinha(r, 22, 1, a);
   else if (sel) ajNeutro(r, 22, 0.06f, 0.125f, 0.129f, 0.153f, a);
   { GfxRect ic = { x + 22, y + 24, 48, 48 };
-    if (foco) ajNeutro(ic, 15, 0.12f, 0.220f, 0.227f, 0.263f, a);
+    if (guiaW()) guiaFaixa(ic, foco ? 0.10f : 0.05f, a);
+    else if (foco) ajNeutro(ic, 15, 0.12f, 0.220f, 0.227f, 0.263f, a);
     else ajNeutro(ic, 15, 0.07f, 0.125f, 0.129f, 0.153f, a);
     ajIcone(g->icone, ic.x + 11, ic.y + 11, 26, (foco ? 1.0f : 0.72f) * a); }
   { TxtLinha t = ajTxtC(TXT_AJ_NOME, g->titulo, tw);
@@ -743,7 +767,7 @@ static void guiaDesenharLista(const GuiaVista *v, float a) {
   float topo, base = fr.y + fr.h, y, x = fr.x + 16, w = fr.w - 32;
   char kick[160], tit[96], sub[160];
   float reserva = 0;
-  ajIlha(fr, 36, a, 0);
+  if (!guiaW()) ajIlha(fr, 36, a, 0);
   if (v->idx == GI_NOVO) {
     snprintf(kick, sizeof kick, "%s", "Guia de uso");
     snprintf(tit, sizeof tit, "%s", "Novo na 2.0");
@@ -900,7 +924,7 @@ static void guiaDesenharInspetor(const GuiaVista *v, float a) {
   float x = ir.x + 32, w = ir.w - 64, y = ir.y + 32, ph = 0;
   AjDica d[5];
   int nd = 0, e = v->col == GC_INDICE ? -1 : v->ent;
-  ajIlha(ir, 36, a, 0);
+  if (!guiaW()) ajIlha(ir, 36, a, 0);
   if (e >= 0) {
     const GuiaEnt *g = &GUIA_ENT[e];
     int b[3], nb = guiaBotoes(e, b), i;
@@ -1056,6 +1080,12 @@ static void guiaDesenharTela(const GuiaVista *v, float a) {
   guiaDesenharInspetor(v, a);
 }
 static void guiaDesenhar(void) {
+  if (guiaW()) {   // a mesma pagina chapada dos Ajustes de tela cheia, com fios entre as colunas
+    GfxRect il = guiaIdxR(), fr = guiaListaR(), ir = guiaInspR();
+    ajPaginaIlha(ajTelaR(), 0, 1);
+    gfx_cor((GfxRect){ (il.x + il.w + fr.x) * 0.5f, fr.y + 24, 1.5f, fr.h - 48 }, 0, 1, 1, 1, 0.07f);
+    gfx_cor((GfxRect){ (fr.x + fr.w + ir.x) * 0.5f, ir.y + 24, 1.5f, ir.h - 48 }, 0, 1, 1, 1, 0.07f);
+  } else
   ajFundo();
   // "Buscar no guia" por cima: so a arte fica atras do Spotlight (o mockup).
   if (spot_visivel()) return;

@@ -362,3 +362,4 @@
   0, /* Interface tone: Grafite (Preto puro = 1), local */
   0, /* Android opening video: On, local */
   0, /* World: Collections GIF: Automatic (by RAM), local */
+  1, /* World: side rail size: Medium (the usual), local */
