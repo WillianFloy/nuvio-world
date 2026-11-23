@@ -7988,11 +7988,18 @@ static void detail_desenhar_(Uint32 agora) {
   // tarja, e ele e que nao deve aparecer. Na LG e no .wgt, o furo de sempre.
   if (trailer_cheia()) {
     GfxRect tela = { 0, 0, NV_TELA_W, NV_TELA_H };
+    // EM ESCALA REAL (World 23/11). detail_desenhar entra na escala de texto e componentes (TXT_INI); com ela em 0,8 o
+    // furo e a pausa (veus, barra, tempo, "Continuar") saiam com 80% da tela, presos no canto de cima: fotos da TCL, a
+    // interface da pausa cobria so parte do video. Tocando nao se via (sem OSD, fora do furo a tela ja e transparente).
+    // A tela cheia e do video, como o player: 1920x1080 de verdade.
+    float escAnt = gfx_escala();
+    gfx_escala_sair(1.0f);
     gfx_sem_recorte();
     if (trailer_mostra_video()) gfx_furo(tela);
     else gfx_cor(tela, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
     { const CatItem *ct = cat_item(idx);
       trailer_osd_desenhar(ct ? ct->titulo : "", 1.0f); }
+    gfx_escala_sair(escAnt);
     return;
   }
 #ifdef NV_TOUCH_UI
