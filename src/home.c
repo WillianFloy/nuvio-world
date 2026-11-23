@@ -4499,10 +4499,6 @@ float home_topo_fracao(void) {
 // Ancora vertical (0..1) do cover da arte do hero no ultimo quadro; 0,5 = centro (o do backdrop do detalhe).
 float home_hero_ancora(void) { return heroArteAncora; }
 
-// 1 se a Home foi desenhada nos ultimos 3 quadros (esta por baixo): o detalhe aberto agora nasce DELA.
-static unsigned homeUltQuadro;
-int home_desenhou_ha_pouco(void) { return homeUltQuadro && gfx_quadro_n - homeUltQuadro <= 3u; }   // por quadros (nao por tempo): um engasgo nao muda a origem
-
 void home_hero_rect(float *x, float *y, float *w, float *h) {
   GfxRect r = heroArteRect;
   // Dinamica com o destaque ja rolado para fora: a pagina do titulo cresce a
@@ -8624,7 +8620,6 @@ static void home_desenhar_(Uint32 agora) {
   // variavel de modulo, uma vez por quadro, e nao em cada chamada.
   gfx_borda_foco_atual = ajustes_borda_foco() ? 1.0f : 0.0f;
   desenhaFundo(agora);
-  homeUltQuadro = gfx_quadro_n;
   float pd = detail_progresso();
   detalheFundoSobHero = 0;   // 2.0.46: so a primeira passada do hero, e so se ele chegar a pintar a arte neste quadro
   // 2.0.45: TRANSFORMACAO HOME -> COLLECTION. As fileiras recuam (escala + opacidade, sem descer) e o texto

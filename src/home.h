@@ -96,7 +96,6 @@ void home_fileiras_vistas(Uint32 agora);
 // isto para nascer com o backdrop no mesmo lugar — o fundo do detalhe E a arte
 // do titulo em foco, e ela nao deve reaparecer, deve continuar.
 void home_hero_rect(float *x, float *y, float *w, float *h);
-int home_desenhou_ha_pouco(void);   // a Home foi desenhada nos ultimos 3 quadros (esta por baixo do detalhe que abre)
 float home_hero_ancora(void);   // ancora vertical (0..1) do cover da arte do hero; 0,5 = centro
 // A LINHA DE META do destaque do topo: episodio em andamento, genero, ano e
 // duracao — cada um no seu ajuste, sem buraco (o que some fecha o espaco).
