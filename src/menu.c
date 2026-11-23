@@ -1967,6 +1967,14 @@ float menu_topo_padrao_base(void) {
     + TK(9.0f) * esc;
   return b * NV_MENU_ESCALA;
 }
+// World 23/11: onde as camadas que nascem da ilha do relogio (Central, Salvos,
+// modal do cartao) devem COMECAR para nao cobrir a barra do topo: a base dela
+// mais um respiro, em px REAIS (0 sem barra no topo). Quem desenha divide por
+// gfx_escala_txt()/gfx_escala() para a tela virtual dele.
+float menu_topo_reserva(void) {
+  float b = menu_topo_padrao_base();
+  return b > 0.0f ? b + 12.0f * NV_MENU_ESCALA : 0.0f;
+}
 // World 22/11: quanto o menu do topo ja esta aberto POR CIMA da tela (0 recolhido, 1 aberto).
 // A Vitrine usa para apagar o cabecalho da colecao enquanto a barra ocupa o lugar dele.
 float menu_topo_abertura(void) { return topo() ? limita01(anim_suave(desliza)) : 0.0f; }

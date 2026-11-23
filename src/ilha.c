@@ -1265,10 +1265,19 @@ static float modalSinopseExtra(void) {
        ? fmaxf(0, sinopse_entrelinha(TXT_CAPTION, 30) - 30) : 0;
 }
 
+// COM A BARRA NO TOPO (layout Padrao, dono 23/11: "mostra a barra, mas sem
+// bugs"): a pilula mora na linha da barra, entao o modal e o corpo (Central,
+// Fontes) nasceriam POR CIMA dela. Eles continuam brotando da pilula, mas o
+// destino fica abaixo da barra. Sem barra no topo, 0.
+static float topoOff(float y) {
+  float r = menu_topo_reserva() / gfx_escala_txt();
+  return r > y ? r - y : 0.0f;
+}
+
 static GfxRect modalAlvo(GfxRect p, int dir) {
   int compacto = modalAtividade && atvTemCarga;
   float mw = compacto ? AT_W : modalAviso && modalM.cabecalho ? MC_W : MD_W;
-  GfxRect m = { dir ? p.x + p.w - mw : p.x, p.y, mw, compacto ? AT_H : modalAviso ? modalAvisoH : MD_H };
+  GfxRect m = { dir ? p.x + p.w - mw : p.x, p.y + topoOff(p.y), mw, compacto ? AT_H : modalAviso ? modalAvisoH : MD_H };
   if (!telefoneui_ativo()) m.h += modalSinopseExtra();
   if (telefoneui_ativo()) {
     m.w = telefoneui_largura(mw, NV_TELA_W, 40);
@@ -2200,10 +2209,15 @@ static void ilha_desenharCorpo_(Uint32 agora) {
     else if (corpoT > 0.0f && corpoFn) {
       int soHora = mostra == M_RELOGIO && dsMostra == DS_DESLIGADO;
       float k3 = (corpoT - 0.08f) * 5.0f;
-      GfxRect C = { dir ? x - corpoWa : x, y, corpoWa, corpoHa };
+      float off = topoOff(y);
+      GfxRect C = { dir ? x - corpoWa : x, y + off, corpoWa, corpoHa };
       float t = corpoT > 1.06f ? 1.06f : corpoT, tr = t > 1.0f ? 1.0f : t, rpx;
       R.x = r.x + (C.x - r.x) * t; R.y = r.y + (C.y - r.y) * t;
       R.w = r.w + (C.w - r.w) * t; R.h = r.h + (C.h - r.h) * t;
+      if (off > 0.0f && C.y + C.h > NV_TELA_H - NV_FOLHA_MARGEM) {   // desceu: nao passa do fim da tela
+        C.h = NV_TELA_H - NV_FOLHA_MARGEM - C.y;
+        R.h = r.h + (C.h - r.h) * t;
+      }
       rpx = r.h * 0.5f + (MD_RAIO - r.h * 0.5f) * tr;
       raio = rpx / (R.h > 1.0f ? R.h : 1.0f);
       fundo = 0.80f + 0.08f * tr;
@@ -2304,8 +2318,10 @@ static void ilha_desenharCorpo_(Uint32 agora) {
     }
     if (aMod > 0.0f && modalT > 0.0f) desenharModal(modalAlvo(r, dir), A * aMod);
     if (corpoT > 0.0f && corpoFn && modalT <= 0.0f) {
-      horaNoLugar(x, dir, y, A * aHora);
-      if (aMod > 0.0f) corpoFn((GfxRect){ dir ? x - corpoWa : x, y, corpoWa, corpoHa }, A * aMod, corpoU);
+      { float off = topoOff(y), hh = corpoHa;
+        if (off > 0.0f && y + off + hh > NV_TELA_H - NV_FOLHA_MARGEM) hh = NV_TELA_H - NV_FOLHA_MARGEM - (y + off);
+        horaNoLugar(x, dir, y + off, A * aHora);
+        if (aMod > 0.0f) corpoFn((GfxRect){ dir ? x - corpoWa : x, y + off, corpoWa, hh }, A * aMod, corpoU); }
     }
     gfx_sem_recorte();
     // Magic Remote: o clique na pilula com um cartao abre o modal.

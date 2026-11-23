@@ -64,13 +64,21 @@
 // em x=1120, 776x1032): quem ja tinha o gesto na memoria muscular encontra a
 // camada no mesmo lugar, so com outro conteudo.
 #include "telefoneui.h"
+#include "menu.h"
 #define SP_X          (NV_TELA_W - SP_W - 24.0f)
 #define SP_W          telefoneui_largura(776.0f, NV_TELA_W, 24.0f)
 // A ILHA FLUTUA A NV_FOLHA_MARGEM das tres bordas e com o raio da folha de
 // Fontes (streams.c): as duas camadas da direita sao o mesmo objeto, e uma
 // colada no topo ao lado da outra solta leria como dois materiais.
-#define SP_Y          NV_FOLHA_MARGEM
-#define SP_H          (NV_TELA_H - 2.0f * NV_FOLHA_MARGEM)
+// COM A BARRA NO TOPO (layout Padrao, dono 23/11): a folha comeca ABAIXO da
+// barra (avatar, abas e relogio continuam visiveis) em vez de cobrir a ponta
+// dela; sem barra no topo, a margem de sempre e a altura toda.
+static float spYTopo(void) {
+  float r = menu_topo_reserva() / gfx_escala();
+  return r > NV_FOLHA_MARGEM ? r : NV_FOLHA_MARGEM;
+}
+#define SP_Y          spYTopo()
+#define SP_H          (NV_TELA_H - SP_Y - NV_FOLHA_MARGEM)
 #define SP_RAIO        NV_FOLHA_RAIO
 // A GRAMATICA DO MOCKUP APROVADO ("Glass UI — ilha", tela 3; o CSS esta em
 // design/glass-ilha/glass-ilha.html), em px de 1080p e RELATIVA AO TOPO E A

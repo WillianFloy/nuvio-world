@@ -108,6 +108,7 @@ float menu_empurra(void);
 // Padrao com o menu do topo: base das abas (com o traco da pagina ativa), em
 // px REAIS; 0 fora disso. Medida de repouso (sem o zoom do foco).
 float menu_topo_padrao_base(void);   // World 20/11: borda da rail recolhida (px REAIS), 0 sem rail
+float menu_topo_reserva(void);        // World 23/11: onde Central/Salvos/modal da ilha comecam abaixo da barra do topo (px REAIS, 0 sem barra)
 // Barra no topo: a geometria da tira como desenhada agora, em px da tela REAL
 // (retangulos x, y, w, h). `sel`/`foc` sao as capsulas de selecao e de foco
 // (x, w, alfa); `foco[k]` e quanto a de foco cobre a pilula k (a tinta do
