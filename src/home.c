@@ -85,7 +85,6 @@ static void heroTempoInicio(int indice) {
 // causa do HomeItem), e o ciclo so nao explode por causa das guardas. Uma
 // funcao de uma linha nao vale amarrar os dois arquivos.
 float detail_progresso(void);
-float detail_fundo_sob_home(void);   // 2.0.46: devolve a opacidade do backdrop (ou -1)
 int detail_aberto(void);
 int player_aberto(void);
 #include <stdio.h>
@@ -4465,7 +4464,6 @@ static void desenhaFundoDin(Uint32 agora) {
 #ifndef NV_TOUCH_UI
 static GfxRect heroArteRect = { 0, 0, NV_TELA_BASE_W, NV_TELA_BASE_H };
 #endif
-static float heroArteAncora = 0.5f;   // 2.0.46: ancora vertical do cover da arte do hero (Padrao: vitAncora; os demais: centro)
 #ifdef NV_TOUCH_UI
 static void heroPublicarFoco(const CatItem *ci, float aTexto) {
   if (!telefoneui_ativo() || !focoHero || !ci || toqueHero.estado || aTexto <= 0.004f) return;
@@ -4495,9 +4493,6 @@ float home_topo_fracao(void) {
   f = 1.0f + dinHeroY() / 140.0f;
   return f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
 }
-
-// Ancora vertical (0..1) do cover da arte do hero no ultimo quadro; 0,5 = centro (o do backdrop do detalhe).
-float home_hero_ancora(void) { return heroArteAncora; }
 
 void home_hero_rect(float *x, float *y, float *w, float *h) {
   GfxRect r = heroArteRect;
@@ -5496,7 +5491,6 @@ static int heroOverride = 0;     // 0 = pelo foco; 1 = forca o destaque de titul
 static int heroOvPasta = -1;
 static int heroPastaUltima = -1; // a ultima pasta que esteve em foco (o que sai ao voltar para um titulo)
 static float heroXArte = 1.0f;   // multiplicador do alfa da ARTE nesta passada
-static int detalheFundoSobHero;   // 2.0.46: 1 = o backdrop do detalhe ja foi pintado neste quadro, logo apos a arte do hero
 static const HtInstante *heroXTx = NULL;   // alfa/dy por elemento do TEXTO nesta passada (NULL = o natural)
 static int heroXAlvo = 0;        // modo assentado/de destino: 0 titulo, 1 pasta
 static float heroXT = 1.0e6f;    // ms desde o inicio da troca de modo
@@ -6118,13 +6112,6 @@ static void desenhaHero(Uint32 agora, float saida) {
     gfx_rect(r, 0, modoHero, 0, 1.0f, 0, 0.0f, 0, 0, 0, aTrailer);
   gfx_tex_aspect_atual = 0.0f;
   heroArteRect = r;
-  heroArteAncora = modoHero == GFX_VITRINE ? vitAncora : 0.5f;
-  // 2.0.46 (B5): com o detalhe em transicao, o backdrop dele e pintado AQUI — sobre a arte do hero e SOB o texto e as
-  // fileiras da Home —, e nao por cima de tudo (onde escondia as fileiras e escurecia o que aparecia: zona morta).
-  if (!detalheFundoSobHero && saida > 0.0005f && saida < 0.996f && detail_progresso() > 0.0005f) {
-    float ob = detail_fundo_sob_home();
-    if (ob >= 0.0f) detalheFundoSobHero = 1;
-  }
 #ifdef NV_TOUCH_UI
   heroTrailerAtualizaRect(r, saida);
 #endif
@@ -8621,7 +8608,6 @@ static void home_desenhar_(Uint32 agora) {
   gfx_borda_foco_atual = ajustes_borda_foco() ? 1.0f : 0.0f;
   desenhaFundo(agora);
   float pd = detail_progresso();
-  detalheFundoSobHero = 0;   // 2.0.46: so a primeira passada do hero, e so se ele chegar a pintar a arte neste quadro
   // 2.0.45: TRANSFORMACAO HOME -> COLLECTION. As fileiras recuam (escala + opacidade, sem descer) e o texto
   // do hero apaga; a arte do hero fica (e o mesmo banner em que o cartao da pasta se transforma).
   float recTexto = 1.0f, recuo = vertudo_home_recuo(&recTexto);
@@ -8657,10 +8643,7 @@ static void home_desenhar_(Uint32 agora) {
   // O `pd` vem da MESMA mola que o detalhe usa para desenhar (detail_progresso),
   // e nao de um relogio proprio: dois relogios descasariam e a home sairia
   // adiantada ou atrasada em relacao a arte que entra.
-  // 2.0.46 (B5): SEM translacao vertical. As fileiras recuam em escala em torno do cartaz focado (o mesmo recuo da
-  // abertura de Collection, TR_HOME_ESCALA) e apagam com o MESMO relogio do detalhe; a descida de 8% (86 px) fazia a
-  // Home entrar/sair deslizando e nao correspondia a nenhum elemento do detalhe.
-  float descida = 0.0f;
+  float descida = pd * NV_TELA_H * 0.08f;
   if (pd >= 0.996f) return;
   // MODO CINEMA: as fileiras descem NV_CINEMA_DESCE e apagam (o mesmo que o
   // bloco do hero faz), para o trailer ficar inteiro. Assentado, NAO SE
@@ -8681,13 +8664,7 @@ static void home_desenhar_(Uint32 agora) {
   const float corte = corteFileiras();
   // Sem prateleira nem contorno na Dinamica (dono, 30/09): as fileiras ficam
   // direto sobre o fundo e o cartao rola ate a beira da tela, como nos outros.
-  float escalaRecuo = recuo;   // so a ESCALA: a opacidade das fileiras do detalhe ja sai de (1-pd) (alpha abaixo)
-  if (pd > 0.0005f && pd > escalaRecuo) {   // detalhe: acompanha pd; origem = cartaz focado de agora (foco fixo)
-    GfxRect oi;
-    if (home_ancora_foco_(&oi)) { homeRecuoOx = oi.x + oi.w * 0.5f; homeRecuoOy = oi.y + oi.h * 0.5f; }
-    escalaRecuo = pd;
-  }
-  if (escalaRecuo > 0.0005f) gfx_transformar(homeRecuoOx, homeRecuoOy, 1.0f - TR_HOME_ESCALA * escalaRecuo, 0.0f, 0.0f);
+  if (recuo > 0.0005f) gfx_transformar(homeRecuoOx, homeRecuoOy, 1.0f - TR_HOME_ESCALA * recuo, 0.0f, 0.0f);
   gfx_recorte(0.0f, corte, NV_TELA_W, NV_TELA_H - corte);
   const float topoFil = topoFileiras();
   float y = topoFil - scrollY + descida + bordaPag.x;
@@ -8731,7 +8708,7 @@ static void home_desenhar_(Uint32 agora) {
     // No retrato a visibilidade acompanha o recorte real, inclusive antes
     // do primeiro gesto; a memoria do foco nao esconde fileiras acessiveis.
     float fade=alfaFileiraHome(r, y, topoFil, corte);
-    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema)*vertudo_home_fileiras(recuo)*(1.0f-pd);   // World 22/11: no Padrao ficam ate a revelacao
+    gfx_opacidade_grupo=fade*fade*(3-2*fade)*(1.0f-cinema)*vertudo_home_fileiras(recuo);   // World 22/11: no Padrao ficam ate a revelacao
     const float grupoFil = gfx_opacidade_grupo;
     { int n = fileiras[r].n;
       int visivel = y < NV_TELA_H && y + NV_LEGACY_ROW_HEAD_H + alturaFil(r) > corte;
