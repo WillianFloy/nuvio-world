@@ -157,6 +157,12 @@ static const char *topoId(void) { return cat_item(lin[1].ref)->imdb; }
 static void focoImediato(int tipo, const char *msg) {
   int ultimo = nLin - 1;
   Linha antes = lin[ultimo];
+  // A ilha colada no topo (23/11) ganhou ~100 px de janela e uma lista de 6
+  // linhas passou a caber inteira, sem nada a rolar. O comportamento sob teste
+  // (foco desenhado inteiro no 1o quadro apos Baixo) so existe com a ultima
+  // linha alem da janela: empurra-a para baixo (a precondicao abaixo continua
+  // exigindo o estouro, entao o teste nao passa por acaso).
+  lin[ultimo].y += 400.0f;
   painel = P_LISTA; focoL = ultimo - 1;
   scrollY = scrollAlvo = velY = 0;
   assentar();
@@ -451,6 +457,16 @@ int main(void) {
     spot_evento(&ch);
     check(!spot_aberto(), "CH− (481) fecha o Spotlight"); }
 
+  // ILHA DE BUSCA COLADA NO TOPO (dono, 23/11): a barra nasce em y = 0 (reta em
+  // cima) e a peca toda, mesmo com a lista longa, termina antes do fim da tela.
+  { CatItem um = item("ttTopo", "movie", "2020", 0);
+    cat_definir_tudo(&um, 1, NULL, 0); bufferZerar(); montar();
+    nLin > 0 ? (void)(lin[nLin - 1].y += 3000.0f) : (void)0;
+    assentar();
+    check(SP_BY == 0.0f, "barra de busca colada no topo da tela");
+    check(SP_CORPO_Y + corpoH <= NV_TELA_H - SP_MARGEM_B + 1.0f,
+          "peca inteira (barra + resultados) cabe na tela com lista longa");
+    check(corpoH > SP_ILHA_VAO + 4.0f, "corpo abre com resultados"); }
   printf("RESULTADO: %d falhas\n", falhas);
   return falhas ? 1 : 0;
 }

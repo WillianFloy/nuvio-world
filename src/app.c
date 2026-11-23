@@ -7001,7 +7001,10 @@ static void desenharAtrasDoPainel(void *ctx) {
   // significa "nao pinte a faixa", no de fora significava "nao exista".
   // Com a pagina do titulo aberta, so a barra aberta POR CIMA dela
   // (menu_sobre), ate recolher; a rail fixa nao aparece na pagina.
-  if (menu_visivel() && sidebar_permitida() && (!detail_aberto() || menu_sobre())) {
+  // A ILHA DE BUSCA (CH-) toma o lugar do menu do topo: com ela na tela a barra
+  // (avatar e abas) nao se desenha; ao fechar, volta (dono, 23/11).
+  if (menu_visivel() && sidebar_permitida() && (!detail_aberto() || menu_sobre()) &&
+      !(ajustes_menu_topo() && spot_visivel())) {
     // Layout Dinamica: a pilula da barra fica no canto das telas do menu, no
     // lugar do titulo delas (que nao e desenhado: menu_pilula_titulo). Na
     // home some com a pagina rolada. Telas fora do menu (Addons, Social,
@@ -7441,7 +7444,7 @@ void app_desenhar(Uint32 agora) {
       spainel_recolher_para(ok, ix, iy, iw, ih); }
     // O CARTAO DA ATUALIZACAO e a pilula crescida (atualizacao.c): enquanto
     // ele esta na tela, ela fica por baixo, medindo, sem se desenhar.
-    ilha_coberta(spainel_da_ilha() || atualizacao_cobre_ilha());
+    ilha_coberta(spainel_da_ilha() || atualizacao_cobre_ilha() || spot_visivel());
 #ifdef NV_TOUCH_UI
     if (layout_modo_mobile()) CAMADA_SE(central_aberta() || ilha_modal_aberto());
 #endif

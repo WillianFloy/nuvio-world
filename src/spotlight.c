@@ -81,7 +81,7 @@
 // abaixo dela, raio 36 e 22 px de ar por dentro. Com o teclado do app aberto
 // as duas alargam para 1240 (a mola do teclado): o teclado ocupa 500 px a
 // esquerda e em 980 a lista ficaria com menos de 460.
-#define SP_BW_BASE   980.0f
+#define SP_BW_BASE   1100.0f
 #define SP_BW_KB     1240.0f
 static float spBW = SP_BW_BASE;
 static int spTelefone(void) {
@@ -93,9 +93,9 @@ static float spLargura(void) {
 }
 #define SP_BW        spLargura()
 #define SP_BX        ((NV_TELA_W - SP_BW) * 0.5f)
-#define SP_BY        (spTelefone() ? 40.0f / escala_min(SP_ESCALA_MIN) : 120.0f)
-#define SP_BH        76.0f
-#define SP_RAIO      36.0f          // px do corpo aberto; a barra sozinha e pilula
+#define SP_BY        0.0f           // colada no topo da tela (layout "ilha de busca", 23/11)
+#define SP_BH        96.0f
+#define SP_RAIO      32.0f          // px do corpo aberto; a barra sozinha e pilula
 #define SP_CORPO_Y   (SP_BY + SP_BH)
 // A ilha dos resultados desce ate perto do fim da tela (dono, 03/10: "a lista
 // debaixo descer mais ate o final, que ta muito curta"): 40 de margem embaixo,
@@ -112,7 +112,7 @@ static float spLargura(void) {
 #define SP_CPAD_T    (SP_ILHA_VAO + 7.0f)
 #define SP_CPAD_B    0.0f
 #define SP_RODAPE_H  58.0f          // 14 + a dica + 4, e os 22 de ar da ilha
-#define SP_MIC_D     52.0f
+#define SP_MIC_D     60.0f
 #define SP_TECLA     62.0f
 #define SP_TECLA_GAP 10.0f
 #define SP_KB_COLS   6
@@ -1596,15 +1596,19 @@ static void ilhaSpot(GfxRect p, float raioPx, float a) {
   gfx_luz_canto(p, raio, p.w * .22f, -120.0f, p.w * .6f, 1, 1, 1, (vid ? .06f : .04f) * a);
 }
 
-// As duas ilhas: a barra (pilula) e, com o corpo aberto, os resultados logo
-// abaixo. A de baixo nasce do vao e cresce com a mesma mola do corpo.
+// UMA PECA SO, PENDURADA NO TOPO (dono, 23/11: "como um dynamic island": reto em
+// cima, so os cantos de baixo curvos). A barra e o corpo dos resultados formam
+// um unico corpo preto: o retangulo nasce SP_PENDURA acima da tela, onde os
+// cantos de cima (arredondados como qualquer retangulo) ficam fora da vista.
+// Com o corpo aberto uma linha fina separa o campo dos resultados.
+#define SP_PENDURA   64.0f
 static void desenhaSuperficie(GfxRect p, float a) {
-  GfxRect barra = { p.x, p.y, p.w, SP_BH };
-  ilhaSpot(barra, SP_BH * 0.5f, a);
-  if (corpoH > SP_ILHA_VAO + 4.0f) {
-    GfxRect corpo = { p.x, p.y + SP_BH + SP_ILHA_VAO, p.w, corpoH - SP_ILHA_VAO };
-    ilhaSpot(corpo, SP_RAIO, a * anim_clamp((corpoH - SP_ILHA_VAO) / 60.0f, 0.0f, 1.0f));
-  }
+  float h = SP_BH + (corpoH > SP_ILHA_VAO + 4.0f ? corpoH : 0.0f);
+  GfxRect peca = { p.x, p.y - SP_PENDURA, p.w, SP_PENDURA + h };
+  ilhaSpot(peca, SP_RAIO, a);
+  if (corpoH > SP_ILHA_VAO + 4.0f)
+    gfx_cor((GfxRect){ p.x + 28.0f, p.y + SP_BH, p.w - 56.0f, 1.5f }, 0.0f, 1, 1, 1,
+            .10f * a * anim_clamp((corpoH - SP_ILHA_VAO) / 60.0f, 0.0f, 1.0f));
 }
 
 // Texto claro do mockup (#f3f2ef) com a opacidade do papel dele: a cor
