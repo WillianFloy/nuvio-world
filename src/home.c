@@ -381,6 +381,10 @@ static int         filNAntes[MAX_FIL];
 // home escondida atras do player, de Ajustes, da selecao de perfil) faz as
 // fileiras visiveis entrarem de novo, em cascata, na volta.
 static Uint32      fileirasVistasEm;
+// 2.0.46 (B4): o NUMERO do quadro (gfx_quadro_n) em que elas foram vistas pela ultima vez. Um quadro MUITO longo (a TV engasga
+// carregando texturas; o harness em GL por software leva ~1,7 s) e uma ausencia de tempo mas nao de quadros: a Home continuou
+// sendo a tela. So uma ausencia de verdade (outra tela desenhou entre dois quadros da Home) recomeca a cascata de entrada.
+static unsigned    fileirasVistasQuadro;
 // Primeira vez que um card de fileira foi PINTADO (ver o marcador em
 // home_desenhar): -1 enquanto nao aconteceu. Nao e o mesmo que
 // fileirasVistasEm — aquele e o ultimo quadro, este e o PRIMEIRO e so uma
@@ -8496,7 +8500,7 @@ static int home_cartao_foco_por_cima_(int indice) {
 // depois de um intervalo longo (a repintura de 4 s) lia a ausencia como volta
 // de outra tela e recomecava a cascata de entrada no quadro congelado.
 void home_fileiras_vistas(Uint32 agora) {
-  if (fileirasVistasEm) fileirasVistasEm = agora ? agora : 1u;
+  if (fileirasVistasEm) { fileirasVistasEm = agora ? agora : 1u; fileirasVistasQuadro = gfx_quadro_n; }
 }
 
 // TITULO DA FILEIRA (Ajustes > Titulo das fileiras): 0 Classico (o de sempre,
@@ -8713,10 +8717,15 @@ static void home_desenhar_(Uint32 agora) {
   // um tempo — MAS NAO na volta do detalhe: ali elas ja sobem de volta pela
   // mola do proprio detalhe (`descida`), e duas animacoes no mesmo gesto
   // descasariam.
-  int reentra = (!fileirasVistasEm || agora - fileirasVistasEm > 1500u) && pd <= 0.001f;
+  // Quadros seguidos = a Home nao saiu de cena: um quadro longo nao e ausencia (antes, qualquer intervalo > 1,5 s recomecava a
+  // cascata: as fileiras desciam 22 px e subiam de novo, o "recuo de ~9 px" na 1a descida de B4). Parada de verdade (TV
+  // suspensa, sem quadros por muito tempo) continua valendo, com o limite maior.
+  const int quadrosSeguidos = fileirasVistasEm && gfx_quadro_n - fileirasVistasQuadro <= 1u;
+  int reentra = (!fileirasVistasEm || agora - fileirasVistasEm > (quadrosSeguidos ? 10000u : 1500u)) && pd <= 0.001f;
   if (reentra) heroAutoDesligado = 0;   // outra visita a home: o carrossel volta
   int ordemFil = 0;
   fileirasVistasEm = agora ? agora : 1u;
+  fileirasVistasQuadro = gfx_quadro_n;
   temCartaoFoco = 0;
   temAncoraFoco = 0;
   // A LUZ DO FOCO: uma varredura por foco novo, nenhuma com a tecla presa.
