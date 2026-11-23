@@ -30,6 +30,7 @@ typedef struct {
   char nome[64];
   long expira;        // epoch; 0 = sem trailer (resposta negativa)
   int  emVoo, respondeu;
+  long falhouEm;   // World 22/11: ultima consulta SEM resposta (HTTP 403 etc.); segura a proxima tentativa
 } Entrada;
 static Entrada tab[TR_MAX];
 static int nTab, prox;
@@ -103,6 +104,14 @@ static void gravarDisco(const Entrada *e) {
   dados_marcar_sujo(1);   // IDBFS (Samsung): cache re-obtivel, descarga leve
 }
 
+// World (22/11): A API do IMDb respondendo 403 a TODA consulta (log da TCL, 22/11 23:10: ~400 pedidos em 2 min, um a cada
+// ~0,3 s) virava uma tempestade: "sem resposta" nao gravava validade e cada consulta do hero/detalhe abria um fio novo.
+// Agora: o mesmo titulo so tenta de novo depois de IMDB_RETENTA_S, e 3 falhas seguidas (de qualquer titulo) pausam o IMDb
+// por IMDB_PAUSA_S — o resto da ordem (Apple, YouTube) segue sem esperar por ele.
+#define IMDB_RETENTA_S 120
+#define IMDB_PAUSA_S   600
+static int falhasSeguidas;
+static long pausaAte;
 static int valido(const Entrada *e) {
   // Uma hora de folga: a URL nao pode vencer no meio do trailer.
   return e->respondeu && e->expira > (long)time(NULL) + 3600;
@@ -150,6 +159,10 @@ static void *buscar(void *arg) {
     "Accept: application/json",
     "Content-Type: application/json",
     "Referer: https://www.imdb.com/",
+    // World (22/11), HIPOTESE: a API passou a responder 403 ao User-Agent do curl do app ("Nuvio/1.0 (webOS)"). Um
+    // User-Agent de navegador, como o de quem chega pelo Referer acima. O log da TV ([rede] HTTP 403) confirma ou nao.
+    "User-Agent: Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+    "Origin: https://www.imdb.com",
     NULL };
   Entrada *e;
   snprintf(imdb, sizeof imdb, "%s", (const char *)arg);
@@ -186,6 +199,13 @@ static void *buscar(void *arg) {
   // Sem resposta: nao grava (tenta de novo na proxima abertura). Sem trailer:
   // vale um dia. Com trailer: vale ate a assinatura vencer.
   e->expira = !corpo ? 0 : e->n ? expiraDe(e->url[0]) : (long)time(NULL) + 86400;
+  e->falhouEm = corpo ? 0 : (long)time(NULL);
+  if (corpo) falhasSeguidas = 0;
+  else if (++falhasSeguidas >= 3 && pausaAte <= (long)time(NULL)) {
+    pausaAte = (long)time(NULL) + IMDB_PAUSA_S;
+    printf("[trailer] imdb: %d consultas seguidas sem resposta, IMDb pausado por %d s\n", falhasSeguidas, IMDB_PAUSA_S);
+    fflush(stdout);
+  }
   if (corpo) gravarDisco(e);
   destrancar();
   free(corpo);
@@ -201,6 +221,10 @@ void trailerimdb_pedir(const char *imdb) {
   e = reservar(imdb);
   if (!e->respondeu && !e->emVoo && lerDisco(e)) e->respondeu = 1;
   if (e->emVoo || valido(e)) { destrancar(); return; }
+  // Falhou ha pouco (ou o IMDb esta pausado): continua "respondido, sem trailer" e nao abre outro fio.
+  { long agora = (long)time(NULL);
+    if ((e->falhouEm && agora - e->falhouEm < IMDB_RETENTA_S) || pausaAte > agora) {
+      e->respondeu = 1; destrancar(); return; } }
   e->emVoo = 1; e->respondeu = 0;
   destrancar();
   arg = strdup(imdb);
