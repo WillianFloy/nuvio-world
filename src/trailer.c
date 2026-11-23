@@ -366,6 +366,18 @@ static void nativoAplicar(void) {
   // ao plano no videoInfo como quadro INTEIRO e o zoom de verdade so e pedido
   // pela pessoa com o filme ja tocando. Pedido antes de tocar, o recorte era
   // aceito (-> 1) e ignorado (20/09/2026, meia noite de tentativas).
+#ifdef NV_ANDROID
+  // TRAILER NA TELA INTEIRA NO ANDROID: SEMPRE O QUADRO INTEIRO ENCAIXADO, COM TARJA (World 23/11). O recorte daqui pede uma janela
+  // MAIOR que a tela (log da TCL, Homem de Ferro, Apple 1180x500: "recorte 146,0 888x500 -> janela -316,0 2551x1080",
+  // igual nas 4 opcoes de "Proporcao do trailer") e a TCL nao respeita o que sai da tela: poe o quadro inteiro em
+  // 1920x1080 e o 2,36:1 sai ESTICADO na vertical, sem as tarjas. O "quadro inteiro" de antes de tocar tambem ia sem
+  // encaixe (esticado de proposito). Fica a janela lisa de trailer_abrir/trailer_rect (video_janela = encaixe).
+  // Vale para TODO trailer na tela inteira: o botao (tela cheia) e o "esperar para tocar" no fundo da pagina do titulo
+  // (o mesmo log: "no fundo" pedia a mesma janela). Destinos menores (o banner do Padrao) seguem com o recorte.
+  if (cheia || (rect.x <= 0.5f && rect.y <= 0.5f && rect.w >= NV_TELA_W - 1.0f && rect.h >= NV_TELA_H - 1.0f)) {
+    recortePendente = 0; quadroInteiroEnviado = 1; reaplicarAte = 0;
+  }
+#endif
   if (recortePendente && video_pronto() && video_largura() > 0 && video_altura() > 0 &&
       !video_tocando() && !quadroInteiroEnviado) {
     video_janela_fonte(0, 0, video_largura(), video_altura(),

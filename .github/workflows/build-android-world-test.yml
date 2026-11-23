@@ -166,6 +166,8 @@ jobs:
         run: bash tests/trailerimdb_falha.sh
       - name: Run Apple trailer English title test (TMDB en-US title for the US store)
         run: bash tests/trailerapple_ingles.sh
+      - name: Run fullscreen trailer letterbox test (no oversized video window on Android)
+        run: bash tests/trailer_cheia_tarja.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
       - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)
