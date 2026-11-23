@@ -32,7 +32,6 @@ typedef struct {
   char url[1024];       // master da Apple (ABR completo)
   char toca[600];       // LG: file:// do master reduzido a UMA variante; Samsung: URL da playlist de midia dela (varianteMidia); ou vazio
   int  tocaQual;        // teto de qualidade com que `toca` foi montado
-  char legs[96];        // World: idiomas das legendas que o reduzido leva ("en,pt-BR"), para o botao decidir
   long expira;
   int  emVoo, respondeu;
 } Entrada;
@@ -133,22 +132,7 @@ static int atributo(const char *linha, const char *nome, char *dst, unsigned tam
 }
 
 #ifndef NV_TRAILER_SAMSUNG   /* so a LG monta o reduzido em disco */
-// Remove `NOME=valor` (com ou sem aspas) de uma linha de atributos HLS, com a virgula que o separa.
-static void tirarAtributo(char *linha, const char *nome) {
-  char chave[64];
-  char *p, *q;
-  snprintf(chave, sizeof chave, "%s=", nome);
-  for (p = strstr(linha, chave); p; p = strstr(p + 1, chave))
-    if (p > linha && (p[-1] == ',' || p[-1] == ':')) break;
-  if (!p) return;
-  q = p + strlen(chave);
-  if (*q == '"') { q = strchr(q + 1, '"'); q = q ? q + 1 : p + strlen(p); }
-  else while (*q && *q != ',' && *q != '\r' && *q != '\n') q++;
-  if (*q == ',') q++;
-  else if (p[-1] == ',') p--;   // ultimo atributo: leva a virgula de antes
-  memmove(p, q, strlen(q) + 1);
-}
-static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam, char *legs, unsigned tamLegs) {
+static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam) {
   char cm[600], cr[600], linha[2048];
   char melhorInf[2048] = "", melhorUri[1024] = "", melhorAudio[128] = "";
   int melhorW = 0, melhorAvc = 0;
@@ -162,7 +146,6 @@ static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam,
 #endif
   caminhoMaster(imdb, cm, sizeof cm, ".m3u8");
   caminhoMaster(imdb, cr, sizeof cr, "-play.m3u8");
-  if (legs && tamLegs) legs[0] = 0;
   if (!cm[0] || !(f = fopen(cm, "r"))) return 0;
   // Passo 1: escolher a variante.
   while (fgets(linha, sizeof linha, f)) {
@@ -193,42 +176,12 @@ static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam,
   if (!g) { fclose(f); return 0; }
   fprintf(g, "#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-INDEPENDENT-SEGMENTS\n");
   rewind(f);
-  {
-    // World 23/11: TODOS os audios do grupo da variante (dublagens, quando a Apple tem) e as legendas do grupo
-    // SUBTITLES dela, para o trailer trocar de faixa (trailer.c). So URI absoluta: o reduzido e um file:// e
-    // relativa nao resolveria. Antes ia so o primeiro audio e nenhuma legenda.
-    char melhorLeg[128] = "";
-    int nAud = 0, nLeg = 0;
-    atributo(melhorInf, "SUBTITLES", melhorLeg, sizeof melhorLeg);
-    while (fgets(linha, sizeof linha, f)) {
-      char grp[128], uri[1024];
-      int ehAudio, ehLeg;
-      if (strncmp(linha, "#EXT-X-MEDIA:", 13)) continue;
-      ehAudio = strstr(linha, "TYPE=AUDIO") != NULL;
-      ehLeg = strstr(linha, "TYPE=SUBTITLES") != NULL;
-      if (!ehAudio && !ehLeg) continue;
-      atributo(linha, "GROUP-ID", grp, sizeof grp);
-      atributo(linha, "URI", uri, sizeof uri);
-      if (uri[0] && strncmp(uri, "http", 4)) continue;
-      if (ehAudio && melhorAudio[0] && !strcmp(grp, melhorAudio)) {
-        // Um DEFAULT=YES por grupo (HLS): do segundo audio em diante, NO.
-        char *d = nAud ? strstr(linha, "DEFAULT=YES") : NULL;
-        if (d) memcpy(d, "DEFAULT=NO", 10), memmove(d + 10, d + 11, strlen(d + 11) + 1);
-        fputs(linha, g); nAud++;
-      }
-      else if (ehLeg && melhorLeg[0] && !strcmp(grp, melhorLeg) && uri[0]) {
-        char lg[24];
-        fputs(linha, g); nLeg++;
-        atributo(linha, "LANGUAGE", lg, sizeof lg);
-        if (legs && lg[0] && strlen(legs) + strlen(lg) + 2 < tamLegs) {
-          if (legs[0]) strcat(legs, ",");
-          strcat(legs, lg);
-        }
-      }
-    }
-    // Sem nenhuma legenda escrita, o STREAM-INF nao pode citar um grupo SUBTITLES que nao existe.
-    if (!nLeg && melhorLeg[0]) tirarAtributo(melhorInf, "SUBTITLES");
-    printf("[trailer] apple %s: %d audio(s), %d legenda(s) no reduzido\n", imdb, nAud, nLeg);
+  while (fgets(linha, sizeof linha, f)) {
+    char grp[128];
+    if (strncmp(linha, "#EXT-X-MEDIA:", 13)) continue;
+    if (!strstr(linha, "TYPE=AUDIO")) continue;
+    atributo(linha, "GROUP-ID", grp, sizeof grp);
+    if (melhorAudio[0] && !strcmp(grp, melhorAudio)) { fputs(linha, g); break; }
   }
   fputs(melhorInf, g);
   fprintf(g, "%s\n", melhorUri);
@@ -668,7 +621,7 @@ const char *trailerapple_url(const char *imdb) {
     int teto = ajustes_trailer_qualidade();
     if (e->tocaQual != teto) {
       e->tocaQual = teto;
-      if (!montarReduzido(imdb, teto, e->toca, sizeof e->toca, e->legs, sizeof e->legs)) e->toca[0] = 0;
+      if (!montarReduzido(imdb, teto, e->toca, sizeof e->toca)) e->toca[0] = 0;
     }
     // Sem reduzido, sem Apple: quem chama cai no IMDb.
     r = e->toca[0] ? e->toca : NULL;
@@ -677,28 +630,6 @@ const char *trailerapple_url(const char *imdb) {
   destrancar();
   return r;
 }
-
-#ifndef NV_TRAILER_SAMSUNG
-// World 23/11: o trailer da Apple ja montado traz legenda no idioma `iso` ("pt")? 1 sim, 0 nao (ou ainda sem trailer).
-int trailerapple_tem_legenda(const char *imdb, const char *iso) {
-  Entrada *e;
-  int r = 0;
-  if (!imdb || !imdb[0] || !iso || !iso[0]) return 0;
-  trancar();
-  e = achar(imdb);
-  if (e && e->toca[0]) {
-    const char *p = e->legs;
-    while (*p) {
-      if ((p[0] | 32) == (iso[0] | 32) && (p[1] | 32) == (iso[1] | 32) && (!p[2] || p[2] == '-' || p[2] == ',')) { r = 1; break; }
-      p = strchr(p, ',');
-      if (!p) break;
-      p++;
-    }
-  }
-  destrancar();
-  return r;
-}
-#endif
 
 int trailerapple_respondeu(const char *imdb) {
   Entrada *e;

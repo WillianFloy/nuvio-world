@@ -11,8 +11,6 @@ void extras_teste_url_ficha(char *dst, unsigned cap, int serie, long id,
                             const char *idioma, int trailers);
 int extras_teste_trailers_ficha(const char *corpo, int serie, const char *idioma,
                                 char yt[][16], int max);
-int extras_teste_trailers_ficha_pref(const char *corpo, int serie, const char *idioma,
-                                     char yt[][16], int pref[], int max);
 int extras_teste_hero_serie(const char *corpo, const char *idioma, char *dst, unsigned cap);
 void extras_teste_url_hero(char *dst, unsigned cap, int serie, long id, const char *idioma);
 
@@ -188,22 +186,6 @@ int main(void) {
     extras_teste_idiomas_video("en-US", "", idiomas, sizeof idiomas);
     check("automatic: fallback to UI language when no playback preference",
           strstr(idiomas, "en,null") != NULL);
-  }
-  { // World 23/11: pt-BR com "Dublado" e "Legendado" (mesmo iso "pt"). O dublado primeiro, e so ele conta como
-    // trailer no audio escolhido; o legendado tem o audio original.
-    const char *f = "{\"original_language\":\"en\",\"videos\":{\"results\":["
-      "{\"iso_639_1\":\"pt\",\"iso_3166_1\":\"BR\",\"name\":\"Homem de Ferro | Trailer Legendado\",\"key\":\"legLEG00001\",\"site\":\"YouTube\",\"type\":\"Trailer\"},"
-      "{\"iso_639_1\":\"en\",\"iso_3166_1\":\"US\",\"name\":\"Official Trailer\",\"key\":\"engENG00001\",\"site\":\"YouTube\",\"type\":\"Trailer\"},"
-      "{\"iso_639_1\":\"pt\",\"iso_3166_1\":\"BR\",\"name\":\"Homem de Ferro | Trailer Dublado\",\"key\":\"dubDUB00001\",\"site\":\"YouTube\",\"type\":\"Trailer\"}]}}";
-    char y3[EX_TRAILER_MAX][16];
-    int pref[EX_TRAILER_MAX];
-    int m;
-    extras_teste_audio_pref("");
-    extras_teste_trailer_audio("pt");
-    m = extras_teste_trailers_ficha_pref(f, 0, "pt-BR", y3, pref, EX_TRAILER_MAX);
-    check("dublado antes do legendado", m == 3 && !strcmp(y3[0], "dubDUB00001") && !strcmp(y3[1], "legLEG00001"));
-    check("so o dublado conta como audio escolhido", m == 3 && pref[0] == 1 && pref[1] == 0 && pref[2] == 0);
-    extras_teste_trailer_audio("");
   }
   puts(falhas ? "trailer-serie: FALHOU" : "trailer-serie: tudo ok");
   return falhas ? 1 : 0;

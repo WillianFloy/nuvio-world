@@ -103,14 +103,8 @@ int  trailer_pausado(void);
 // O OSD minimo do trailer em tela cheia, por cima do furo: pilula "Trailer ·
 // titulo", barra fina, tempo e Continuar. So desenha com o trailer pausado.
 void trailer_osd_desenhar(const char *titulo, float a);
-// World: a legenda da faixa escolhida em tela cheia (Android; nos outros alvos nao desenha nada).
-void trailer_legenda_desenhar(float a);
 #ifdef NV_SHOT_HOOKS
 void trailer_shot_pausado(int sim);
-#endif
-#ifdef NV_ANDROID
-// World 23/11: a fonte e o id de um video do YouTube (toca na WebView do YtTrailer.kt, so em tela cheia).
-int  trailer_eh_youtube(const char *fonte);
 #endif
 
 #endif

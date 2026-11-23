@@ -74,23 +74,8 @@ static void imdbNaFrente(int ajuste, int *ordem, int n) {
     }
 }
 
-// YOUTUBE SO NO BOTAO, FORA DA PAGINA (World/Android, 23/11). O player do YouTube e uma WebView (YtTrailer.kt):
-// pesada demais para o destaque e o fundo da pagina numa TV de 1 GB, entao ela so entra na ordem da TELA CHEIA, e
-// so onde a casca tem o player. Em Automatico vai no fim (o dublado sobe para a frente em escolherNaOrdem);
-// com "YouTube" fixo no ajuste, e a unica.
-static int youtubeCheia;
-void trailerfonte_definir_youtube_cheia(int sim) { youtubeCheia = sim ? 1 : 0; }
-int  trailerfonte_youtube_cheia(void) { return youtubeCheia; }
-
 int trailerfonte_ordem_cheia(int ajuste, int tizen, int som, int ordem[3]) {
-  int n = trailerfonte_ordem(ajuste, tizen, ordem), i;
-  if (youtubeCheia && !tizen) {
-    for (i = 0; i < n && ordem[i] != TRF_YOUTUBE; i++) {}
-    if (i == n) {
-      if (ajuste == TRF_YOUTUBE) { ordem[0] = TRF_YOUTUBE; n = 1; }
-      else if (ajuste != TRF_APPLE && ajuste != TRF_IMDB && n < 3) ordem[n++] = TRF_YOUTUBE;
-    }
-  }
+  int n = trailerfonte_ordem(ajuste, tizen, ordem);
   if (som && imdbPrimeiroCheia) imdbNaFrente(ajuste, ordem, n);
   return n;
 }

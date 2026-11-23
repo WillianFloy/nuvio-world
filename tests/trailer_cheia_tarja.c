@@ -43,29 +43,6 @@ double video_buffer_fim(void) { return 0; }
 int  trailerfonte_com_som(int t) { (void)t; return 1; }
 int  trailerfonte_tizen(void) { return 0; }
 float gfx_escala_tela_txt(void) { return 1.0f; }
-// Faixas do trailer (World 23/11): nenhuma neste teste.
-int  video_n_audio(void) { return 0; }
-int  video_n_legenda(void) { return 0; }
-const VideoFaixa *video_audio(int i) { (void)i; return NULL; }
-const VideoFaixa *video_legenda(int i) { (void)i; return NULL; }
-int  video_audio_atual(void) { return -1; }
-int  video_legenda_atual(void) { return -1; }
-void video_escolher_audio(int i) { (void)i; }
-void video_escolher_legenda(int i) { (void)i; }
-// O trailer do YouTube (World 23/11) nao entra aqui: so URLs, que vao ao ExoPlayer.
-int  video_yt_disponivel(void) { return 0; }
-void video_yt_abrir(const char *id, int mudo, const char *leg) { (void)id; (void)mudo; (void)leg; }
-void video_yt_cmd(int c) { (void)c; }
-int  video_yt_estado(void) { return -1; }
-int  video_yt_pos_ms(void) { return 0; }
-int  video_yt_dur_ms(void) { return 0; }
-int  extras_n_trailers(void) { return 0; }
-const char *extras_trailer_yt(int i) { (void)i; return ""; }
-int  extras_trailer_idioma_preferido(int i) { (void)i; return 0; }
-int  extras_trailer_legendado(int i) { (void)i; return 0; }
-void extras_trailer_audio_iso(char *d) { d[0] = 0; }
-const char *ling_legenda(void) { return ""; }
-void ling_normalizar(const char *in, char *out, unsigned cap) { (void)in; if (cap) out[0] = 0; }
 static void ok(int c, const char *m) { printf("%s: %s\n", c ? "PASS" : "FAIL", m); falhas += !c; }
 static void correr(int ms) { for (int t = 0; t < ms; t += 16) { relogio += 16; nativoAplicar(); } }
 static void cena(int modoCheia, GfxRect tela) {

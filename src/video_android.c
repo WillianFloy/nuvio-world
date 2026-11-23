@@ -73,8 +73,6 @@ static jmethodID mTitulo, mDescartar, mMorno, mQuadro;
 // #202 (opcional, como os de cima): velocidade(centesimos). Casca sem ele =
 // sem a linha da velocidade.
 static jmethodID mVelocidade;
-// World (23/11): trailer do YouTube (YtTrailer.kt), opcionais. Sem eles nao ha fonte YouTube.
-static jmethodID mYtAbrir, mYtCmd, mYtEstado, mYtPos, mYtDur;
 
 static int resolverMetodos(JNIEnv *env) {
   mAbrir    = (*env)->GetStaticMethodID(env, gCls, "abrir", "(Ljava/lang/String;Ljava/lang/String;)V");
@@ -124,16 +122,6 @@ static int resolverMetodos(JNIEnv *env) {
   if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mAbrirPreparada = NULL; }
   mPararMantendoPreparo = (*env)->GetStaticMethodID(env, gCls, "pararMantendoPreparo", "(I)V");
   if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mPararMantendoPreparo = NULL; }
-  mYtAbrir = (*env)->GetStaticMethodID(env, gCls, "ytAbrir", "(Ljava/lang/String;ILjava/lang/String;)V");
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mYtAbrir = NULL; }
-  mYtCmd = (*env)->GetStaticMethodID(env, gCls, "ytCmd", "(I)V");
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mYtCmd = NULL; }
-  mYtEstado = (*env)->GetStaticMethodID(env, gCls, "ytEstado", "()I");
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mYtEstado = NULL; }
-  mYtPos = (*env)->GetStaticMethodID(env, gCls, "ytPosMs", "()I");
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mYtPos = NULL; }
-  mYtDur = (*env)->GetStaticMethodID(env, gCls, "ytDurMs", "()I");
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); mYtDur = NULL; }
   return mAbrir && mParar && mPausar && mBuscar && mVolume && mJanela && mEscolher;
 }
 
@@ -1094,34 +1082,6 @@ void video_pausar(int p) {
   if (recarregarPausa >= 0) recarregarPausa = pausaPedida;
   kInt(mPausar, pausaPedida);
 }
-// --- TRAILER DO YOUTUBE (World 23/11) ------------------------------------------------------------------------------
-int video_yt_disponivel(void) {
-  JNIEnv *env = ambiente();
-  return env && mYtAbrir && mYtCmd && mYtEstado && mYtPos && mYtDur;
-}
-void video_yt_abrir(const char *id, int mudo, const char *legenda) {
-  JNIEnv *env = ambiente();
-  jstring j, l;
-  if (!env || !mYtAbrir || !id) return;
-  j = (*env)->NewStringUTF(env, id);
-  l = (*env)->NewStringUTF(env, legenda ? legenda : "");
-  (*env)->CallStaticVoidMethod(env, gCls, mYtAbrir, j, (jint)(mudo ? 1 : 0), l);
-  (*env)->DeleteLocalRef(env, j);
-  (*env)->DeleteLocalRef(env, l);
-  fimChamada(env);
-}
-void video_yt_cmd(int c) { if (mYtCmd) kInt(mYtCmd, c); }
-static int ytInt(jmethodID m, int padrao) {
-  JNIEnv *env = ambiente();
-  int v;
-  if (!env || !m) return padrao;
-  v = (int)(*env)->CallStaticIntMethod(env, gCls, m);
-  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); return padrao; }
-  return v;
-}
-int video_yt_estado(void) { return ytInt(mYtEstado, -3); }
-int video_yt_pos_ms(void) { return ytInt(mYtPos, 0); }
-int video_yt_dur_ms(void) { return ytInt(mYtDur, 0); }
 int video_pausa_confirmada(void) {
   return pausaPedida && pausaVista && !tocando && ativo && prontoLoad && primeiroQuadro &&
          !falhou && !terminou && !video_reconectando();

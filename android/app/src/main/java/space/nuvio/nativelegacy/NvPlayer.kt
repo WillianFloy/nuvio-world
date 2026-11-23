@@ -1050,7 +1050,6 @@ object NvPlayer {
         val pedido = pedidos.incrementAndGet()
         if (aindaAtual) pedidoAtivo = pedido
         try { player?.pause() } catch (e: Exception) { Log.w(TAG, "pausarPeloSistema: $e") }
-        YtTrailer.fechar(0)   // World: o trailer do YouTube nao fica tocando em segundo plano; 0 = fim (o C fecha sem recuo)
     }
 
     // onDestroy: solta player e superficie.
@@ -1092,22 +1091,6 @@ object NvPlayer {
         principal.post { if (pedido == pedidos.get()) liberar() }
     }
     private var pausaPedida = false
-    // TRAILER DO YOUTUBE (World 23/11, YtTrailer.kt). Opcionais para o C (video_android.c): uma casca sem eles so nao
-    // tem a fonte YouTube. Tudo no fio principal; o estado e lido do fio do SDL (campos @Volatile).
-    @JvmStatic fun ytAbrir(id: String, mudo: Int, legenda: String) {
-        YtTrailer.carregando()   // ja, no fio do SDL: o estado de um trailer anterior nao vale para este
-        principal.post {
-            val act = activity; val c = camada
-            if (act == null || c == null) return@post
-            YtTrailer.abrir(act, c, id, mudo != 0, legenda)
-        }
-    }
-    // 0 fechar, 1 pausar, 2 continuar.
-    @JvmStatic fun ytCmd(c: Int) { if (c == 0) YtTrailer.carregando(); principal.post { if (c == 0) YtTrailer.fechar() else YtTrailer.comando(c) } }
-    @JvmStatic fun ytEstado(): Int = YtTrailer.estado
-    @JvmStatic fun ytPosMs(): Int = YtTrailer.posMs
-    @JvmStatic fun ytDurMs(): Int = YtTrailer.durMs
-
     @JvmStatic fun pausar(p: Int) {
         principal.post { pausaPedida = p != 0; player?.playWhenReady = !pausaPedida }
     }
