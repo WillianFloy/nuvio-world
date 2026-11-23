@@ -270,6 +270,40 @@ int main(void) {
   confere("wgt com o desvio ligado: sem IMDb la, Apple -> YouTube", n == 2 && o[0] == TRF_APPLE && o[1] == TRF_YOUTUBE);
   trailerfonte_definir_imdb_primeiro_destaque(0);
 
+  // World/Android (23/11): o YouTube (WebView) entra SO na tela cheia, e so com o player na casca.
+  n = trailerfonte_ordem_cheia(TRF_AUTO, 0, 1, o);
+  confere("android sem o player do YouTube: tela cheia Apple -> IMDb", n == 2 && o[0] == TRF_APPLE && o[1] == TRF_IMDB);
+  trailerfonte_definir_youtube_cheia(1);
+  n = trailerfonte_ordem_cheia(TRF_AUTO, 0, 1, o);
+  confere("android com o player: tela cheia Apple -> IMDb -> YouTube",
+          n == 3 && o[0] == TRF_APPLE && o[1] == TRF_IMDB && o[2] == TRF_YOUTUBE);
+  n = trailerfonte_ordem(TRF_AUTO, 0, o);
+  confere("android com o player: o fundo continua sem YouTube", n == 2 && o[0] != TRF_YOUTUBE && o[1] != TRF_YOUTUBE);
+  n = trailerfonte_ordem_destaque(TRF_AUTO, 0, o);
+  confere("android com o player: o destaque continua sem YouTube", n == 2 && o[0] != TRF_YOUTUBE && o[1] != TRF_YOUTUBE);
+  c = todas(); c.youtubeIdiomaPreferido = 1;
+  confere("android, botao: o trailer dublado do YouTube vem antes da Apple",
+          trailerfonte_escolher_cheia(TRF_AUTO, 0, 1, &c, &u, &n) == TRF_ABRE && n == TRF_YOUTUBE);
+  c = todas(); c.youtubeIdiomaPreferido = 0;
+  confere("android, botao: YouTube em ingles/legendado fica atras da Apple",
+          trailerfonte_escolher_cheia(TRF_AUTO, 0, 1, &c, &u, &n) == TRF_ABRE && n == TRF_APPLE);
+  c = todas(); c.apple = NULL; c.imdb = NULL;
+  confere("android, botao: sem Apple nem IMDb, o YouTube legendado ainda toca",
+          trailerfonte_escolher_cheia(TRF_AUTO, 0, 1, &c, &u, &n) == TRF_ABRE && n == TRF_YOUTUBE);
+  c = todas(); c.youtubeIdiomaPreferido = -1;
+  confere("android, botao: TMDB ainda sem resposta espera (o dublado pode existir)",
+          trailerfonte_escolher_cheia(TRF_AUTO, 0, 1, &c, &u, &n) == TRF_ESPERA);
+  c = todas(); c.youtubeIdiomaPreferido = 1;
+  confere("android, botao: com o fundo (nao tela cheia) o dublado nao abre WebView",
+          trailerfonte_escolher(TRF_AUTO, 0, &c, &u, &n) == TRF_ABRE && n == TRF_APPLE);
+  n = trailerfonte_ordem_cheia(TRF_YOUTUBE, 0, 1, o);
+  confere("android, YouTube fixo no ajuste: so o YouTube na tela cheia", n == 1 && o[0] == TRF_YOUTUBE);
+  n = trailerfonte_ordem_cheia(TRF_APPLE, 0, 1, o);
+  confere("android, Apple fixa: sem YouTube", n == 1 && o[0] == TRF_APPLE);
+  n = trailerfonte_ordem_cheia(TRF_AUTO, 1, 0, o);
+  confere("samsung nao muda com o ajuste do Android", n == 2 && o[0] == TRF_APPLE && o[1] == TRF_YOUTUBE);
+  trailerfonte_definir_youtube_cheia(0);
+
   // Atalho do build: le o ajuste gravado.
   ajusteTeste = TRF_YOUTUBE;
   confere("trailerfonte_ajuste le o ajuste", trailerfonte_ajuste() == TRF_YOUTUBE);

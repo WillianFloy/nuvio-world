@@ -263,7 +263,7 @@ static int  fichaDur;
 // runtime do filme antes da ficha tecnica existir.
 static char agStatus[32], agDataProx[16], agDataUlt[16], agNomeEp[120];
 static int  agTemp, agEp;
-static struct { char yt[16], nome[80], mini[80]; int idiomaPreferido; } trailer[EX_TRAILER_MAX];
+static struct { char yt[16], nome[80], mini[80]; int idiomaPreferido, legendado; } trailer[EX_TRAILER_MAX];
 static int  nTrailer;
 // O hero precisa de um trailer antes de a pessoa abrir a pagina de detalhe,
 // mas carregar `extras_pedir` inteiro nesse ponto faria creditos, ficha,
@@ -382,7 +382,7 @@ static int heroTrailerIdValido(const char *id) {
   return 1;
 }
 
-typedef struct { char yt[16], nome[80], pub[32]; int peso, ordem, serie, idiomaPreferido; } VideoTmdb;
+typedef struct { char yt[16], nome[80], pub[32]; int peso, ordem, serie, idiomaPreferido, legendado; } VideoTmdb;
 
 // IDIOMAS DE VIDEO. Com `language=pt-BR` sozinho o TMDB devolve em /videos
 // SO os videos marcados em portugues — e trailer de serie quase sempre esta
@@ -498,6 +498,21 @@ static int nomeDeEpisodio(const char *nm) {
   return 0;
 }
 
+// TRAILER LEGENDADO (World 23/11). No TMDB em portugues ha "Trailer Dublado" e "Trailer Legendado" com o mesmo
+// iso_639_1 "pt": o legendado tem o AUDIO original (ingles) e a legenda na imagem. Para o "audio do trailer" ele nao
+// esta no idioma escolhido; e o dono pediu dublado primeiro, depois Apple/IMDb, e o legendado por ultimo.
+static int nomeLegendado(const char *nm) {
+  static const char *const M[] = { "legendad", "subtitulad", "sous-titr", "untertitel", "sottotitol", "(leg", "[leg", " leg.", NULL };
+  char low[80];
+  size_t i;
+  int k;
+  for (i = 0; nm[i] && i + 1 < sizeof low; i++)
+    low[i] = (nm[i] >= 'A' && nm[i] <= 'Z') ? (char)(nm[i] | 32) : nm[i];
+  low[i] = 0;
+  for (k = 0; M[k]; k++) if (strstr(low, M[k])) return 1;
+  return 0;
+}
+
 // Language and region rank first. Within one language rank, series prefer
 // the newest publication, then Trailer over Teaser; movies keep TMDB order.
 // O tipo vai em cada elemento, e nao num global: o fio do hero e o da pagina
@@ -547,7 +562,10 @@ static int parsearVideos(const char *v, int serie, const char *idioma, const cha
       o->peso = (!strcmp(lg, iso) ? 8 + (reg[0] && !strcmp(rg, reg) ? 4 : 0) : ((!PREF_AUDIO()[0] && original && original[0] && !strcmp(lg, original)) ? 4 :
                         !strcmp(lg, "en") ? 2 : 0)) +
                 (serie && !strcmp(tipo, "Trailer") ? 1 : 0);
-      o->idiomaPreferido = strcmp(iso, "en") && !strcmp(lg, iso);
+      o->legendado = nomeLegendado(o->nome);
+      o->idiomaPreferido = strcmp(iso, "en") && !strcmp(lg, iso) && !o->legendado;
+      // No mesmo idioma, o dublado antes do legendado (+2: nao muda o grupo de peso/4).
+      if (!strcmp(lg, iso) && !o->legendado) o->peso += 2;
       o->ordem = n;
       o->serie = serie;
       n++;
@@ -579,6 +597,7 @@ static void publicarTrailers(const VideoTmdb *vt, int nv) {
   int k;
   for (k = 0; k < nv && k < EX_TRAILER_MAX; k++) {
     trailer[k].idiomaPreferido = vt[k].idiomaPreferido;
+    trailer[k].legendado = vt[k].legendado;
     snprintf(trailer[k].yt,   sizeof trailer[k].yt,   "%s", vt[k].yt);
     snprintf(trailer[k].nome, sizeof trailer[k].nome, "%s", vt[k].nome);
     snprintf(trailer[k].mini, sizeof trailer[k].mini,
@@ -594,6 +613,15 @@ void extras_teste_idiomas_video(const char *idioma, const char *original, char *
 void extras_teste_url_ficha(char *dst, unsigned cap, int serie, long id,
                             const char *idioma, int trailers) {
   urlFicha(dst, cap, serie, id, "K", idioma, 1, trailers, 1, "");
+}
+int extras_teste_trailers_ficha_pref(const char *corpo, int serie, const char *idioma,
+                                     char yt[][16], int pref[], int max) {
+  VideoTmdb v[EX_TRAILER_MAX];
+  int n, i;
+  if (max > EX_TRAILER_MAX) max = EX_TRAILER_MAX;
+  n = trailersDaFicha(corpo, corpo ? corpo + strlen(corpo) : NULL, serie, idioma, v, max);
+  for (i = 0; i < n; i++) { snprintf(yt[i], 16, "%s", v[i].yt); pref[i] = v[i].idiomaPreferido; }
+  return n;
 }
 int extras_teste_trailers_ficha(const char *corpo, int serie, const char *idioma,
                                 char yt[][16], int max) {
@@ -2078,6 +2106,9 @@ int extras_n_trailers(void) { return nTrailer; }
 int extras_trailer_idioma_preferido(int i) {
   if (!nTrailer && extras_carregando()) return idiomaPedido() ? -1 : 0;
   return i >= 0 && i < nTrailer && trailer[i].idiomaPreferido;
+}
+int extras_trailer_legendado(int i) {
+  return i >= 0 && i < nTrailer && trailer[i].legendado;
 }
 const char *extras_trailer_yt(int i) {
   return (i >= 0 && i < nTrailer) ? trailer[i].yt : "";

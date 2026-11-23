@@ -106,5 +106,9 @@ void trailer_osd_desenhar(const char *titulo, float a);
 #ifdef NV_SHOT_HOOKS
 void trailer_shot_pausado(int sim);
 #endif
+#ifdef NV_ANDROID
+// World 23/11: a fonte e o id de um video do YouTube (toca na WebView do YtTrailer.kt, so em tela cheia).
+int  trailer_eh_youtube(const char *fonte);
+#endif
 
 #endif

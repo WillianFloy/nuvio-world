@@ -217,6 +217,7 @@ int         extras_n_trailers(void);
 const char *extras_trailer_yt(int i);        // id do video ("dQw4w9WgXcQ")
 void extras_trailer_audio_iso(char *dst);  // ISO de 2 letras do audio pedido ao trailer; "" no Original (so o TMDB sabe)
 int extras_trailer_idioma_preferido(int i);  // 1 in the chosen non-English audio, -1 TMDB pending
+int extras_trailer_legendado(int i);        // World: nome "Legendado" (audio original com legenda na imagem)
 const char *extras_trailer_nome(int i);      // "Official Trailer"
 // URL da miniatura. Previsivel a partir do id, sem chamada de API — e o mesmo
 // caminho que o web usa (metaDetailsScreen.js:5728). Passe direto a tex_obter:

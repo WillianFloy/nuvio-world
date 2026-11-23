@@ -297,7 +297,18 @@ void   video_tpk_cartao_destino(float x, float y, float w, float h, float *ox, f
 void   video_tpk_cartao_furo(float x, float y, float w, float h, float *ox, float *oy, float *ow, float *oh);
 void   video_tpk_tizen_definir(const char *versao);   // gpunivel.c: platform.version
 int    video_recorte_fonte_trailer(void);   // so o trailer: o ajuste em execucao
-#else
+#endif
+#ifdef NV_ANDROID
+// World (23/11): trailer do YouTube numa WebView atras da interface (YtTrailer.kt). Estado: -1 carregando, 1 tocando,
+// 2 pausado, 3 carregando trecho, 0 terminou, -3 falhou (ja abriu o app do YouTube quando o embed e proibido).
+int  video_yt_disponivel(void);
+void video_yt_abrir(const char *id, int mudo, const char *legenda);   // legenda: "pt" etc., "" = sem
+void video_yt_cmd(int c);   // 0 fechar, 1 pausar, 2 continuar
+int  video_yt_estado(void);
+int  video_yt_pos_ms(void);
+int  video_yt_dur_ms(void);
+#endif
+#ifndef NV_TPK
 static inline int video_recorte_fonte_trailer(void) { return video_recorte_fonte(); }
 #endif
 

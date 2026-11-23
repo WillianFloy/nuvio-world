@@ -168,6 +168,10 @@ jobs:
         run: bash tests/trailerapple_ingles.sh
       - name: Run fullscreen trailer letterbox test (no oversized video window on Android)
         run: bash tests/trailer_cheia_tarja.sh
+      - name: Run YouTube trailer test (button only, WebView lifecycle, fallback)
+        run: bash tests/trailer_youtube.sh
+      - name: Run trailer source order test (YouTube only in fullscreen on Android)
+        run: bash tests/trailer-fonte.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
       - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)

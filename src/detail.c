@@ -46,6 +46,7 @@ static TituloTempo detalheTempo;
 #include "trailertt.h"
 #include "trailerapple.h"
 #include "trailerfonte.h"
+#include "video.h"
 #include "player.h"
 #include "agenda.h"
 #include "agendaui.h"
@@ -500,6 +501,18 @@ static int trailerCheioPendente, trailerCheioIdx = -1;
 static Uint32 trailerCheioAte;
 #define NV_TRAILER_BOTAO_ESPERA_MS 10000u
 static int ehSerie(void);
+#ifdef NV_ANDROID
+// World 23/11: trailer do YouTube no botao (YtTrailer.kt). `ytFalhouIdx`: o titulo onde o YouTube ja falhou nesta
+// visita (o botao recua para Apple/IMDb); `ytCheioK`: o trailer aberto pelo YouTube em tela cheia, para o recuo.
+static int ytFalhouIdx = -1, ytCheioK = -1;
+// O trailer do TMDB que vai ao botao: o pedido (`k`), ou o primeiro no idioma escolhido, ou o primeiro.
+static int ytEscolhido(int k) {
+  int i, n = extras_n_trailers();
+  if (k > 0 && k < n && extras_trailer_yt(k)[0]) return k;
+  for (i = 0; i < n; i++) if (extras_trailer_yt(i)[0] && extras_trailer_idioma_preferido(i) > 0) return i;
+  return n > 0 && extras_trailer_yt(0)[0] ? 0 : -1;
+}
+#endif
 static const char *trailerFonte(int k, int *qual, int cheia) {
   const CatItem *ci = cat_item(idx);
   TrailerCandidatos c;
@@ -527,6 +540,14 @@ static const char *trailerFonte(int k, int *qual, int cheia) {
   if (k >= 0 && k < extras_n_trailers() && extras_trailer_yt(k)[0]) c.youtube = extras_trailer_yt(k);
   else if (extras_n_trailers() > 0 && extras_trailer_yt(0)[0]) { k = 0; c.youtube = extras_trailer_yt(0); }
   c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(k);
+#elif defined(NV_ANDROID)
+  // So a tela cheia: o fundo e o destaque nunca abrem a WebView (trailerfonte_ordem_cheia).
+  trailerfonte_definir_youtube_cheia(video_yt_disponivel());
+  if (cheia && trailerfonte_youtube_cheia() && ytFalhouIdx != idx) {
+    int kk = ytEscolhido(k);
+    if (kk >= 0) { c.youtube = extras_trailer_yt(kk); c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(kk); }
+    else c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(-1) < 0 ? -1 : 0;
+  }
 #else
   (void)k;
 #endif
@@ -1563,6 +1584,9 @@ static void abrirInterno(const HomeItem *it) {
   trailerEtapa = 0; trailerPrazo = 0;
   trailerSemFonteLogado = 0;
   trailerUltimaDecisao = TRF_ESPERA; trailerCheioPendente = 0;   // World 22/11
+#ifdef NV_ANDROID
+  ytFalhouIdx = -1; ytCheioK = -1;
+#endif
   trailercinema_zerar(&trailerCinema);
   idx = it->indice;
   { const CatItem *ci = cat_item(idx);
@@ -2670,6 +2694,10 @@ static void tocarTrailerCheio(int k) {
     trailerEtapaCheia = 1;
     trailerPrazo = SDL_GetTicks() + NV_TRAILER_PREPARA_MS;
 #endif
+#ifdef NV_ANDROID
+    ytCheioK = qual == TRF_YOUTUBE ? k : -1;
+    printf("[trailer] detalhe: botao abre pela fonte %s\n", trailerfonte_nome(qual)); fflush(stdout);
+#endif
   }
 #ifdef __EMSCRIPTEN__
   // SAMSUNG: NUNCA o navegador (#136). O window.open do wgt trocava a
@@ -3645,6 +3673,19 @@ static void toquePessoaFocar(int i, int b) { (void)b; pessoaFoco = i; }
 static float blocoAnt[3] = { -1.0f, -1.0f, -1.0f };   // Notas / Numeros / Progresso no quadro anterior
 
 static void detail_atualizar_(float dt, Uint32 agora) {
+#ifdef NV_ANDROID
+  // World 23/11: o YouTube do botao falhou (embed proibido pelo dono do video, sem WebView, sem resposta): a mesma
+  // tela cheia tenta a Apple/o IMDb. Fim normal ou Voltar so encerram.
+  if (ytCheioK >= 0 && !trailer_aberto()) {
+    int k = ytCheioK;
+    ytCheioK = -1;
+    if (trailer_falhou() && aberto) {
+      ytFalhouIdx = idx;
+      printf("[trailer] detalhe: youtube falhou, tenta a proxima fonte\n"); fflush(stdout);
+      tocarTrailerCheio(k);
+    }
+  }
+#endif
   // World 22/11: o botao Trailer pedido antes da fonte responder abre quando ela chegar.
   if (trailerCheioPendente) {
     int k = trailerCheioPendente - 1, qual = 0;

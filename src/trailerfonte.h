@@ -78,6 +78,9 @@ TrailerDecisao trailerfonte_escolher_cheia(int ajuste, int tizen, int som,
 // 1 no .tpk (NV_TPK); 0 no .wgt e na LG, onde nada muda. O definir e para os
 // testes.
 int  trailerfonte_imdb_primeiro_cheia(void);
+// World/Android: o player do YouTube existe (WebView) e entra so na ordem da tela cheia.
+void trailerfonte_definir_youtube_cheia(int sim);
+int  trailerfonte_youtube_cheia(void);
 void trailerfonte_definir_imdb_primeiro_cheia(int sim);
 
 // O TRAILER DO CARTAZ QUE CONTINUA COM SOM NA PAGINA DO TITULO (pedido do

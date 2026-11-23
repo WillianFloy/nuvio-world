@@ -277,6 +277,39 @@ int trailer_suportado(void) {
 // o quadro ter tamanho — os dois ficam pendentes e trailer_atualizar aplica.
 #include "video.h"
 static int volumePendente, recortePendente, pausado;
+#ifdef NV_ANDROID
+// TRAILER DO YOUTUBE (World 23/11): a fonte e o id de um video do YouTube (o TMDB), tocado na WebView do YtTrailer.kt
+// e nao no ExoPlayer. So tela cheia. `ytVisto`: ja tocou (pegajoso, como tocouFonte); `ytAbertoEm` mede o prazo
+// do primeiro "tocando" (WebView que nao carrega = falha, e o detalhe recua para Apple/IMDb).
+#define NV_TRAILER_YT_PRAZO_MS 15000u
+static int yt, ytVisto;
+static Uint32 ytAbertoEm;
+int trailer_eh_youtube(const char *f) {
+  size_t n = 0;
+  if (!f) return 0;
+  for (; f[n]; n++) {
+    char c = f[n];
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-')) return 0;
+  }
+  return n >= 6 && n <= 20;
+}
+// O idioma da legenda do YouTube: so quando o trailer nao esta no idioma escolhido e nao tem a legenda na imagem.
+static void ytLegenda(const char *id, char out[8]) {
+  int i, n = extras_n_trailers();
+  out[0] = 0;
+  for (i = 0; i < n; i++)
+    if (!strcmp(extras_trailer_yt(i), id)) {
+      if (extras_trailer_idioma_preferido(i) > 0 || extras_trailer_legendado(i)) return;
+      break;
+    }
+  ling_normalizar(ling_legenda(), out, 8);
+  out[2] = 0;
+  if (!out[0] || !strcmp(out, "of")) extras_trailer_audio_iso(out);
+}
+static double ytPos(void) { return yt ? video_yt_pos_ms() / 1000.0 : video_pos(); }
+static double ytDur(void) { return yt ? video_yt_dur_ms() / 1000.0 : video_duracao(); }
+static double ytBuf(void) { return yt ? ytPos() : video_buffer_fim(); }
+#endif
 /* Prepared only means metadata/demuxer ready. A trailer must reach Playing
  * once before autoplay regards it as started. Sticky after that, so a paused
  * or buffering trailer keeps its existing image instead of closing the hole. */
@@ -454,6 +487,30 @@ void trailer_abrir(const char *fonte, GfxRect r, int som, int modoCheia) {
   }
   if (!trailer_js_abrir(fonte, r.x, r.y, r.w, r.h, som, ajustes_trailer_zoom(), NV_REC_URL)) return;
 #else
+#ifdef NV_ANDROID
+  if (nova && trailer_eh_youtube(fonte)) {
+    char leg[8];
+    // So na tela cheia e so com o player na casca (trailerfonte_ordem_cheia ja garante; isto e o cinto).
+    if (!modoCheia || (!falso && !video_yt_disponivel())) return;
+    if (aberto && !yt) video_parar();   // um trailer do ExoPlayer no fundo nao toca junto
+    ytLegenda(fonte, leg);
+    if (!falso) video_yt_abrir(fonte, !som, leg);
+    yt = 1; ytVisto = 0; ytAbertoEm = SDL_GetTicks(); pausado = 0;
+    geracao++;
+    falhouUltima = 0;
+    snprintf(fonteAtual, sizeof fonteAtual, "%s", fonte);
+    abertoEm = ytAbertoEm;
+    printf("[trailer] youtube %s tela cheia%s legenda=%s\n", fonte, som ? " com som" : " mudo", leg[0] ? leg : "-");
+    fflush(stdout);
+    rect = r; aberto = 1; cheia = 1; comSom = som;
+    return;
+  }
+  if (yt) {
+    if (!nova) { rect = r; return; }   // a WebView ja e a tela inteira
+    if (!falso) video_yt_cmd(0);
+    yt = 0; aberto = 0; fonteAtual[0] = 0;
+  }
+#endif
   if (nova) {
     if (!falso && !video_tocar(fonte)) return;
 #ifdef NV_TPK
@@ -493,6 +550,9 @@ void trailer_rect(GfxRect r) {
 #ifdef __EMSCRIPTEN__
   trailer_js_abrir(fonteAtual, r.x, r.y, r.w, r.h, comSom, ajustes_trailer_zoom(), NV_REC_URL);
 #else
+#ifdef NV_ANDROID
+  if (yt) return;
+#endif
   video_janela((int)r.x, (int)r.y, (int)r.w, (int)r.h);
   recortePendente = 1;
   nativoAplicar();
@@ -506,6 +566,9 @@ void trailer_fechar(void) {
   if (!aberto) return;
 #ifdef __EMSCRIPTEN__
   trailer_js_fechar();
+#elif defined(NV_ANDROID)
+  if (yt) { if (!falso) video_yt_cmd(0); yt = 0; ytVisto = 0; }
+  else video_parar();
 #else
   video_parar();
 #endif
@@ -550,6 +613,14 @@ int trailer_tocando(void) {
   int e = aberto ? trailer_js_estado() : -2;
   return e == 1 || e == 3;
 #else
+#ifdef NV_ANDROID
+  if (yt) {
+    int e = falso ? (falso == 2 ? 1 : -1) : video_yt_estado();
+    if (!aberto) return 0;
+    if (e == 1 || e == 3) ytVisto = 1;
+    return ytVisto && e != 0 && e != -3;
+  }
+#endif
   if (falso) return aberto && falso == 2;
   if(!aberto||!video_pronto()||video_falhou()||video_terminou()||video_conflito_recurso())return 0;
   if(video_tocando())tocouFonte=1;
@@ -621,6 +692,9 @@ int trailer_evento(const SDL_Event *e) {
     trailer_js_cmd(trailer_js_pausado() ? "playVideo" : "pauseVideo");
 #else
     pausado = !pausado;
+#ifdef NV_ANDROID
+    if (yt) { if (!falso) video_yt_cmd(pausado ? 1 : 2); return 1; }
+#endif
     video_pausar(pausado);
 #endif
     return 1;
@@ -653,6 +727,26 @@ void trailer_atualizar(Uint32 agora) {
   } else if (aberto && trailer_js_estado() == 0) trailer_fechar();
 #else
   if (!aberto) return;
+#ifdef NV_ANDROID
+  if (yt) {
+    int e = falso ? (falso == 2 ? 1 : -1) : video_yt_estado();
+    static int visto = -9;
+    if (e != visto) {
+      printf("[trailer] youtube estado %d -> %d +%ums\n", visto, e, (unsigned)(SDL_GetTicks() - ytAbertoEm));
+      fflush(stdout);
+      visto = e;
+    }
+    if (e == 1 || e == 3) ytVisto = 1;
+    if (e == 0) trailer_fechar();
+    else if (e == -3 || (!ytVisto && (Sint32)(SDL_GetTicks() - ytAbertoEm) >= (Sint32)NV_TRAILER_YT_PRAZO_MS)) {
+      printf("[trailer] youtube falhou (%s)\n", e == -3 ? "erro do player" : "sem tocar em 15 s");
+      fflush(stdout);
+      falhouUltima = 1;
+      trailer_fechar();
+    }
+    return;
+  }
+#endif
   video_bombear();
   nativoAplicar();
   // Acabou ou a fonte falhou: fecha e a pagina volta a arte.
@@ -688,8 +782,13 @@ int trailer_pausado(void) {
 int trailer_medidor_esconde(void) {
   return trailer_aberto() && trailer_tocando() && !trailer_pausado();
 }
+#if !defined(NV_ANDROID) || defined(__EMSCRIPTEN__)
+static double ytPos(void) { return video_pos(); }
+static double ytDur(void) { return video_duracao(); }
+static double ytBuf(void) { return video_buffer_fim(); }
+#endif
 void trailer_osd_desenhar(const char *titulo, float a) {
-  double pos = video_pos(), dur = video_duracao();
+  double pos = ytPos(), dur = ytDur();
   if (!trailer_pausado() || a < 0.01f) return;
   gfx_veu_css((GfxRect){ 0, 0, NV_TELA_W, 260.0f }, 1, 1.38f, 1.0f, 0.52f * a);
   gfx_veu_css((GfxRect){ 0, NV_TELA_H - 300.0f, NV_TELA_W, 300.0f }, 0, 1.0f, 1.0f, 0.60f * a);
@@ -707,7 +806,7 @@ void trailer_osd_desenhar(const char *titulo, float a) {
   if (dur > 1.0) {
     char t1[24], d[24], t2[32];
     plrui_barra(96.0f, 1000.0f, NV_TELA_W - 192.0f, (float)(pos / dur),
-                (float)(video_buffer_fim() / dur), 0, NULL, 0, a);
+                (float)(ytBuf() / dur), 0, NULL, 0, a);
     plrui_tempo(t1, sizeof t1, pos); plrui_tempo(d, sizeof d, dur);
     snprintf(t2, sizeof t2, "/ %s", d);
     { TxtLinha l2 = txt_linha(TXT_ILHA_NOME, t2, 243, 242, 239, 128);
