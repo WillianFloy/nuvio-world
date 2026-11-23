@@ -23,6 +23,11 @@
 // copie se for guardar.
 const char *trailertt_id(const char *id, int serie);
 
+// O titulo EM INGLES do TMDB para "tmdb:N" (vem na mesma consulta do "tt"; World 22/11). 1 se ja se sabe e existe.
+// A Apple busca na loja dos EUA: com o titulo em portugues ela nao acha nada. Nao dispara consulta (trailertt_id dispara).
+#include <stddef.h>
+int trailertt_titulo_en(const char *id, char *dst, size_t tam);
+
 // 1 = ja se sabe o resultado para `id` (resolvido, falhou ou nao precisa).
 int trailertt_respondeu(const char *id);
 

@@ -16,6 +16,7 @@
 #include "js.h"
 #include "dados.h"
 #include "ajustes.h"
+#include "trailertt.h"
 #include <SDL2/SDL.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -65,7 +66,7 @@ static void caminhoDisco(const char *imdb, char *dst, unsigned tam) {
   dst[0] = 0;
   if (!dados_caminho(pasta, sizeof pasta, "trailer")) return;
   mkdir(pasta, 0755);
-  snprintf(dst, tam, "%s/%s-apple", pasta, imdb);
+  snprintf(dst, tam, "%s/%s-apple2", pasta, imdb);   // World 22/11: "-apple2" descarta os "sem trailer" da busca em portugues
 }
 static int lerDisco(Entrada *e) {
   char c[600], linha[1200];
@@ -101,7 +102,7 @@ static void caminhoMaster(const char *imdb, char *dst, unsigned tam, const char 
   char pasta[512];
   dst[0] = 0;
   if (!dados_caminho(pasta, sizeof pasta, "trailer")) return;
-  snprintf(dst, tam, "%s/%s-apple%s", pasta, imdb, sufixo);
+  snprintf(dst, tam, "%s/%s-apple2%s", pasta, imdb, sufixo);
 }
 
 // UMA VARIANTE, NAO O ABR. Medido na C9 (20/09/2026): entregue o master
@@ -506,8 +507,20 @@ static void *buscar(void *arg) {
   Entrada *e;
   if (ano) {
     int serie = p->serie;
-    char arte[600] = "";
-    r = buscarId(p->titulo, ano, serie, id, sizeof id, arte, sizeof arte);
+    char arte[600] = "", en[200] = "";
+    // World (22/11): a loja e a dos EUA. Para "tmdb:N" o titulo em INGLES vem do TMDB (trailertt, a mesma consulta do
+    // "tt"); espera por ele ate ~2,5 s e tenta primeiro. Sem titulo em ingles (ou igual), fica o de sempre.
+    if (!strncmp(p->imdb, "tmdb:", 5)) {
+      trailertt_id(p->imdb, serie);
+      for (int i = 0; i < 50 && !trailertt_respondeu(p->imdb); i++) SDL_Delay(50);
+      if (trailertt_titulo_en(p->imdb, en, sizeof en) && !strcmp(en, p->titulo)) en[0] = 0;
+    }
+    r = 0;
+    if (en[0]) {
+      r = buscarId(en, ano, serie, id, sizeof id, arte, sizeof arte);
+      if (r == 0) { r = buscarId(en, ano, !serie, id, sizeof id, arte, sizeof arte); if (r > 0) serie = !serie; }
+    }
+    if (r <= 0) r = buscarId(p->titulo, ano, serie, id, sizeof id, arte, sizeof arte);
     // O catalogo nem sempre etiqueta o tipo (item de "continuar assistindo"
     // sem `tipo`, colecao): sem casar como pedido, tenta o outro tipo. Um
     // filme e uma serie com o mesmo nome e ano e caso raro; nao achar o

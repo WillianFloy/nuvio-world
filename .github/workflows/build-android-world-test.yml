@@ -164,6 +164,8 @@ jobs:
         run: bash tests/trailertt.sh
       - name: Run IMDb trailer failure test (no request storm on HTTP 403)
         run: bash tests/trailerimdb_falha.sh
+      - name: Run Apple trailer English title test (TMDB en-US title for the US store)
+        run: bash tests/trailerapple_ingles.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
       - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)

@@ -14,7 +14,7 @@
 #define TT_MAX 192
 #define TT_NEGATIVA_MS 600000u   // falhou: so pergunta de novo depois de 10 min
 enum { TT_LIVRE = 0, TT_VOO, TT_OK, TT_FALHOU };
-typedef struct { char id[40]; char tt[24]; int estado; unsigned quando; int serie; } Ent;
+typedef struct { char id[40]; char tt[24]; char en[200]; int estado; unsigned quando; int serie; } Ent;
 static Ent tab[TT_MAX];
 static int proxima;
 static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
@@ -54,33 +54,60 @@ static Ent *achar(const char *id) {
 }
 
 typedef struct { char id[40]; long n; int serie; } Pedido;
+// World (22/11): UMA consulta traz o "tt" e o titulo EM INGLES. A Apple busca pelo titulo na loja dos EUA e nao achava
+// os titulos em portugues ("Sobrenatural", "Tipo Irmas": candidatos=0 no log da TCL); com o IMDb respondendo 403 a tudo,
+// ela e a unica fonte de trailer do Android. /movie|tv/{id}?language=en-US&append_to_response=external_ids: o filme tem
+// "imdb_id" e "title" na raiz; a serie tem "name" na raiz e o "imdb_id" dentro de "external_ids".
+static void lerResposta(const char *resp, int serie, char *tt, size_t ttTam, char *en, size_t enTam) {
+  tt[0] = en[0] = 0;
+  if (!js_texto_raiz_em(resp, NULL, "imdb_id", tt, ttTam) || strncmp(tt, "tt", 2)) {
+    const char *x = strstr(resp, "\"external_ids\"");
+    tt[0] = 0;
+    if (x && (x = strchr(x, '{'))) {
+      const char *f = js_fim(x);
+      if (!js_texto_raiz_em(x, f ? f + 1 : NULL, "imdb_id", tt, ttTam) || strncmp(tt, "tt", 2)) tt[0] = 0;
+    }
+  }
+  if (!js_texto_raiz_em(resp, NULL, serie ? "name" : "title", en, enTam)) en[0] = 0;
+}
 static void *buscar(void *arg) {
   Pedido *p = (Pedido *)arg;
-  char url[320], tt[24] = "";
+  char url[360], tt[24] = "", en[200] = "";
   const char *k = chave();
   char *resp = NULL;
   if (k && k[0]) {
-    snprintf(url, sizeof url, "https://api.themoviedb.org/3/%s/%ld/external_ids?api_key=%s",
+    snprintf(url, sizeof url, "https://api.themoviedb.org/3/%s/%ld?api_key=%s&language=en-US&append_to_response=external_ids",
              p->serie ? "tv" : "movie", p->n, k);
     resp = baixar(url, 8);
   }
-  if (resp) {
-    if (!js_texto_raiz_em(resp, NULL, "imdb_id", tt, sizeof tt) || strncmp(tt, "tt", 2)) tt[0] = 0;
-    free(resp);
-  }
+  if (resp) { lerResposta(resp, p->serie, tt, sizeof tt, en, sizeof en); free(resp); }
   pthread_mutex_lock(&trava);
   { Ent *e = achar(p->id);
     if (e) {
+      snprintf(e->en, sizeof e->en, "%s", en);
       if (tt[0]) { snprintf(e->tt, sizeof e->tt, "%s", tt); e->estado = TT_OK; }
       else e->estado = TT_FALHOU;
       e->quando = agoraMs();
     } }
   pthread_mutex_unlock(&trava);
-  printf("[trailer] id do IMDb para %s (%s): %s\n", p->id, p->serie ? "serie" : "filme",
-         tt[0] ? tt : (k && k[0] ? "TMDB nao tem" : "sem chave do TMDB"));
+  printf("[trailer] id do IMDb para %s (%s): %s | titulo em ingles: %s\n", p->id, p->serie ? "serie" : "filme",
+         tt[0] ? tt : (k && k[0] ? "TMDB nao tem" : "sem chave do TMDB"), en[0] ? en : "-");
   fflush(stdout);
   free(p);
   return NULL;
+}
+
+int trailertt_titulo_en(const char *id, char *dst, size_t tam) {
+  int r = 0;
+  Ent *e;
+  if (!dst || !tam) return 0;
+  dst[0] = 0;
+  if (!numeroTmdb(id)) return 0;
+  pthread_mutex_lock(&trava);
+  e = achar(id);
+  if (e && (e->estado == TT_OK || e->estado == TT_FALHOU) && e->en[0]) { snprintf(dst, tam, "%s", e->en); r = 1; }
+  pthread_mutex_unlock(&trava);
+  return r;
 }
 
 const char *trailertt_id(const char *id, int serie) {
