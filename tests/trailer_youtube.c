@@ -54,6 +54,15 @@ double video_buffer_fim(void) { return 99; }
 int  trailerfonte_com_som(int t) { (void)t; return 1; }
 int  trailerfonte_tizen(void) { return 0; }
 float gfx_escala_tela_txt(void) { return 1.0f; }
+// Faixas do trailer (World 23/11): nenhuma neste teste.
+int  video_n_audio(void) { return 0; }
+int  video_n_legenda(void) { return 0; }
+const VideoFaixa *video_audio(int i) { (void)i; return NULL; }
+const VideoFaixa *video_legenda(int i) { (void)i; return NULL; }
+int  video_audio_atual(void) { return -1; }
+int  video_legenda_atual(void) { return -1; }
+void video_escolher_audio(int i) { (void)i; }
+void video_escolher_legenda(int i) { (void)i; }
 // TMDB: 0 dublado (pt, preferido), 1 legendado, 2 ingles.
 static const char *TY[3] = { "dubladoAAA1", "legendaBBB2", "inglesCCCC3" };
 int extras_n_trailers(void) { return 3; }

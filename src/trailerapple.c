@@ -132,6 +132,21 @@ static int atributo(const char *linha, const char *nome, char *dst, unsigned tam
 }
 
 #ifndef NV_TRAILER_SAMSUNG   /* so a LG monta o reduzido em disco */
+// Remove `NOME=valor` (com ou sem aspas) de uma linha de atributos HLS, com a virgula que o separa.
+static void tirarAtributo(char *linha, const char *nome) {
+  char chave[64];
+  char *p, *q;
+  snprintf(chave, sizeof chave, "%s=", nome);
+  for (p = strstr(linha, chave); p; p = strstr(p + 1, chave))
+    if (p > linha && (p[-1] == ',' || p[-1] == ':')) break;
+  if (!p) return;
+  q = p + strlen(chave);
+  if (*q == '"') { q = strchr(q + 1, '"'); q = q ? q + 1 : p + strlen(p); }
+  else while (*q && *q != ',' && *q != '\r' && *q != '\n') q++;
+  if (*q == ',') q++;
+  else if (p[-1] == ',') p--;   // ultimo atributo: leva a virgula de antes
+  memmove(p, q, strlen(q) + 1);
+}
 static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam) {
   char cm[600], cr[600], linha[2048];
   char melhorInf[2048] = "", melhorUri[1024] = "", melhorAudio[128] = "";
@@ -176,12 +191,34 @@ static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam)
   if (!g) { fclose(f); return 0; }
   fprintf(g, "#EXTM3U\n#EXT-X-VERSION:6\n#EXT-X-INDEPENDENT-SEGMENTS\n");
   rewind(f);
-  while (fgets(linha, sizeof linha, f)) {
-    char grp[128];
-    if (strncmp(linha, "#EXT-X-MEDIA:", 13)) continue;
-    if (!strstr(linha, "TYPE=AUDIO")) continue;
-    atributo(linha, "GROUP-ID", grp, sizeof grp);
-    if (melhorAudio[0] && !strcmp(grp, melhorAudio)) { fputs(linha, g); break; }
+  {
+    // World 23/11: TODOS os audios do grupo da variante (dublagens, quando a Apple tem) e as legendas do grupo
+    // SUBTITLES dela, para o trailer trocar de faixa (trailer.c). So URI absoluta: o reduzido e um file:// e
+    // relativa nao resolveria. Antes ia so o primeiro audio e nenhuma legenda.
+    char melhorLeg[128] = "";
+    int nAud = 0, nLeg = 0;
+    atributo(melhorInf, "SUBTITLES", melhorLeg, sizeof melhorLeg);
+    while (fgets(linha, sizeof linha, f)) {
+      char grp[128], uri[1024];
+      int ehAudio, ehLeg;
+      if (strncmp(linha, "#EXT-X-MEDIA:", 13)) continue;
+      ehAudio = strstr(linha, "TYPE=AUDIO") != NULL;
+      ehLeg = strstr(linha, "TYPE=SUBTITLES") != NULL;
+      if (!ehAudio && !ehLeg) continue;
+      atributo(linha, "GROUP-ID", grp, sizeof grp);
+      atributo(linha, "URI", uri, sizeof uri);
+      if (uri[0] && strncmp(uri, "http", 4)) continue;
+      if (ehAudio && melhorAudio[0] && !strcmp(grp, melhorAudio)) {
+        // Um DEFAULT=YES por grupo (HLS): do segundo audio em diante, NO.
+        char *d = nAud ? strstr(linha, "DEFAULT=YES") : NULL;
+        if (d) memcpy(d, "DEFAULT=NO", 10), memmove(d + 10, d + 11, strlen(d + 11) + 1);
+        fputs(linha, g); nAud++;
+      }
+      else if (ehLeg && melhorLeg[0] && !strcmp(grp, melhorLeg) && uri[0]) { fputs(linha, g); nLeg++; }
+    }
+    // Sem nenhuma legenda escrita, o STREAM-INF nao pode citar um grupo SUBTITLES que nao existe.
+    if (!nLeg && melhorLeg[0]) tirarAtributo(melhorInf, "SUBTITLES");
+    printf("[trailer] apple %s: %d audio(s), %d legenda(s) no reduzido\n", imdb, nAud, nLeg);
   }
   fputs(melhorInf, g);
   fprintf(g, "%s\n", melhorUri);

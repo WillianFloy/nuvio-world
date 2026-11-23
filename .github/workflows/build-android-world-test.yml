@@ -172,6 +172,10 @@ jobs:
         run: bash tests/trailer_youtube.sh
       - name: Run trailer source order test (YouTube only in fullscreen on Android)
         run: bash tests/trailer-fonte.sh
+      - name: Run trailer tracks test (Apple audio/subtitles chosen separately)
+        run: bash tests/trailer_faixas.sh
+      - name: Run Apple reduced master test (all audio renditions and subtitles)
+        run: bash tests/trailerapple_faixas.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
       - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)

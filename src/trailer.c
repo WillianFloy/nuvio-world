@@ -7,6 +7,9 @@
 #include "extras.h"
 #include "linguas.h"
 #include "video.h"      // trailer_osd_desenhar reads video_pos/duracao on every target
+#ifdef NV_ANDROID
+#include "player.h"     // player_limpar_legenda_nativa (legenda do trailer)
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -310,6 +313,69 @@ static double ytPos(void) { return yt ? video_yt_pos_ms() / 1000.0 : video_pos()
 static double ytDur(void) { return yt ? video_yt_dur_ms() / 1000.0 : video_duracao(); }
 static double ytBuf(void) { return yt ? ytPos() : video_buffer_fim(); }
 #endif
+#ifdef NV_ANDROID
+// FAIXAS DO TRAILER (World 23/11). O master reduzido da Apple agora traz todos os audios do grupo e as legendas
+// (trailerapple.c). Automatico: audio no idioma escolhido (dublado) quando existe; senao, em tela cheia, a legenda no
+// idioma de legenda (ou no do audio). Na pausa da tela cheia, Audio e Legenda trocam separado (OSD).
+// `osdFoco`: 0 Continuar, 1 Audio, 2 Legenda.
+static int faixaAudioAuto, faixaLegAuto, osdFoco;
+static int mesmoIdioma(const char *a, const char *b) {
+  return a && b && a[0] && b[0] && (a[0] | 32) == (b[0] | 32) && (a[1] | 32) == (b[1] | 32);
+}
+static void idiomaLegendaAlvo(char out[8]) {
+  ling_normalizar(ling_legenda(), out, 8);
+  out[2] = 0;
+  if (!out[0] || !strcmp(out, "of")) extras_trailer_audio_iso(out);
+}
+static void faixasAuto(void) {
+  int i, na, nl;
+  char iso[8] = "", leg[8];
+  if (yt || !aberto || falso) return;
+  na = video_n_audio(); nl = video_n_legenda();
+  if (!faixaAudioAuto && na > 0) {
+    faixaAudioAuto = 1;
+    extras_trailer_audio_iso(iso);
+    for (i = 0; i < na; i++) {
+      const VideoFaixa *f = video_audio(i);
+      if (f && mesmoIdioma(f->idioma, iso)) {
+        if (video_audio_atual() != i) video_escolher_audio(i);
+        break;
+      }
+    }
+    printf("[trailer] faixas: %d audio, %d legenda; audio %s\n", na, nl,
+           i < na ? "no idioma escolhido (dublado)" : "original");
+    fflush(stdout);
+  }
+  if (!faixaLegAuto && cheia && faixaAudioAuto) {
+    const VideoFaixa *fa = video_audio_atual() >= 0 ? video_audio(video_audio_atual()) : NULL;
+    faixaLegAuto = 1;
+    extras_trailer_audio_iso(iso);
+    idiomaLegendaAlvo(leg);
+    // Audio ja no idioma: sem legenda. Senao, a legenda no idioma de legenda.
+    if (fa && mesmoIdioma(fa->idioma, iso)) return;
+    for (i = 0; i < nl; i++) {
+      const VideoFaixa *f = video_legenda(i);
+      if (f && mesmoIdioma(f->idioma, leg)) {
+        video_escolher_legenda(i);
+        printf("[trailer] legenda %s ligada\n", f->idioma);
+        fflush(stdout);
+        return;
+      }
+    }
+  }
+}
+static void faixaCiclar(int qual) {
+  if (qual == 1) {
+    int n = video_n_audio();
+    if (n > 1) video_escolher_audio((video_audio_atual() + 1 + n) % n);
+  } else if (qual == 2) {
+    int n = video_n_legenda(), a = video_legenda_atual();
+    if (n > 0) video_escolher_legenda(a + 1 >= n ? -1 : a + 1);   // desligada -> 0 -> ... -> desligada
+  }
+}
+static int osdTemAudio(void) { return !yt && video_n_audio() > 1; }
+static int osdTemLegenda(void) { return !yt && video_n_legenda() > 0; }
+#endif
 /* Prepared only means metadata/demuxer ready. A trailer must reach Playing
  * once before autoplay regards it as started. Sticky after that, so a paused
  * or buffering trailer keeps its existing image instead of closing the hole. */
@@ -517,6 +583,9 @@ void trailer_abrir(const char *fonte, GfxRect r, int som, int modoCheia) {
     video_tpk_trailer_marcar(1);
 #endif
     tocouFonte = 0;
+#ifdef NV_ANDROID
+    faixaAudioAuto = faixaLegAuto = 0; osdFoco = 0;
+#endif
     volumePendente = 1; recortePendente = 1; pausado = 0; reaplicarAte = 0;
     tocandoDesde = 0; quadroInteiroEnviado = 0;
 #ifdef NV_TPK
@@ -687,12 +756,32 @@ int trailer_evento(const SDL_Event *e) {
   k = e->key.keysym.sym;
   if (k == SDLK_AC_BACK || k == SDLK_ESCAPE || k == SDLK_BACKSPACE || k == SDLK_DELETE ||
       e->key.keysym.scancode == NV_SCANCODE_BACK) { trailer_fechar(); return 1; }
+#ifdef NV_ANDROID
+  // Na pausa: esquerda/direita andam entre Continuar, Audio e Legenda (os que existem); OK troca a faixa.
+  if (pausado && !yt && (k == SDLK_LEFT || k == SDLK_RIGHT)) {
+    int ordem[3], n = 0, i, at = 0;
+    ordem[n++] = 0;
+    if (osdTemAudio()) ordem[n++] = 1;
+    if (osdTemLegenda()) ordem[n++] = 2;
+    for (i = 0; i < n; i++) if (ordem[i] == osdFoco) at = i;
+    at += k == SDLK_RIGHT ? 1 : -1;
+    if (at < 0) at = 0;
+    if (at >= n) at = n - 1;
+    osdFoco = ordem[at];
+    return 1;
+  }
+  if (pausado && !yt && osdFoco && (k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE)) {
+    faixaCiclar(osdFoco);
+    return 1;
+  }
+#endif
   if (k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE) {
 #ifdef __EMSCRIPTEN__
     trailer_js_cmd(trailer_js_pausado() ? "playVideo" : "pauseVideo");
 #else
     pausado = !pausado;
 #ifdef NV_ANDROID
+    osdFoco = 0;
     if (yt) { if (!falso) video_yt_cmd(pausado ? 1 : 2); return 1; }
 #endif
     video_pausar(pausado);
@@ -749,6 +838,9 @@ void trailer_atualizar(Uint32 agora) {
 #endif
   video_bombear();
   nativoAplicar();
+#ifdef NV_ANDROID
+  if (video_pronto()) faixasAuto();
+#endif
   // Acabou ou a fonte falhou: fecha e a pagina volta a arte.
   // conflito: outro app (YouTube) tomou o plano de video — fecha, fica a arte.
   if (video_terminou() || video_falhou() || video_conflito_recurso()) {
@@ -815,6 +907,30 @@ void trailer_osd_desenhar(const char *titulo, float a) {
       txt_desenhar_alpha(l2, xr, 916.0f, a);
       txt_desenhar_alpha(l1, xr - 8.0f - l1.w, 916.0f, a); }
   }
+#ifdef NV_ANDROID
+  if (osdTemAudio() || osdTemLegenda()) {
+    // Continuar, Audio e Legenda lado a lado; o foco e o de sempre do player (pilula clara).
+    char ra[64], rl[64];
+    float x = 96.0f;
+    x += plrui_botao_video(x, 900.0f, "Continuar", "pl_play-f", osdFoco == 0, a) + 16.0f;
+    if (osdTemAudio()) {
+      const VideoFaixa *f = video_audio(video_audio_atual());
+      char c[3] = "";
+      if (f && f->idioma[0]) { c[0] = (char)(f->idioma[0] | 32); c[1] = (char)(f->idioma[1] | 32); }
+      snprintf(ra, sizeof ra, "\xc3\x81udio: %s", c[0] ? ling_nome(c) : "Original");
+      x += plrui_botao_video(x, 900.0f, ra, "pl_audio-lines", osdFoco == 1, a) + 16.0f;
+    }
+    if (osdTemLegenda()) {
+      int li = video_legenda_atual();
+      const VideoFaixa *f = li >= 0 ? video_legenda(li) : NULL;
+      char c[3] = "";
+      if (f && f->idioma[0]) { c[0] = (char)(f->idioma[0] | 32); c[1] = (char)(f->idioma[1] | 32); }
+      snprintf(rl, sizeof rl, "Legenda: %s", !f ? "Desligada" : c[0] ? ling_nome(c) : f->rotulo);
+      plrui_botao_video(x, 900.0f, rl, "pl_captions", osdFoco == 2, a);
+    }
+    return;
+  }
+#endif
   { TxtLinha l = txt_linha(TXT_G21B, "Continuar", 0, 0, 0, 255);
     GfxRect b = { 96.0f, 896.0f, 22.0f + 28.0f + 12.0f + (float)l.w + 28.0f, 68.0f };
     float k = plrui_tinta() / 255.0f;
@@ -822,6 +938,33 @@ void trailer_osd_desenhar(const char *titulo, float a) {
     gfx_icone((GfxRect){ b.x + 22.0f, b.y + 20.0f, 28.0f, 28.0f }, "pl_play-f", k, k, k, a);
     l = txt_linha(TXT_G21B, "Continuar", plrui_tinta(), plrui_tinta(), plrui_tinta(), 255);
     txt_desenhar_alpha(l, b.x + 22.0f + 28.0f + 12.0f, b.y + (68.0f - (float)l.h) * 0.5f, a); }
+}
+// LEGENDA DO TRAILER EM TELA CHEIA (World 23/11): o texto da faixa escolhida (onCues do NvPlayer), em baixo e no
+// centro, numa tarja escura. So tela cheia; na pausa sobe acima dos botoes.
+void trailer_legenda_desenhar(float a) {
+#ifdef NV_ANDROID
+  char t[512], *lin[4];
+  int n = 0, i;
+  float y;
+  if (!aberto || !cheia || yt || a < 0.01f || video_legenda_atual() < 0) return;
+  if (!video_legenda_nativa(t, sizeof t) || !t[0]) return;
+  player_limpar_legenda_nativa(t);
+  if (!t[0]) return;
+  lin[n++] = t;
+  for (i = 0; t[i] && n < 4; i++) if (t[i] == '\n') { t[i] = 0; lin[n++] = t + i + 1; }
+  y = (pausado ? 860.0f : 1000.0f) - (float)n * 46.0f;
+  for (i = 0; i < n; i++) {
+    TxtLinha l = txt_linha_corta(TXT_LOG_T34, lin[i], 255, 255, 255, 255, NV_TELA_W - 240.0f);
+    float x;
+    if (!l.w) { y += 46.0f; continue; }
+    x = (NV_TELA_W - (float)l.w) * 0.5f;
+    gfx_cor((GfxRect){ x - 14.0f, y - 3.0f, (float)l.w + 28.0f, 46.0f }, 8.0f, 0.0f, 0.0f, 0.0f, 0.62f * a);
+    txt_desenhar_alpha(l, x, y + (40.0f - (float)l.h) * 0.5f, a);
+    y += 46.0f;
+  }
+#else
+  (void)a;
+#endif
 }
 #ifdef NV_SHOT_HOOKS
 void trailer_shot_pausado(int sim) { aberto = cheia = sim; pausado = sim; }

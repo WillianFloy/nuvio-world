@@ -548,6 +548,18 @@ static const char *trailerFonte(int k, int *qual, int cheia) {
     if (kk >= 0) { c.youtube = extras_trailer_yt(kk); c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(kk); }
     else c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(-1) < 0 ? -1 : 0;
   }
+  // Diagnostico (World 23/11): UMA linha por titulo, quando o TMDB ja respondeu — por que o botao vai ou nao ao
+  // YouTube (o log bg824y so dizia "pela fonte apple").
+  { static int logado = -1;
+    if (cheia && logado != idx && !extras_carregando()) {
+      int kk = ytEscolhido(k);
+      logado = idx;
+      printf("[trailer] youtube no botao: player=%d tmdb=%d trailer(s) escolhido=%s dublado=%d legendado=%d%s\n",
+             trailerfonte_youtube_cheia(), extras_n_trailers(), kk >= 0 ? extras_trailer_yt(kk) : "-",
+             kk >= 0 ? extras_trailer_idioma_preferido(kk) : 0, kk >= 0 ? extras_trailer_legendado(kk) : 0,
+             ytFalhouIdx == idx ? " (ja falhou neste titulo)" : "");
+      fflush(stdout);
+    } }
 #else
   (void)k;
 #endif
@@ -8039,6 +8051,7 @@ static void detail_desenhar_(Uint32 agora) {
     if (trailer_mostra_video()) gfx_furo(tela);
     else gfx_cor(tela, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
     { const CatItem *ct = cat_item(idx);
+      trailer_legenda_desenhar(1.0f);
       trailer_osd_desenhar(ct ? ct->titulo : "", 1.0f); }
     gfx_escala_sair(escAnt);
     return;

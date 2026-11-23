@@ -43,6 +43,15 @@ double video_buffer_fim(void) { return 0; }
 int  trailerfonte_com_som(int t) { (void)t; return 1; }
 int  trailerfonte_tizen(void) { return 0; }
 float gfx_escala_tela_txt(void) { return 1.0f; }
+// Faixas do trailer (World 23/11): nenhuma neste teste.
+int  video_n_audio(void) { return 0; }
+int  video_n_legenda(void) { return 0; }
+const VideoFaixa *video_audio(int i) { (void)i; return NULL; }
+const VideoFaixa *video_legenda(int i) { (void)i; return NULL; }
+int  video_audio_atual(void) { return -1; }
+int  video_legenda_atual(void) { return -1; }
+void video_escolher_audio(int i) { (void)i; }
+void video_escolher_legenda(int i) { (void)i; }
 // O trailer do YouTube (World 23/11) nao entra aqui: so URLs, que vao ao ExoPlayer.
 int  video_yt_disponivel(void) { return 0; }
 void video_yt_abrir(const char *id, int mudo, const char *leg) { (void)id; (void)mudo; (void)leg; }
