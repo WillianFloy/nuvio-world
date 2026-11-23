@@ -263,7 +263,7 @@ static int  fichaDur;
 // runtime do filme antes da ficha tecnica existir.
 static char agStatus[32], agDataProx[16], agDataUlt[16], agNomeEp[120];
 static int  agTemp, agEp;
-static struct { char yt[16], nome[80], mini[80]; int idiomaPreferido, legendado; } trailer[EX_TRAILER_MAX];
+static struct { char yt[16], nome[80], mini[80], lg[8]; int idiomaPreferido, legendado; } trailer[EX_TRAILER_MAX];
 static int  nTrailer;
 // O hero precisa de um trailer antes de a pessoa abrir a pagina de detalhe,
 // mas carregar `extras_pedir` inteiro nesse ponto faria creditos, ficha,
@@ -382,7 +382,7 @@ static int heroTrailerIdValido(const char *id) {
   return 1;
 }
 
-typedef struct { char yt[16], nome[80], pub[32]; int peso, ordem, serie, idiomaPreferido, legendado; } VideoTmdb;
+typedef struct { char yt[16], nome[80], pub[32], lg[8]; int peso, ordem, serie, idiomaPreferido, legendado; } VideoTmdb;
 
 // IDIOMAS DE VIDEO. Com `language=pt-BR` sozinho o TMDB devolve em /videos
 // SO os videos marcados em portugues — e trailer de serie quase sempre esta
@@ -563,6 +563,7 @@ static int parsearVideos(const char *v, int serie, const char *idioma, const cha
                         !strcmp(lg, "en") ? 2 : 0)) +
                 (serie && !strcmp(tipo, "Trailer") ? 1 : 0);
       o->legendado = nomeLegendado(o->nome);
+      snprintf(o->lg, sizeof o->lg, "%s", lg);
       o->idiomaPreferido = strcmp(iso, "en") && !strcmp(lg, iso) && !o->legendado;
       // No mesmo idioma, o dublado antes do legendado (+2: nao muda o grupo de peso/4).
       if (!strcmp(lg, iso) && !o->legendado) o->peso += 2;
@@ -598,6 +599,7 @@ static void publicarTrailers(const VideoTmdb *vt, int nv) {
   for (k = 0; k < nv && k < EX_TRAILER_MAX; k++) {
     trailer[k].idiomaPreferido = vt[k].idiomaPreferido;
     trailer[k].legendado = vt[k].legendado;
+    snprintf(trailer[k].lg, sizeof trailer[k].lg, "%s", vt[k].lg);
     snprintf(trailer[k].yt,   sizeof trailer[k].yt,   "%s", vt[k].yt);
     snprintf(trailer[k].nome, sizeof trailer[k].nome, "%s", vt[k].nome);
     snprintf(trailer[k].mini, sizeof trailer[k].mini,
@@ -2106,6 +2108,9 @@ int extras_n_trailers(void) { return nTrailer; }
 int extras_trailer_idioma_preferido(int i) {
   if (!nTrailer && extras_carregando()) return idiomaPedido() ? -1 : 0;
   return i >= 0 && i < nTrailer && trailer[i].idiomaPreferido;
+}
+const char *extras_trailer_lingua(int i) {
+  return (i >= 0 && i < nTrailer) ? trailer[i].lg : "";
 }
 int extras_trailer_legendado(int i) {
   return i >= 0 && i < nTrailer && trailer[i].legendado;

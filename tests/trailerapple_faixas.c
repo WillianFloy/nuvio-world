@@ -28,7 +28,7 @@ static void escreverMaster(const char *id, const char *txt) {
 #define A(g, l, u) "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"" g "\",LANGUAGE=\"" l "\",NAME=\"" l "\",DEFAULT=YES,URI=\"" u "\"\n"
 #define L(l, u) "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",LANGUAGE=\"" l "\",NAME=\"" l "\",AUTOSELECT=YES,URI=\"" u "\"\n"
 int main(void) {
-  char toca[700], cr[600], *r;
+  char toca[700], cr[600], legs[96], *r;
   snprintf(pasta, sizeof pasta, "%s/nuvio-apple-faixas-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
   if (!mkdtemp(pasta)) { perror("mkdtemp"); return 1; }
   escreverMaster("tt1", "#EXTM3U\n"
@@ -37,7 +37,7 @@ int main(void) {
     "#EXT-X-STREAM-INF:BANDWIDTH=9000000,RESOLUTION=3840x1606,CODECS=\"hvc1.2.4.L150,mp4a.40.2\",AUDIO=\"aac\",SUBTITLES=\"subs\"\nhttps://v/4k.m3u8\n"
     "#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x804,CODECS=\"avc1.640028,mp4a.40.2\",AUDIO=\"aac\",SUBTITLES=\"subs\"\nhttps://v/1080.m3u8\n"
     "#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1280x536,CODECS=\"avc1.64001f,mp4a.40.2\",AUDIO=\"aac\",SUBTITLES=\"subs\"\nhttps://v/720.m3u8\n");
-  ok(montarReduzido("tt1", 0, toca, sizeof toca), "monta o reduzido");
+  ok(montarReduzido("tt1", 0, toca, sizeof toca, legs, sizeof legs), "monta o reduzido");
   caminhoMaster("tt1", cr, sizeof cr, "-play.m3u8");
   r = lerTudo(cr);
   printf("%s", r ? r : "(nada)\n");
@@ -48,16 +48,27 @@ int main(void) {
      "2. as 3 legendas com URI absoluta; a relativa fica de fora");
   ok(r && conta(r, "#EXT-X-STREAM-INF") == 1 && strstr(r, "v/1080.m3u8") && strstr(r, "SUBTITLES=\"subs\""),
      "3. uma variante (1080p avc1) citando o grupo de legendas");
+  ok(!strcmp(legs, "en,pt-BR,es-419"), "3. os idiomas das legendas ficam guardados (o botao decide por eles)");
   free(r);
   escreverMaster("tt2", "#EXTM3U\n" A("aac", "en", "https://a/en.m3u8")
     "#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x804,CODECS=\"avc1.640028,mp4a.40.2\",AUDIO=\"aac\",SUBTITLES=\"subs\",CLOSED-CAPTIONS=NONE\nhttps://v/1080.m3u8\n");
-  ok(montarReduzido("tt2", 0, toca, sizeof toca), "monta o reduzido sem legendas");
+  ok(montarReduzido("tt2", 0, toca, sizeof toca, legs, sizeof legs), "monta o reduzido sem legendas");
   caminhoMaster("tt2", cr, sizeof cr, "-play.m3u8");
   r = lerTudo(cr);
   printf("%s", r ? r : "(nada)\n");
   ok(r && !strstr(r, "SUBTITLES") && strstr(r, "AUDIO=\"aac\",CLOSED-CAPTIONS=NONE") && conta(r, "TYPE=AUDIO") == 1,
      "4. sem legendas: o STREAM-INF nao cita SUBTITLES (o resto da linha fica)");
   free(r);
+  { // trailerapple_tem_legenda: decide se o botao fica na Apple (tem pt) ou vai ao YouTube com legenda.
+    Entrada *e = reservar("tt1");
+    snprintf(e->toca, sizeof e->toca, "file:///x"); snprintf(e->legs, sizeof e->legs, "en,pt-BR,es-419");
+    ok(trailerapple_tem_legenda("tt1", "pt") && trailerapple_tem_legenda("tt1", "es") && !trailerapple_tem_legenda("tt1", "fr"),
+       "5. legenda por idioma: pt e es sim, fr nao");
+    snprintf(e->legs, sizeof e->legs, "en,ptx");
+    ok(!trailerapple_tem_legenda("tt1", "pt"), "5. 'ptx' nao conta como pt");
+    e->toca[0] = 0;
+    ok(!trailerapple_tem_legenda("tt1", "en"), "5. sem trailer montado: sem legenda");
+  }
   printf("%s\n", falhas ? "trailerapple_faixas: FALHOU" : "trailerapple_faixas: ok");
   return falhas != 0;
 }

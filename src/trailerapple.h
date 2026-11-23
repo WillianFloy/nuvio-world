@@ -26,6 +26,8 @@
 void        trailerapple_pedir(const char *imdb, const char *titulo, const char *meta, int serie);
 const char *trailerapple_url(const char *imdb);
 int         trailerapple_respondeu(const char *imdb);
+// World: o trailer da Apple ja montado tem legenda no idioma `iso` ("pt")? So fora da Samsung.
+int         trailerapple_tem_legenda(const char *imdb, const char *iso);
 
 // ARTE-CHAVE da Apple TV (fonte "Apple TV" do destaque): o modelo da url do
 // mzstatic ("...{w}x{h}.{f}") do item que a busca casou. Reusa a busca do

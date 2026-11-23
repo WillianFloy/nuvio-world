@@ -176,6 +176,8 @@ jobs:
         run: bash tests/trailer_faixas.sh
       - name: Run Apple reduced master test (all audio renditions and subtitles)
         run: bash tests/trailerapple_faixas.sh
+      - name: Run trailer button choice test (dubbed, subtitled, subtitles)
+        run: bash tests/trailerbotao.sh
       - name: Run Collections GIF mode test (Automatic/On/Off by RAM)
         run: bash tests/gif_modo.sh
       - name: Run World settings rules test (grid, hold OK, arrow draft, scrolling)

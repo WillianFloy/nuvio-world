@@ -32,6 +32,7 @@ typedef struct {
   char url[1024];       // master da Apple (ABR completo)
   char toca[600];       // LG: file:// do master reduzido a UMA variante; Samsung: URL da playlist de midia dela (varianteMidia); ou vazio
   int  tocaQual;        // teto de qualidade com que `toca` foi montado
+  char legs[96];        // World: idiomas das legendas que o reduzido leva ("en,pt-BR"), para o botao decidir
   long expira;
   int  emVoo, respondeu;
 } Entrada;
@@ -147,7 +148,7 @@ static void tirarAtributo(char *linha, const char *nome) {
   else if (p[-1] == ',') p--;   // ultimo atributo: leva a virgula de antes
   memmove(p, q, strlen(q) + 1);
 }
-static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam) {
+static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam, char *legs, unsigned tamLegs) {
   char cm[600], cr[600], linha[2048];
   char melhorInf[2048] = "", melhorUri[1024] = "", melhorAudio[128] = "";
   int melhorW = 0, melhorAvc = 0;
@@ -161,6 +162,7 @@ static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam)
 #endif
   caminhoMaster(imdb, cm, sizeof cm, ".m3u8");
   caminhoMaster(imdb, cr, sizeof cr, "-play.m3u8");
+  if (legs && tamLegs) legs[0] = 0;
   if (!cm[0] || !(f = fopen(cm, "r"))) return 0;
   // Passo 1: escolher a variante.
   while (fgets(linha, sizeof linha, f)) {
@@ -214,7 +216,15 @@ static int montarReduzido(const char *imdb, int teto, char *saida, unsigned tam)
         if (d) memcpy(d, "DEFAULT=NO", 10), memmove(d + 10, d + 11, strlen(d + 11) + 1);
         fputs(linha, g); nAud++;
       }
-      else if (ehLeg && melhorLeg[0] && !strcmp(grp, melhorLeg) && uri[0]) { fputs(linha, g); nLeg++; }
+      else if (ehLeg && melhorLeg[0] && !strcmp(grp, melhorLeg) && uri[0]) {
+        char lg[24];
+        fputs(linha, g); nLeg++;
+        atributo(linha, "LANGUAGE", lg, sizeof lg);
+        if (legs && lg[0] && strlen(legs) + strlen(lg) + 2 < tamLegs) {
+          if (legs[0]) strcat(legs, ",");
+          strcat(legs, lg);
+        }
+      }
     }
     // Sem nenhuma legenda escrita, o STREAM-INF nao pode citar um grupo SUBTITLES que nao existe.
     if (!nLeg && melhorLeg[0]) tirarAtributo(melhorInf, "SUBTITLES");
@@ -658,7 +668,7 @@ const char *trailerapple_url(const char *imdb) {
     int teto = ajustes_trailer_qualidade();
     if (e->tocaQual != teto) {
       e->tocaQual = teto;
-      if (!montarReduzido(imdb, teto, e->toca, sizeof e->toca)) e->toca[0] = 0;
+      if (!montarReduzido(imdb, teto, e->toca, sizeof e->toca, e->legs, sizeof e->legs)) e->toca[0] = 0;
     }
     // Sem reduzido, sem Apple: quem chama cai no IMDb.
     r = e->toca[0] ? e->toca : NULL;
@@ -667,6 +677,28 @@ const char *trailerapple_url(const char *imdb) {
   destrancar();
   return r;
 }
+
+#ifndef NV_TRAILER_SAMSUNG
+// World 23/11: o trailer da Apple ja montado traz legenda no idioma `iso` ("pt")? 1 sim, 0 nao (ou ainda sem trailer).
+int trailerapple_tem_legenda(const char *imdb, const char *iso) {
+  Entrada *e;
+  int r = 0;
+  if (!imdb || !imdb[0] || !iso || !iso[0]) return 0;
+  trancar();
+  e = achar(imdb);
+  if (e && e->toca[0]) {
+    const char *p = e->legs;
+    while (*p) {
+      if ((p[0] | 32) == (iso[0] | 32) && (p[1] | 32) == (iso[1] | 32) && (!p[2] || p[2] == '-' || p[2] == ',')) { r = 1; break; }
+      p = strchr(p, ',');
+      if (!p) break;
+      p++;
+    }
+  }
+  destrancar();
+  return r;
+}
+#endif
 
 int trailerapple_respondeu(const char *imdb) {
   Entrada *e;

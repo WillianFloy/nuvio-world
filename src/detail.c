@@ -46,6 +46,7 @@ static TituloTempo detalheTempo;
 #include "trailertt.h"
 #include "trailerapple.h"
 #include "trailerfonte.h"
+#include "trailerbotao.h"
 #include "video.h"
 #include "player.h"
 #include "agenda.h"
@@ -504,14 +505,7 @@ static int ehSerie(void);
 #ifdef NV_ANDROID
 // World 23/11: trailer do YouTube no botao (YtTrailer.kt). `ytFalhouIdx`: o titulo onde o YouTube ja falhou nesta
 // visita (o botao recua para Apple/IMDb); `ytCheioK`: o trailer aberto pelo YouTube em tela cheia, para o recuo.
-static int ytFalhouIdx = -1, ytCheioK = -1;
-// O trailer do TMDB que vai ao botao: o pedido (`k`), ou o primeiro no idioma escolhido, ou o primeiro.
-static int ytEscolhido(int k) {
-  int i, n = extras_n_trailers();
-  if (k > 0 && k < n && extras_trailer_yt(k)[0]) return k;
-  for (i = 0; i < n; i++) if (extras_trailer_yt(i)[0] && extras_trailer_idioma_preferido(i) > 0) return i;
-  return n > 0 && extras_trailer_yt(0)[0] ? 0 : -1;
-}
+static int ytFalhouIdx = -1, ytCheioK = -1;   // escolha e prioridade: trailerbotao.c
 #endif
 static const char *trailerFonte(int k, int *qual, int cheia) {
   const CatItem *ci = cat_item(idx);
@@ -544,19 +538,27 @@ static const char *trailerFonte(int k, int *qual, int cheia) {
   // So a tela cheia: o fundo e o destaque nunca abrem a WebView (trailerfonte_ordem_cheia).
   trailerfonte_definir_youtube_cheia(video_yt_disponivel());
   if (cheia && trailerfonte_youtube_cheia() && ytFalhouIdx != idx) {
-    int kk = ytEscolhido(k);
-    if (kk >= 0) { c.youtube = extras_trailer_yt(kk); c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(kk); }
-    else c.youtubeIdiomaPreferido = extras_trailer_idioma_preferido(-1) < 0 ? -1 : 0;
+    int kk = trailerbotao_escolher(k);
+    if (kk >= 0) c.youtube = extras_trailer_yt(kk);
+    c.youtubeIdiomaPreferido = trailerbotao_prioridade(kk, ci ? ci->imdb : "", c.apple, c.appleRespondeu);
   }
   // Diagnostico (World 23/11): UMA linha por titulo, quando o TMDB ja respondeu — por que o botao vai ou nao ao
   // YouTube (o log bg824y so dizia "pela fonte apple").
   { static int logado = -1;
-    if (cheia && logado != idx && !extras_carregando()) {
-      int kk = ytEscolhido(k);
+    if (cheia && logado != idx && !extras_carregando() && c.youtubeIdiomaPreferido >= 0) {
+      int kk = trailerbotao_escolher(k), i;
+      char iso[8] = "", linguas[64] = "";
       logado = idx;
-      printf("[trailer] youtube no botao: player=%d tmdb=%d trailer(s) escolhido=%s dublado=%d legendado=%d%s\n",
-             trailerfonte_youtube_cheia(), extras_n_trailers(), kk >= 0 ? extras_trailer_yt(kk) : "-",
+      extras_trailer_audio_iso(iso);
+      for (i = 0; i < extras_n_trailers() && strlen(linguas) + 8 < sizeof linguas; i++)
+        snprintf(linguas + strlen(linguas), sizeof linguas - strlen(linguas), "%s%s%s", i ? "," : "",
+                 extras_trailer_lingua(i)[0] ? extras_trailer_lingua(i) : "?", extras_trailer_legendado(i) ? "(leg)" : "");
+      printf("[trailer] youtube no botao: player=%d alvo=%s tmdb=%d [%s] escolhido=%s dublado=%d legendado=%d "
+             "apple-legenda=%d prioridade=%d%s\n",
+             trailerfonte_youtube_cheia(), iso[0] ? iso : "-", extras_n_trailers(), linguas,
+             kk >= 0 ? extras_trailer_yt(kk) : "-",
              kk >= 0 ? extras_trailer_idioma_preferido(kk) : 0, kk >= 0 ? extras_trailer_legendado(kk) : 0,
+             ci ? trailerapple_tem_legenda(ci->imdb, iso) : 0, c.youtubeIdiomaPreferido,
              ytFalhouIdx == idx ? " (ja falhou neste titulo)" : "");
       fflush(stdout);
     } }

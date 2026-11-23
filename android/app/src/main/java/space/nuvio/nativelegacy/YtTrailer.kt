@@ -33,6 +33,12 @@ object YtTrailer {
 
     fun carregando() { estado = -1; posMs = 0; durMs = 0 }
 
+    // Para o log do app (registro de diagnostico), pela mesma ponte do audio do NvPlayer.
+    private fun registrar(t: String) {
+        Log.i(TAG, "[yt] $t")
+        try { NvPlayer.nativeAudioLog("yt $t") } catch (_: UnsatisfiedLinkError) { }
+    }
+
     // `legenda`: idioma ("pt") da legenda do YouTube a ligar (a do video ou a traducao automatica dele); "" = sem
     // (o trailer ja esta no idioma escolhido, ou e "Legendado" com a legenda na imagem).
     fun abrir(act: Activity, camada: FrameLayout, id: String, mudo: Boolean, legenda: String) {
@@ -70,7 +76,7 @@ object YtTrailer {
         camada.addView(w, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         w.loadDataWithBaseURL("https://www.youtube.com", html(id, mudo, legenda), "text/html", "utf-8", null)
         web = w
-        Log.i(TAG, "[yt] abrir $id mudo=$mudo legenda=$legenda")
+        registrar("abrir $id mudo=$mudo legenda=${legenda.ifEmpty { "-" }}")
     }
 
     fun comando(c: Int) {
@@ -108,10 +114,15 @@ object YtTrailer {
             if (g != YtTrailer.geracao) return
             YtTrailer.posMs = (pos * 1000).toInt(); YtTrailer.durMs = (dur * 1000).toInt()
         }
+        // A legenda que ficou: "pt" (do video), "en>pt" (traduzida pelo YouTube) ou "nenhuma".
+        @JavascriptInterface fun legenda(qual: String) {
+            if (g != YtTrailer.geracao) return
+            YtTrailer.registrar("legenda $qual em ${YtTrailer.idAtual}")
+        }
         @JavascriptInterface fun erro(codigo: Int) {
             if (g != YtTrailer.geracao) return
             // 2 id invalido, 5 HTML5, 100 removido, 101/150 o dono proibiu embutir, 152/153 configuracao do player.
-            Log.w(TAG, "[yt] erro $codigo em ${YtTrailer.idAtual}")
+            YtTrailer.registrar("erro $codigo em ${YtTrailer.idAtual}")
             YtTrailer.estado = -3
         }
     }
@@ -128,15 +139,27 @@ object YtTrailer {
         return """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>html,body{margin:0;padding:0;background:#000;overflow:hidden;width:100%;height:100%}#p{width:100%;height:100%}</style>
 </head><body><div id="p"></div><script>
-var p=null;
+var p=null,L='$lang',legFeita=!L,legTent=0;
+// A legenda no idioma pedido: a do video, se houver; senao a primeira traduzida pelo YouTube para ele.
+function legenda(){
+ if(legFeita||!p||!p.getOption)return;
+ var tl=null;try{tl=p.getOption('captions','tracklist');}catch(x){}
+ if(!tl||!tl.length){if(++legTent>16){legFeita=1;NvYt.legenda('nenhuma');}return;}
+ legFeita=1;var t=null,q='';
+ for(var i=0;i<tl.length;i++){var c=(tl[i].languageCode||'').toLowerCase();if(c.indexOf(L)==0){t={languageCode:tl[i].languageCode};q=c;break;}}
+ if(!t){t={languageCode:tl[0].languageCode,translationLanguage:{languageCode:L}};q=tl[0].languageCode+'>'+L;}
+ try{p.setOption('captions','track',t);p.setOption('captions','fontSize',1);}catch(x){q='falhou';}
+ NvYt.legenda(q);
+}
 function onYouTubeIframeAPIReady(){
  p=new YT.Player('p',{width:'100%',height:'100%',videoId:'$id',playerVars:{$vars},
   events:{
-   onReady:function(e){e.target.playVideo();},
+   onReady:function(e){e.target.playVideo();if(L){try{e.target.loadModule('captions');}catch(x){}}},
+   onApiChange:function(){legenda();},
    onStateChange:function(e){NvYt.estado(e.data);},
    onError:function(e){NvYt.erro(e.data);}
   }});
- setInterval(function(){try{if(p&&p.getCurrentTime)NvYt.tempo(p.getCurrentTime()||0,p.getDuration()||0);}catch(x){}},500);
+ setInterval(function(){try{if(p&&p.getCurrentTime)NvYt.tempo(p.getCurrentTime()||0,p.getDuration()||0);}catch(x){}legenda();},500);
 }
 </script><script src="https://www.youtube.com/iframe_api"></script></body></html>"""
     }
