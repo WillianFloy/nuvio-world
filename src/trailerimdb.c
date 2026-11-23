@@ -159,17 +159,17 @@ static void *buscar(void *arg) {
     "Accept: application/json",
     "Content-Type: application/json",
     "Referer: https://www.imdb.com/",
-    // World (22/11), HIPOTESE: a API passou a responder 403 ao User-Agent do curl do app ("Nuvio/1.0 (webOS)"). Um
-    // User-Agent de navegador, como o de quem chega pelo Referer acima. O log da TV ([rede] HTTP 403) confirma ou nao.
-    "User-Agent: Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-    "Origin: https://www.imdb.com",
+    // World (22/11): api.graphql.imdb.com passou a responder 403 a todo pedido (testado do PC do dono, rede de casa, com
+    // o Referer). O site do IMDb usa caching.graphql.imdb.com com o cabecalho x-imdb-client-name: ali a mesma consulta
+    // responde 200 (testado do mesmo PC, 22/11 23:53).
+    "x-imdb-client-name: imdb-web-next",
     NULL };
   Entrada *e;
   snprintf(imdb, sizeof imdb, "%s", (const char *)arg);
   free(arg);
   // %7B = {  %22 = "  %28 = (  %29 = )  %3A = :  %7D = }
   snprintf(consulta, sizeof consulta,
-    "https://api.graphql.imdb.com/?query=%%7Btitle%%28id%%3A%%22%s%%22%%29%%7BprimaryVideos%%28first%%3A1%%29%%7Bedges%%7Bnode%%7Bname%%7Bvalue%%7DplaybackURLs%%7Burl%%20videoMimeType%%20videoDefinition%%7D%%7D%%7D%%7D%%7D%%7D",
+    "https://caching.graphql.imdb.com/?query=%%7Btitle%%28id%%3A%%22%s%%22%%29%%7BprimaryVideos%%28first%%3A1%%29%%7Bedges%%7Bnode%%7Bname%%7Bvalue%%7DplaybackURLs%%7Burl%%20videoMimeType%%20videoDefinition%%7D%%7D%%7D%%7D%%7D%%7D",
     imdb);
 #ifdef __EMSCRIPTEN__
   // SAMSUNG (#136): o navegador nao deixa por o Referer e a API nao manda

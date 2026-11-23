@@ -3,7 +3,7 @@
 //   1. sem resposta -> o titulo conta como respondido (o hero/detalhe seguem para a proxima fonte);
 //   2. pedir de novo o mesmo titulo logo em seguida NAO faz outra consulta;
 //   3. 3 titulos seguidos sem resposta pausam o IMDb: um 4o titulo nao consulta;
-//   4. o pedido leva um User-Agent de navegador.
+//   4. o pedido vai ao endereco que ainda responde (caching.graphql.imdb.com) com o cabecalho que ele exige.
 #include "../src/trailerimdb.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -13,7 +13,8 @@
 static atomic_int chamadas; static int temUA, falhas;
 char *rede_baixar_com(const char *url, int s, const char *const *cab) {
   (void)url; (void)s;
-  for (int i = 0; cab && cab[i]; i++) if (!strncmp(cab[i], "User-Agent: Mozilla/", 20)) temUA = 1;
+  for (int i = 0; cab && cab[i]; i++) if (!strcmp(cab[i], "x-imdb-client-name: imdb-web-next")) temUA = 1;
+  if (strncmp(url, "https://caching.graphql.imdb.com/", 33)) temUA = 0;
   atomic_fetch_add(&chamadas, 1); return NULL; }   // HTTP 403: rede_baixar_com devolve NULL
 char *rede_baixar(const char *url, int s) { (void)url; (void)s; return NULL; }
 char *dados_caminho(char *dst, unsigned tam, const char *nome) { (void)dst; (void)tam; (void)nome; return NULL; }
@@ -27,7 +28,7 @@ static void espera(const char *id) { for (int i = 0; i < 100 && !trailerimdb_res
 int main(void) {
   trailerimdb_pedir("tt0000001"); espera("tt0000001");
   ok(trailerimdb_respondeu("tt0000001") && !trailerimdb_url("tt0000001", NULL), "sem resposta: respondido e sem trailer");
-  ok(temUA, "o pedido leva User-Agent de navegador");
+  ok(temUA, "o pedido vai a caching.graphql.imdb.com com x-imdb-client-name (api.graphql responde 403)");
   for (int i = 0; i < 50; i++) { trailerimdb_pedir("tt0000001"); usleep(2000); }
   ok(atomic_load(&chamadas) == 1, "50 pedidos seguidos do mesmo titulo: 1 consulta so");
   ok(trailerimdb_respondeu("tt0000001"), "continua respondido (o hero nao fica esperando)");
