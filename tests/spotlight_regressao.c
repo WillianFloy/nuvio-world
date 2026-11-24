@@ -486,6 +486,46 @@ int main(void) {
     check(SP_CORPO_Y + corpoH <= NV_TELA_H - SP_MARGEM_B + 1.0f,
           "peca inteira (barra + resultados) cabe na tela com lista longa");
     check(corpoH > SP_ILHA_VAO + 4.0f, "corpo abre com resultados"); }
+  // VOZ (dono, 23/11): enquanto o microfone esta aberto e ainda nao ha
+  // resultado, o corpo vira o cartao "Ouvindo"; a onda segue o nivel do som;
+  // chegando o texto final (ou o teclado do app) o cartao cede a lista.
+  { st_teste_ligar(1);
+    spot_fechar(); for (int i = 0; i < 90; i++) spot_atualizar(1.0f / 60, (unsigned)(2000 + i));
+    spot_abrir(1);
+    nLin = 0; nConsulta = 0; consulta[0] = 0; kbAberto = 0;
+    st_teste_evento("Souvindo");
+    st_teste_evento("R0");
+    for (int i = 0; i < 180; i++) spot_atualizar(1.0f / 60, (unsigned)(3000 + i));
+    check(ouvindo(), "voz: o microfone esta aberto");
+    check(vozCartao(), "voz: sem resultados nem teclado o corpo e o cartao Ouvindo");
+    check(corpoAlvo() >= SP_VOZ_H, "voz: o corpo tem a altura do cartao");
+    check(corpoH >= SP_VOZ_H * 0.9f, "voz: o corpo abre ate o cartao");
+    // A onda: viva no silencio, mais alta com voz.
+    { float mn = 1e9f, mx = 0.0f, s0 = 0.0f, s1 = 0.0f; int ok = 1;
+      for (int t = 0; t < 120; t++) {
+        float h0 = spotOndaH(5, 0.0f, (unsigned)(t * 33), 44.0f);
+        if (h0 < mn) mn = h0;
+        if (h0 > mx) mx = h0;
+      }
+      for (int i = 0; i < 24; i++) {
+        float a0 = spotOndaH(i, 0.0f, 1000, 44.0f), a1 = spotOndaH(i, 1.0f, 1000, 44.0f);
+        if (a0 < 5.0f || a1 > 44.0f + 0.01f) ok = 0;
+        s0 += a0; s1 += a1;
+      }
+      check(ok, "voz: toda barra da onda fica entre 5 e 44 px");
+      check(mx - mn > 1.0f, "voz: a onda ondula mesmo no silencio");
+      check(s1 > s0 * 1.8f, "voz: com som a onda fica bem mais alta que no silencio"); }
+    st_teste_evento("R90");
+    for (int i = 0; i < 40; i++) spot_atualizar(1.0f / 60, (unsigned)(4000 + i));
+    check(nivelVoz > 0.5f, "voz: o nivel do microfone chega a onda");
+    kbAberto = 1;
+    check(!vozCartao(), "voz: com o teclado do app aberto o cartao nao aparece");
+    kbAberto = 0;
+    st_teste_evento("V prestige ");
+    for (int i = 0; i < 20; i++) spot_atualizar(1.0f / 60, (unsigned)(5000 + i));
+    check(!ouvindo() && !vozCartao(), "voz: texto final fecha o cartao");
+    spot_fechar();
+    st_teste_ligar(0); }
   printf("RESULTADO: %d falhas\n", falhas);
   return falhas ? 1 : 0;
 }

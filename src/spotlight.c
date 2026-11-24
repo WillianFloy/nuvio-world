@@ -82,7 +82,7 @@
 // as duas alargam para 1240 (a mola do teclado): o teclado ocupa 500 px a
 // esquerda e em 980 a lista ficaria com menos de 460.
 #define SP_BW_BASE   1100.0f
-#define SP_BW_KB     1240.0f
+#define SP_BW_KB     1480.0f
 static float spBW = SP_BW_BASE;
 static int spTelefone(void) {
   return telefoneui_ativo();
@@ -1445,6 +1445,20 @@ void spot_evento(const SDL_Event *e) {
 // Altura que o corpo quer: a lista inteira (ate o teto) ou o teclado do app.
 static float alturaLista(void) { return nLin ? lin[nLin - 1].y + lin[nLin - 1].h : 0.0f; }
 static float alturaTeclado(void) { return (kbFil + 1) * SP_KB_PASSO - SP_TECLA_GAP + 52.0f; }
+// O CARTAO "OUVINDO" (dono 23/11): enquanto o microfone esta aberto e ainda nao ha
+// resultado nem teclado, o corpo vira um cartao com o orbe que respira com a voz,
+// a transcricao ao vivo e exemplos do que dizer. Chegou texto final (ou o
+// teclado), ele cede lugar a lista.
+#define SP_VOZ_H 214.0f
+static int vozCartao(void) { return ouvindo() && nLin == 0 && !kbAberto && !spTelefone(); }
+// Altura da barra i da onda: sempre ondula um pouco (esta vivo) e sobe com o nivel.
+static float spotOndaH(int i, float nivel, Uint32 agora, float max) {
+  float t = (float)agora * 0.0047f + (float)i * 0.62f;
+  float env = 0.5f + 0.5f * SDL_sinf(t) * SDL_cosf(t * 0.37f + (float)i);
+  float amp = 0.16f + 0.84f * (nivel > 1.0f ? 1.0f : nivel < 0.0f ? 0.0f : nivel);
+  float h = 5.0f + (max - 5.0f) * amp * (0.35f + 0.65f * env);
+  return h > max ? max : h;
+}
 static float corpoAlvo(void) {
   float h = alturaLista(), teto = SP_CORPO_MAX - SP_CPAD_T - SP_CPAD_B - SP_RODAPE_H;
   // LISTA MAIOR QUE A ILHA: a ilha desce ate a margem e a janela mostra o
@@ -1452,6 +1466,7 @@ static float corpoAlvo(void) {
   // a navegacao rola a proxima para dentro sem encurtar a ilha.
   if (h > teto) h = teto;
   if (kbAberto && alturaTeclado() > h) h = alturaTeclado();
+  if (vozCartao() && h < SP_VOZ_H) h = SP_VOZ_H;
   if (spRetrato() && kbAberto) h = fminf(teto, spTecladoVisivel() + 24.0f + alturaLista());
   if (h <= 0.0f) return 0.0f;
   h += SP_CPAD_T + SP_CPAD_B + SP_RODAPE_H;
@@ -1629,6 +1644,24 @@ static float dicaPar(float x, float y, const char *tecla, const char *acao, floa
     return (float)l.w; }
 }
 
+// A ONDA SONORA (dono 23/11: "o voz tem animacao"): barras redondas no acento que
+// seguem o nivel do microfone; a do meio e a mais alta, e todas ondulam mesmo no
+// silencio, para dizer "estou ouvindo".
+static void desenhaOnda(float x0, float x1, float yc, float a, Uint32 agora) {
+  float ar, ag, ab, nv = nivelVoz;
+  int n = (int)((x1 - x0 + 6.0f) / 11.0f), i;
+  if (n < 4) return;
+  if (n > 48) n = 48;
+  ajustes_acento(&ar, &ag, &ab);
+  for (i = 0; i < n; i++) {
+    float c = (float)i / (float)(n - 1), borda = 1.0f - fabsf(c * 2.0f - 1.0f);   // 0 nas pontas, 1 no meio
+    float h = spotOndaH(i, nv, agora, 52.0f) * (0.34f + 0.66f * borda);
+    float x = x0 + (float)i * 11.0f;
+    if (h < 6.0f) h = 6.0f;
+    gfx_cor((GfxRect){ x, yc - h * 0.5f, 5.0f, h }, 0.5f, ar, ag, ab, (0.50f + 0.50f * borda) * a);
+  }
+}
+
 static void desenhaCampo(float dy, float a, Uint32 agora) {
   GfxRect barra = { SP_BX, SP_BY + dy, SP_BW, SP_BH };
   float ar, ag, ab, tx, xMax, ty = barra.y + barra.h * 0.5f;
@@ -1685,7 +1718,8 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
     int amb = !ouve && av[0];
     TxtLinha l = amb ? txt_linha_corta(TXT_ILHA_META, ph, 240, 190, 130, 255, xMax - tx - 10.0f)
                      : txt_linha_corta(TXT_CALLOUT, ph, SP_TINTA, 255, xMax - tx - 10.0f);
-    txt_desenhar_alpha(l, tx, ty - l.h * 0.5f, (amb ? 0.95f : 0.45f) * a);
+    txt_desenhar_alpha(l, tx, ty - l.h * 0.5f, (amb ? 0.95f : 0.45f) * (ouve ? 0.9f : 1.0f) * a);
+    if (ouve && st_estado() != ST_PERMISSAO) desenhaOnda(tx + (float)l.w + 26.0f, xMax - 12.0f, ty, a, agora);
   }
   // Cursor: 2 x 30 no acento (o do mockup), com o foco no campo ou com o
   // teclado do sistema aberto para ele.
@@ -1706,6 +1740,7 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
       if (nConsulta) {
         TxtLinha o = txt_linha(TXT_CAPTION, i18n("Ouvindo…"), 200, 204, 212, 255);
         txt_desenhar_alpha(o, cx - 22.0f - o.w, barra.y + (barra.h - o.h) * 0.5f, 0.9f * a);
+        desenhaOnda(cx - 22.0f - (float)o.w - 14.0f - 88.0f, cx - 22.0f - (float)o.w - 14.0f, barra.y + barra.h * 0.5f, a, agora);
       }
       // O anel que respira com a voz: e o que diz "estou ouvindo VOCE".
       gfx_vidro_aro((GfxRect){ cx - aro, cy - aro, d + 2 * aro, d + 2 * aro }, 0.5f, 2.0f,
@@ -1738,6 +1773,53 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
     celb_botao(CELB_SPOT, (GfxRect){ barra.x + barra.w - 12.0f - d, barra.y + (barra.h - d) * 0.5f, d, d },
                painel == P_CEL, focarCampo, 2, 0, a);
   }
+}
+
+// O CARTAO "OUVINDO": orbe de anéis que crescem com a voz, o titulo, a transcricao
+// ao vivo (ou "Fale agora") e tres exemplos do que dizer.
+static void desenhaVoz(float dy, float a, Uint32 agora) {
+  float ar, ag, ab, nv = nivelVoz;
+  float x0 = SP_BX + SP_ILHA_PAD + 28.0f, y0 = SP_CORPO_Y + SP_CPAD_T + dy;
+  float d = 112.0f, cx = x0 + d * 0.5f + 20.0f, cy = y0 + SP_VOZ_H * 0.5f - 4.0f;
+  float tx = cx + d * 0.5f + 44.0f, tw = SP_BX + SP_BW - SP_ILHA_PAD - 28.0f - tx;
+  float ph = (float)(agora % 1800u) / 1800.0f;
+  int i, perm = st_estado() == ST_PERMISSAO;
+  static const char *const ex[3] = { "Filmes de ação", "Séries de comédia", "Canais de esportes" };
+  ajustes_acento(&ar, &ag, &ab);
+  // Aneis: dois fixos que respiram com o nivel e um que se expande em loop.
+  for (i = 0; i < 2; i++) {
+    float r = d * 0.5f + 12.0f + 26.0f * nv * (float)(i + 1) * 0.6f + 3.0f * SDL_sinf((float)agora * 0.005f + (float)i);
+    gfx_cor((GfxRect){ cx - r, cy - r, r * 2.0f, r * 2.0f }, 0.5f, ar, ag, ab, (0.16f - 0.05f * (float)i) * a);
+  }
+  { float r = d * 0.5f + 8.0f + 46.0f * ph;
+    gfx_anel((GfxRect){ cx - r, cy - r, r * 2.0f, r * 2.0f }, 0.5f, 2.0f, ar, ag, ab, 0.40f * (1.0f - ph) * a); }
+  gfx_cor((GfxRect){ cx - d * 0.5f, cy - d * 0.5f, d, d }, 0.5f, ar, ag, ab, 0.95f * a);
+  { float t = (float)ajustes_tinta_foco() / 255.0f, lado = 52.0f * (1.0f + 0.10f * nv);
+    gfx_icone((GfxRect){ cx - lado * 0.5f, cy - lado * 0.5f, lado, lado }, "ws_voz", t, t, t, a); }
+  { TxtLinha t = txt_linha_corta(TXT_TITULO3, i18n(perm ? "Permita o microfone para falar…" : "Ouvindo…"), 246, 247, 252, 255, tw);
+    float y = y0 + 20.0f;
+    txt_desenhar_alpha(t, tx, y, a);
+    y += (float)t.h + 6.0f;
+    if (nConsulta) {
+      TxtLinha q = txt_linha_corta(TXT_CALLOUT, consulta, SP_TINTA, 255, tw);
+      txt_desenhar_alpha(q, tx, y, a);
+    } else {
+      TxtLinha q = txt_linha_corta(TXT_CALLOUT, i18n("Fale agora"), SP_TINTA, 255, tw);
+      txt_desenhar_alpha(q, tx, y, .55f * a);
+    }
+    y += 52.0f;
+    { TxtLinha k = txt_linha(TXT_CAPTION2, i18n("Experimente dizer"), 176, 180, 190, 255);
+      float x = tx;
+      txt_desenhar_alpha(k, x, y, a);
+      y += (float)k.h + 10.0f;
+      for (i = 0; i < 3; i++) {
+        TxtLinha c = txt_linha_corta(TXT_CAPTION, i18n(ex[i]), 226, 228, 234, 255, tw * 0.5f);
+        GfxRect p = { x, y, (float)c.w + 36.0f, 44.0f };
+        if (x + p.w > tx + tw) break;
+        gfx_cor(p, 0.5f, 1.0f, 1.0f, 1.0f, 0.08f * a);
+        txt_desenhar_alpha(c, p.x + 18.0f, p.y + (p.h - (float)c.h) * 0.5f, a);
+        x += p.w + 12.0f;
+      } } }
 }
 
 static void desenhaTeclado(float dy, float a) {
@@ -2210,6 +2292,7 @@ static void spot_desenharCorpo_(Uint32 agora, int veuPronto) {
   if (corpoH > 2.0f) {
     gfx_recorte(SP_BX, SP_CORPO_Y + dy, SP_BW, corpoH);
     desenhaTeclado(dy, a);
+    if (vozCartao()) desenhaVoz(dy, a * anim_clamp((corpoH - 60.0f) / 120.0f, 0.0f, 1.0f), agora);
     gfx_sem_recorte();
     desenhaLista(dy, a);
     desenhaRodape(dy, a);
