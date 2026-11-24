@@ -19,6 +19,16 @@
 // como nos testes que chamam a tela direto); `desde` o tempo do KEYDOWN
 // (0 = nao armado). `tela` so serve ao log, que sai uma vez por pressao.
 void segurar_quadro(Uint32 agora);
+
+// A BARRINHA "SEGURE PARA OPCOES" SO EXISTE NO SEGURAR, NAO NO TOQUE (dono,
+// 24/11: "quando so da um click ela aparece como se tivesse carregando, e bem
+// rapido, mas nao deveria"). Um toque dura ate ~150 ms entre KEYDOWN e KEYUP;
+// a barra so nasce depois disso. Detalhe e lista ja contavam esses 150 ms por
+// conta propria; Home e Biblioteca desenhavam desde o primeiro quadro.
+#define NV_HOLD_TOQUE_MS 150u
+static inline int segurar_barra_visivel(Uint32 desdeKeydownMs) {
+  return desdeKeydownMs >= NV_HOLD_TOQUE_MS;
+}
 int segurar_venceu(Uint32 agora, Uint32 desde, const char *tela);
 
 #endif

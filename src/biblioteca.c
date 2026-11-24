@@ -2384,6 +2384,7 @@ static void desenhaResumo(void) {
 static void barraHold(GfxRect r, float a) {
   float h;
   if (!okDesde || ctx_aberto()) return;
+  if (!segurar_barra_visivel(SDL_GetTicks() - okDesde)) return;   // toque nao mostra a barra
   h = anim_clamp((float)(SDL_GetTicks() - okDesde) / (float)NV_HOLD_MS, 0.0f, 1.0f);
   if (h <= 0.0f) return;
   { float g = r.w > 400.0f ? 28.0f : 16.0f;

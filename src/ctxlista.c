@@ -15,7 +15,7 @@
 
 // Os primeiros 150 ms sao toque, nao gesto: a ilha so reage depois deles (o
 // mesmo corte de detail.c).
-#define CTXH_TOQUE_MS 150u
+#define CTXH_TOQUE_MS NV_HOLD_TOQUE_MS
 
 static int ehOk(SDL_Keycode k) {
   return k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE;
