@@ -14,6 +14,7 @@
 #include "arranque.h"
 #include "celbotao.h"
 #include "central.h"
+#include "chorigem.h"
 #include "estatvivoui.h"
 #include "teclado.h"
 #include "ponteiro.h"
@@ -3859,7 +3860,13 @@ static void spotAbrir(int voz) {
   ultimo = t;
   if (menu_aberto()) menu_fechar();
   if (ctx_aberto()) return;
-  spot_abrir(voz);
+  // A BUSCA NASCE DA LUPA do menu do topo quando ele esta na tela ("a barra
+  // vira o campo"), senao do relogio; sem nenhum dos dois, desce do alto como
+  // sempre (chorigem.h).
+  { GfxRect o;
+    ChOrigemTipo t = chorigem(CHO_P_BUSCA, &o);
+    if (t == CHO_CENTRO) spot_abrir(voz);
+    else spot_abrir_de(voz, o.x, o.y, o.w, o.h); }
 }
 // Pessoa do TMDB esperando a pagina do titulo dela chegar (ver SPOT_PESSOA).
 // Vale SPOT_PESSOA_PRAZO_MS: um titulo que chegue depois disso e outro pedido.
@@ -3974,17 +3981,25 @@ static int azulPodeAbrirSalvos(const SDL_Event *e) {
 
 // Abre/fecha o painel de Salvos+Avisos pelo caminho da AZUL. `comModal` 0 e o
 // "Cima na pagina do titulo": abre direto, sem o modal de cartao da ilha.
+// DE ONDE OS SALVOS NASCEM (chorigem.h, World 24/11): do menu do topo quando
+// ele esta na tela, senao do relogio, senao do centro do alto.
+static void salvosAbrirDaOrigem(void) {
+  GfxRect o;
+  float u = gfx_escala_ui();   // o painel desenha na camada ampliada (ESCALA_INI)
+  chorigem(CHO_P_SALVOS, &o);
+  spainel_abrir_de(o.x / u, o.y / u, o.w / u, o.h / u);
+}
 static void alternarSalvos(int comModal) {
   static Uint32 ultimoToque;
   Uint32 agoraTecla = SDL_GetTicks();
   float ix, iy, iw, ih;
   if (agoraTecla - ultimoToque < 400) return;   // repeticao do firmware
   ultimoToque = agoraTecla;
+  (void)ix; (void)iy; (void)iw; (void)ih;
   if (spainel_aberto()) spainel_fechar();
   else if (vertudo_em_colecao()) spainel_abrir();   // sem relogio: entra pela borda, na aba Collection
   else if (comModal && (ilha_cartao_na_tela() || ilha_atividade_expansivel()) && ilha_modal_abrir()) {}
-  else if (ajustes_relogio_ligado() && ilha_rect(&ix, &iy, &iw, &ih)) spainel_abrir_de(ix, iy, iw, ih);
-  else spainel_abrir();
+  else salvosAbrirDaOrigem();
 }
 
 // OK NA ILHA DE AMIGOS DA PAGINA DO TITULO (detail.c): o mesmo painel da tecla
@@ -3992,10 +4007,8 @@ static void alternarSalvos(int comModal) {
 // Atividade e no primeiro evento de amigo daquele titulo.
 static void abrirSocialNoTitulo(const char *imdb) {
   float ix, iy, iw, ih;
-  if (!spainel_aberto()) {
-    if (ajustes_relogio_ligado() && ilha_rect(&ix, &iy, &iw, &ih)) spainel_abrir_de(ix, iy, iw, ih);
-    else spainel_abrir();
-  }
+  (void)ix; (void)iy; (void)iw; (void)ih;
+  if (!spainel_aberto()) salvosAbrirDaOrigem();
   spainel_abrir_titulo(imdb);
 }
 

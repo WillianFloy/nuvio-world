@@ -65,8 +65,34 @@
 // camada no mesmo lugar, so com outro conteudo.
 #include "telefoneui.h"
 #include "menu.h"
-#define SP_X          (NV_TELA_W - SP_W - 24.0f)
-#define SP_W          telefoneui_largura(776.0f, NV_TELA_W, 24.0f)
+// AS TRES APRESENTACOES DO CH+ (World, 24/11, Ajustes > Atalhos CH+ e CH- >
+// "Estilo dos Salvos"): ESTANTE (padrao) poe a arte do titulo em foco no alto
+// da tela, com o nome no canto, e uma folha baixa com as abas e os cartoes em
+// estantes; COLUNA e a coluna da direita em que a linha em foco se abre na
+// arte; CLASSICO e o painel de antes (Lista, Grade, Paisagem). As tres usam a
+// mesma logica (abas, barra, menus, editar): so a moldura e o desenho da aba
+// Salvos mudam. O estilo e lido na ABERTURA e vale ate o painel fechar.
+enum { SPM_ESTANTE = 0, SPM_COLUNA = 1, SPM_CLASSICO = 2 };
+static int spModoAb = -1;
+static int spModo(void) {
+  if (telefoneui_ativo()) return SPM_CLASSICO;
+  if (spModoAb >= 0) return spModoAb;
+  return ajustes_salvos_estilo();
+}
+// A folha da Estante: comeca em SPE_Y e vai ate o pe da tela, com 48 px de
+// cada lado (o conteudo fica a 96, onde a Home poe as fileiras).
+#define SPE_Y        452.0f
+#define SPE_BORDA     48.0f
+static float spGeoW(void) {
+  if (spModo() == SPM_ESTANTE) return NV_TELA_W - 2.0f * SPE_BORDA;
+  return telefoneui_largura(776.0f, NV_TELA_W, 24.0f);
+}
+static float spGeoX(void) {
+  if (spModo() == SPM_ESTANTE) return SPE_BORDA;
+  return NV_TELA_W - spGeoW() - 24.0f;
+}
+#define SP_X          spGeoX()
+#define SP_W          spGeoW()
 // A ILHA FLUTUA A NV_FOLHA_MARGEM das tres bordas e com o raio da folha de
 // Fontes (streams.c): as duas camadas da direita sao o mesmo objeto, e uma
 // colada no topo ao lado da outra solta leria como dois materiais.
@@ -76,10 +102,10 @@
 // ele ja sai de cena com o painel aberto (ilha_coberta). Avatar e abas, a
 // esquerda, continuam visiveis.
 static float spYTopo(void) {
-  return NV_FOLHA_MARGEM;
+  return spModo() == SPM_ESTANTE ? SPE_Y : NV_FOLHA_MARGEM;
 }
 #define SP_Y          spYTopo()
-#define SP_H          (NV_TELA_H - SP_Y - NV_FOLHA_MARGEM)
+#define SP_H          (NV_TELA_H - SP_Y - (spModo() == SPM_ESTANTE ? 0.0f : NV_FOLHA_MARGEM))
 // MENOS REDONDO (dono, 24/11: "ta muito redondo, lembra o que eu falei nos
 // ajustes"): a linguagem do Ajustes World (faixa de 8 px) e a prancha 3A (folha
 // de 20, linhas de 12). A folha de Salvos deixa de herdar os 28 de Fontes, as
@@ -579,6 +605,22 @@ static void trocarAba(int nova);
 static int nVisiveis(void);
 int spainel_aba_atual(void) { return aba; }
 int spainel_foco_indice(void) { return foco; }
+static int nChips(void);
+static GfxRect testeRet[SP_MAX];
+static unsigned testeQuadro, testeRetQ[SP_MAX];
+static GfxRect testeBanner;
+int spainel_teste_modo(void) { return spModo(); }
+int spainel_teste_n_chips(void) { return nChips(); }
+int spainel_teste_linha(int i, float *x, float *y, float *w, float *h) {
+  if (i < 0 || i >= SP_MAX || testeRetQ[i] != testeQuadro || !testeQuadro) return 0;
+  *x = testeRet[i].x; *y = testeRet[i].y; *w = testeRet[i].w; *h = testeRet[i].h;
+  return 1;
+}
+int spainel_teste_banner(float *x, float *y, float *w, float *h) {
+  if (spModo() != SPM_ESTANTE) return 0;
+  *x = testeBanner.x; *y = testeBanner.y; *w = testeBanner.w; *h = testeBanner.h;
+  return 1;
+}
 void spainel_ir_aba(int a) {
   if (!aberto) spainel_abrir();
   if (a < SP_ABA_SALVOS || a >= SP_ABA_N || !abaExiste(a)) return;
@@ -836,6 +878,42 @@ static float alturaConteudo;
 #define SPP_IMG_H     (SPP_W * 9.0f / 16.0f)
 #define SPP_H         (SPP_IMG_H + 82.0f)
 #define SPP_PASSO     (SPP_H + 24.0f)
+// ESTANTE (S1): cartoes 16:9 de 352 em fileiras que rolam de lado, uma por
+// secao; COLUNA (S2): linhas com a miniatura 16:9 de 176 que, em foco, se
+// abrem na arte da largura da coluna com o nome no canto.
+#define SPE_ESTILO   100
+#define SPC_ESTILO   101
+#define SPE_W        352.0f
+#define SPE_ART_H    198.0f
+#define SPE_H       (SPE_ART_H + 76.0f)
+#define SPE_VAO       24.0f
+#define SPE_PASSO   (SPE_H + 30.0f)
+#define SPC_TW       176.0f
+#define SPC_TH        99.0f
+#define SPC_H       (SPC_TH + 24.0f)
+#define SPC_PASSO   (SPC_H + 4.0f)
+#define SPC_ART_H   (SP_INTERNO * 9.0f / 16.0f)
+#define SPC_EXTRA   (SPC_ART_H + 4.0f + 104.0f - SPC_H)
+static int estiloEf(void) {
+  int m = spModo();
+  if (m == SPM_ESTANTE) return SPE_ESTILO;
+  if (m == SPM_COLUNA) return SPC_ESTILO;
+  return sorg_estilo();
+}
+// O passo de uma fila no estilo em uso (onde o bloco do menu segurado abre).
+static float passoEf(void) {
+  switch (estiloEf()) {
+    case SORG_ESTILO_GRADE: return SPG_PASSO;
+    case SPE_ESTILO: return SPE_PASSO;
+    case SPC_ESTILO: return SPC_PASSO;
+    default: return SPP_PASSO;
+  }
+}
+// Rolagem lateral de cada fileira da Estante (indice = fila) e quanto cada
+// linha da Coluna esta aberta (indice = linha).
+static float spRolX[SP_MAX], spRolAlvo[SP_MAX], colAbre[SP_MAX];
+static float spRolDe(int fila) { return fila >= 0 && fila < SP_MAX ? spRolX[fila] : 0.0f; }
+static float spRolAlvoDe(int fila) { return fila >= 0 && fila < SP_MAX ? spRolAlvo[fila] : 0.0f; }
 // Altura da dica de uma categoria vazia, abaixo do rotulo.
 #define SP_VAZIA_H     64.0f
 
@@ -944,8 +1022,12 @@ static void montarLayout(void) {
   int catVazias = grupoAtual == SORG_GRUPO_CATEGORIA;
   int proximaCat = 0;   // categorias vazias entram na ordem, entre as cheias
   float w = SP_INTERNO, h = SP_LINHA_SALVO, passo = SP_PASSO, vao = 0.0f, y = 0.0f;
+  estilo = estiloEf();
   if (estilo == SORG_ESTILO_GRADE) { cols = SPG_COLS; w = SPG_W; h = SPG_H; passo = SPG_PASSO; vao = SPG_VAO; }
   else if (estilo == SORG_ESTILO_PAISAGEM) { cols = SPP_COLS; w = SPP_W; h = SPP_H; passo = SPP_PASSO; vao = SPP_VAO; }
+  // Estante: uma fileira por secao, sem quebra (ela rola de lado).
+  else if (estilo == SPE_ESTILO) { cols = 1 << 28; w = SPE_W; h = SPE_H; passo = SPE_PASSO; vao = SPE_VAO; }
+  else if (estilo == SPC_ESTILO) { w = SP_INTERNO; h = SPC_H; passo = SPC_PASSO; }
   nSecoes = 0;
   for (i = 0; i < nLinhas; i++) {
     SPLinha *l = &linhas[i];
@@ -1538,7 +1620,12 @@ static int temBarra(void) {
   if (aba == SP_ABA_SOCIAL) return !consentindo() && !perguntandoAlcance() && nRecs >= 2;
   return 0;
 }
-static int nChips(void) { return aba == SP_ABA_SALVOS ? SPB_N : 1; }
+// Na Estante e na Coluna o desenho da lista e o da apresentacao: a pilula
+// Estilo (Lista/Grade/Paisagem) so existe no Classico. `chipTipo` traduz a
+// posicao na barra para o SPB_* que ela representa.
+static int estiloNaBarra(void) { return spModo() == SPM_CLASSICO; }
+static int chipTipo(int k) { return (!estiloNaBarra() && k >= SPB_ESTILO) ? k + 1 : k; }
+static int nChips(void) { return aba == SP_ABA_SALVOS ? (estiloNaBarra() ? SPB_N : SPB_N - 1) : 1; }
 
 enum { POP_NADA = 0, POP_ORDEM, POP_GRUPO, POP_ESTILO, POP_SOCIAL, POP_CATS,
        POP_CAT_ACOES, POP_EXCLUIR, POP_MOVER };
@@ -1731,7 +1818,7 @@ static void popEvento(const SDL_Event *e) {
 // OK numa pilula da barra.
 static void chipOk(void) {
   if (aba == SP_ABA_SOCIAL) { popAbrir(POP_SOCIAL); return; }
-  switch (barraFoco) {
+  switch (chipTipo(barraFoco)) {
     case SPB_ORDEM:  popAbrir(POP_ORDEM);  break;
     case SPB_GRUPO:  popAbrir(POP_GRUPO);  break;
     case SPB_ESTILO: popAbrir(POP_ESTILO); break;
@@ -1791,12 +1878,12 @@ static int celulaVizinha(int de, int dir) {
   float cx, md = 1e9f;
   if (de < 0 || de >= nLinhas) return -1;
   alvo = linhas[de].fila + dir;
-  cx = linhas[de].lx + linhas[de].lw * 0.5f;
+  cx = linhas[de].lx - spRolAlvoDe(linhas[de].fila) + linhas[de].lw * 0.5f;
   for (i = de + dir; i >= 0 && i < nLinhas; i += dir) {
     float d;
     if (dir > 0 ? linhas[i].fila > alvo : linhas[i].fila < alvo) break;
     if (linhas[i].fila != alvo) continue;
-    d = linhas[i].lx + linhas[i].lw * 0.5f - cx;
+    d = linhas[i].lx - spRolAlvoDe(linhas[i].fila) + linhas[i].lw * 0.5f - cx;
     if (d < 0) d = -d;
     if (d < md) { md = d; melhor = i; }
   }
@@ -1815,6 +1902,8 @@ static void popAbrirMover(const char *imdb) {
 static int deIlha, destinoOk;
 static GfxRect origem, destino;
 
+static void bannerAtualizar(float dt);
+static void bannerZerar(void);
 void spainel_abrir_de(float x, float y, float w, float h) {
   if (aberto) return;
   spainel_abrir();
@@ -1831,6 +1920,8 @@ int spainel_da_ilha(void) { return deIlha && spainel_visivel(); }
 
 void spainel_abrir(void) {
   if (aberto) return;
+  spModoAb = -1;
+  spModoAb = spModo();
   deIlha = 0;
   aberto = 1;
 #ifdef NV_TOUCH_UI
@@ -1853,6 +1944,9 @@ void spainel_abrir(void) {
   }
   scrollY = 0.0f; velY = 0.0f;
   memset(animFoco, 0, sizeof animFoco);
+  memset(spRolX, 0, sizeof spRolX); memset(spRolAlvo, 0, sizeof spRolAlvo);
+  memset(colAbre, 0, sizeof colAbre);
+  bannerZerar();
   // O INTERRUPTOR ABRE NO ESTADO, e nao deslizando ate ele. A resposta pode ter
   // sido reconciliada com o servidor (respondida em OUTRA TV) com o painel
   // fechado; sem isto a pessoa abriria o painel e veria a bola andar sozinha,
@@ -2679,6 +2773,33 @@ void spainel_atualizar(float dt, Uint32 agora) {
       : anim_mola(animFoco[i], a, dt,
                   a > animFoco[i] ? NV_MOLA_FOCO : SP_MOLA_DESFOCO);
   }
+  bannerAtualizar(dt);
+  // ESTANTE: a fileira em foco rola de lado o minimo para o cartao caber (com
+  // um cartao de folga a direita quando ha mais); as outras ficam onde a
+  // pessoa as deixou. COLUNA: a linha em foco se abre, menos quando o menu
+  // segurado ja abriu o bloco dela embaixo.
+  if (estiloEf() == SPE_ESTILO && aba == SP_ABA_SALVOS && foco >= 0 && foco < nLinhas) {
+    const SPLinha *l = &linhas[foco];
+    int fl = l->fila;
+    if (fl >= 0 && fl < SP_MAX) {
+      float vis = SP_INTERNO, al = spRolAlvo[fl];
+      if (l->lx - al < 0.0f) al = l->lx;
+      if (l->lx + l->lw - al > vis) al = l->lx + l->lw - vis;
+      spRolAlvo[fl] = al < 0.0f ? 0.0f : al;
+    }
+  }
+  for (i = 0; i < nLinhas && i < SP_MAX; i++) {
+    if (estiloEf() == SPE_ESTILO) {
+      int fl = linhas[i].fila;
+      if (fl >= 0 && fl < SP_MAX && (i == 0 || linhas[i - 1].fila != fl))
+        spRolX[fl] = ajustes_animacoes_reduzidas() ? spRolAlvo[fl]
+                   : anim_mola(spRolX[fl], spRolAlvo[fl], dt, 14.0f);
+    }
+    { float alvoC = (aberto && estiloEf() == SPC_ESTILO && aba == SP_ABA_SALVOS && i == foco &&
+                     expIdx() != i) ? 1.0f : 0.0f;
+      colAbre[i] = ajustes_animacoes_reduzidas() ? alvoC : anim_mola(colAbre[i], alvoC, dt, 13.0f);
+      if (colAbre[i] < 0.0005f) colAbre[i] = 0.0f; }
+  }
   // A BOLA DO INTERRUPTOR, na mesma mola do foco (NV_MOLA_FOCO, 95% em 120 ms):
   // as duas coisas acontecem no mesmo OK e tempos diferentes leriam como bug.
   //
@@ -2736,9 +2857,10 @@ void spainel_atualizar(float dt, Uint32 agora) {
                  : aba == SP_ABA_AVISOS ? avisos_lista_altura_linha(foco, foco)
                  : linhas[foco].lh);
     // A linha aberta (acordeao) cresce para baixo: ela inteira tem de caber.
+    if (aba == SP_ABA_SALVOS && estiloEf() == SPC_ESTILO && expIdx() != foco) base += SPC_EXTRA;
     if (aba == SP_ABA_SALVOS && expIdx() == foco) {
-      if (sorg_estilo() == SORG_ESTILO_LISTA) base += expExtra();
-      else base = topo + (sorg_estilo() == SORG_ESTILO_GRADE ? SPG_PASSO : SPP_PASSO) - 12.0f + expExtraBloco();
+      if (estiloEf() == SORG_ESTILO_LISTA) base += expExtra();
+      else base = topo + passoEf() - 12.0f + expExtraBloco();
 #ifdef NV_TOUCH_UI
       if (telefoneui_ativo()) {
         GfxRect acao;
@@ -2749,8 +2871,8 @@ void spainel_atualizar(float dt, Uint32 agora) {
         }
         if (atual && base - topo + 2 * SP_FOCO_AR > janela) {
           float inicio = topo;
-          if (sorg_estilo() != SORG_ESTILO_LISTA)
-            inicio += (sorg_estilo() == SORG_ESTILO_GRADE ? SPG_PASSO : SPP_PASSO) - 12;
+          if (estiloEf() != SORG_ESTILO_LISTA)
+            inicio += passoEf() - 12;
           topo = inicio + acao.y; base = topo + acao.h;
         }
       }
@@ -3106,16 +3228,28 @@ static float expExtra(void) {
   float h = ctx_inline_altura(SP_LINHA_W, SP_FAIXA_H);
   return (h > SP_LINHA_SALVO ? h - SP_LINHA_SALVO : 0.0f) * ctx_inline_t();
 }
+// O bloco do menu segurado: na Estante ele nao atravessa a tela inteira
+// (1180 px, alinhado ao cartao); nos outros estilos e a largura da linha.
+static float blocoW(void) { return estiloEf() == SPE_ESTILO ? fminf(SP_LINHA_W, 1180.0f) : SP_LINHA_W; }
+static float blocoX(int i, float dx) {
+  float x0 = SP_X + dx + SP_LINHA_X;
+  if (estiloEf() == SPE_ESTILO && i >= 0 && i < nLinhas) {
+    float x = SP_X + dx + SP_PAD + linhas[i].lx - spRolDe(linhas[i].fila) - 18.0f;
+    float xm = SP_X + dx + SP_W - SP_LINHA_X - blocoW();
+    return x < x0 ? x0 : x > xm ? xm : x;
+  }
+  return x0;
+}
 static float expExtraBloco(void) {
-  return (ctx_inline_altura(SP_LINHA_W, SP_FAIXA_H) + 8.0f) * ctx_inline_t();
+  return (ctx_inline_altura(blocoW(), SP_FAIXA_H) + 8.0f) * ctx_inline_t();
 }
 // Grade e paisagem: o bloco se abre logo abaixo da fila do cartao em foco (que
 // continua la, aceso), com a faixa de arte, as informacoes e as pilulas.
 static void desenhaBlocoAberto(int i, float dx, float y, float a) {
   const SPLinha *l = &linhas[i];
-  float e = ctx_inline_t(), hc = ctx_inline_altura(SP_LINHA_W, SP_FAIXA_H);
-  float lx = SP_X + dx + SP_LINHA_X, ca = e < 0.6f ? 0.0f : (e - 0.6f) / 0.4f;
-  GfxRect row = { lx, y, SP_LINHA_W, hc * e }, faixa = { lx + 18.0f, y + 18.0f, SP_LINHA_W - 36.0f, SP_FAIXA_H };
+  float bw = blocoW(), e = ctx_inline_t(), hc = ctx_inline_altura(bw, SP_FAIXA_H);
+  float lx = blocoX(i, dx), ca = e < 0.6f ? 0.0f : (e - 0.6f) / 0.4f;
+  GfxRect row = { lx, y, bw, hc * e }, faixa = { lx + 18.0f, y + 18.0f, bw - 36.0f, SP_FAIXA_H };
   superficieItem(row, SP_LINHA_RAIO / row.h, 1.0f, a * (e < 0.3f ? e / 0.3f : 1.0f));
   if (ca > 0.0f) {
     capaArte(faixa, l->fundo[0] ? l->fundo : l->poster, 22.0f, a * ca);
@@ -3123,7 +3257,7 @@ static void desenhaBlocoAberto(int i, float dx, float y, float a) {
 #ifdef NV_TOUCH_UI
     if (telefoneui_ativo()) ctx_inline_recorte((GfxRect){SP_X + dx, listaTopo(), SP_W, SP_LISTA_BASE - listaTopo()});
 #endif
-    ctx_inline_desenhar(lx, y, SP_LINHA_W, SP_FAIXA_H, a * ca);
+    ctx_inline_desenhar(lx, y, bw, SP_FAIXA_H, a * ca);
   }
 }
 
@@ -3211,6 +3345,8 @@ static void desenhaCelulaPaisagem(int i, float dx, float y, float a) {
 // quando foi salvo, ou o trilho fino com o que falta. Os SELOS em pilula
 // (tipo, ano, IMDb amarelo) sairam: o mockup escreve qualidade como texto, e
 // tres pilulas por linha eram o "menos polido" que o dono apontou.
+#include "logotitulo.h"
+#include "salvosnovo.inc"
 static void desenhaLinhaAberta(int i, float dx, float y, float a);
 static void desenhaBlocoAberto(int i, float dx, float y, float a);
 static void desenhaLinha(int i, float dx, float y, float a) {
@@ -3518,7 +3654,7 @@ static float toquePainelMax(void) {
   float fim = 0;
   if (aba == SP_ABA_SALVOS) {
     fim = alturaConteudo;
-    if (expIdx() >= 0) fim += sorg_estilo() == SORG_ESTILO_LISTA ? expExtra() : expExtraBloco();
+    if (expIdx() >= 0) fim += estiloEf() == SORG_ESTILO_LISTA ? expExtra() : expExtraBloco();
   } else if (n > 0) {
     fim = topoDe(i);
     if (aba == SP_ABA_SOCIAL) fim += socialAlt(i);
@@ -3667,7 +3803,7 @@ static void chipTextos(int k, const char **cap, const char **val, const char **i
                        char *buf, size_t tam) {
   *cap = NULL; *val = NULL; *icone = NULL;
   if (aba == SP_ABA_SOCIAL) { *cap = "Organizar"; *val = SOCIAL_CURTO[sorg_social()]; return; }
-  switch (k) {
+  switch (chipTipo(k)) {
     case SPB_ORDEM:  *cap = "Ordenar"; *val = ORDEM_CURTO[sorg_ordem()]; break;
     case SPB_GRUPO:  *cap = "Agrupar"; *val = GRUPO_CURTO[sorg_grupo()]; break;
     case SPB_ESTILO: *cap = "Estilo";  *val = ESTILO_CURTO[sorg_estilo()];
@@ -4885,6 +5021,13 @@ void spainel_fundo(int podeParar, unsigned rev, void (*fundo)(void *), void *ctx
   }
   if (parado && !pronto && !motivo[0]) motivo = "abertura";
   veuNoFundo = parado;
+  // A ESTANTE ASSENTADA COBRE A TELA INTEIRA (banner opaco em cima, folha a
+  // 96 % embaixo): a copia da Home nao apareceria, entao nao e desenhada.
+  // Na TCL (limitada por preenchimento) e uma tela cheia a menos por quadro.
+  if (parado && pronto && spModo() == SPM_ESTANTE && entrada >= 0.999f) {
+    home_fileiras_vistas(SDL_GetTicks());
+    return;
+  }
   if (parado && pronto) { home_fileiras_vistas(SDL_GetTicks()); gfx_snap_desenhar(); return; }
   if (parado) {
     gfx_snap_comecar();
@@ -4974,8 +5117,37 @@ static void ponteiroTitulo(int i, int b) {
   foco = i;
 }
 
+// A MOLDURA DA ESTANTE fica fora do corpo: o banner cresce da origem (topo,
+// relogio ou centro, chorigem.h) e a folha sobe 200 px; o corpo (cabecalho,
+// barra, lista) sobe junto por gfx_transformar.
+static void desenharPainelCorpo(Uint32 agora);
 static void desenharPainel(Uint32 agora) {
+  float e, dy;
+  GfxRect full = { 0.0f, 0.0f, NV_TELA_W, NV_TELA_H }, clip;
+  int tr;
+  testeQuadro++;
+  if (spModo() != SPM_ESTANTE || entrada < 0.002f) { desenharPainelCorpo(agora); return; }
+  e = entradaP < 0.0f ? 0.0f : entradaP > 1.0f ? 1.0f : entradaP;
+  clip = full;
+  if (deIlha) {
+    GfxRect o = (aberto || !destinoOk) ? origem : destino;
+    clip.x = o.x + (full.x - o.x) * e; clip.y = o.y + (full.y - o.y) * e;
+    clip.w = o.w + (full.w - o.w) * e; clip.h = o.h + (full.h - o.h) * e;
+  }
+  if (!veuNoFundo) veuInteiro();
+  gfx_vidro_cobrir();
+  testeBanner = clip;
+  estanteMoldura(clip, e, entrada > 0.08f ? 1.0f : entrada / 0.08f);
+  dy = (1.0f - e) * 200.0f;
+  tr = dy > 0.5f && !gfx_transformado();
+  if (tr) gfx_transformar(0.0f, 0.0f, 1.0f, 0.0f, dy);
+  desenharPainelCorpo(agora);
+  if (tr) gfx_sem_transformar();
+}
+
+static void desenharPainelCorpo(Uint32 agora) {
   float a = entrada, x, y, xp, xl, al;
+  int estante = spModo() == SPM_ESTANTE;
   int i;
   char buf[160];
   GfxRect forma = { SP_X, SP_Y, SP_W, SP_H };
@@ -4991,7 +5163,11 @@ static void desenharPainel(Uint32 agora) {
   // ...ou NASCE DA ILHA: o retangulo vai da pilula (origem) ate o painel, o
   // raio em pixels de meia altura da pilula ate o do painel, e o conteudo
   // entra na segunda metade. Animacoes reduzidas: entrada ja e 0 ou 1 (anim.h).
-  if (deIlha) {
+  if (estante) {
+    x = 0.0f;
+    a = anim_clamp((entrada - 0.25f) / 0.75f, 0.0f, 1.0f);
+  }
+  else if (deIlha) {
     GfxRect o = (aberto || !destinoOk) ? origem : destino;
     float e = entradaP < 0.0f ? 0.0f : entradaP;   // a mola ja tem o repique (movimento.h)
     float rFim = raioForma * SP_H, rIni = o.h * 0.5f, ec = e > 1.0f ? 1.0f : e;
@@ -5013,11 +5189,11 @@ static void desenharPainel(Uint32 agora) {
   // painel — um fio claro na comparacao pixel a pixel. Com o fundo parado o
   // veu ja nao custa nada por quadro; o que sobra sao a entrada, a saida e o
   // painel sobre outras telas.
-  if (!veuNoFundo) veuInteiro();
-  gfx_vidro_cobrir();   // the veil covers the home glass drawn before: the island frosts
+  if (!estante && !veuNoFundo) veuInteiro();
+  if (!estante) gfx_vidro_cobrir();   // the veil covers the home glass drawn before: the island frosts
   // Painel flutuante escuro e neutro; o veu separa a camada do conteudo sem
   // uma luz decorativa colorida competindo com posters e selos.
-  { GfxRect p = { SP_X + x, SP_Y, SP_W, SP_H };
+  if (!estante) { GfxRect p = { SP_X + x, SP_Y, SP_W, SP_H };
     float as = a;
     const int vid = 0;   // World 23/11: sem vidro; preto puro translucido como a Busca
     if (deIlha) { p = forma; as = entrada > 0.08f ? 1.0f : entrada / 0.08f; }
@@ -5308,9 +5484,13 @@ static void desenharPainel(Uint32 agora) {
   // (o mesmo `extra` do laco de linhas); sem isso o rotulo ("Nao comecados")
   // ficava na posicao fechada, por cima do cartao aberto.
   { int exs = expIdx();
-    float extras = exs >= 0 ? (sorg_estilo() == SORG_ESTILO_LISTA ? expExtra() : expExtraBloco()) : 0.0f;
+    float extras = exs >= 0 ? (estiloEf() == SORG_ESTILO_LISTA ? expExtra() : expExtraBloco()) : 0.0f;
   for (i = 0; i < nSecoes; i++) {
     float sy = y + secoes[i].y + (exs >= 0 && secoes[i].y > linhas[exs].ly ? extras : 0.0f);
+    if (estiloEf() == SPC_ESTILO) {   // as linhas de cima abertas empurram o rotulo
+      int k;
+      for (k = 0; k < nLinhas && linhas[k].ly < secoes[i].y; k++) sy += SPC_EXTRA * colAbre[k];
+    }
     float sa = secaoAlt(secoes[i].y <= 0.0f);
     float sh = sa + (secoes[i].vazia ? SP_VAZIA_H : 0.0f);
     if (sy + sh < listaTopo() || sy > SP_LISTA_BASE) continue;
@@ -5322,30 +5502,46 @@ static void desenharPainel(Uint32 agora) {
       txt_desenhar_alpha(t, SP_X + x + SP_PAD, sy + sa + 6.0f, a * 0.5f);
     }
   } }
-  { int estilo = sorg_estilo();
+  { int estilo = estiloEf();
     int ex = expIdx();
     int lista = estilo == SORG_ESTILO_LISTA;
     float extra = ex >= 0 ? (lista ? expExtra() : expExtraBloco()) : 0.0f;
+    float colAc = 0.0f, ordem = 0.0f;   // Coluna: o quanto as linhas de cima ja se abriram
     for (i = 0; i < nLinhas; i++) {
-      float cy = y + linhas[i].ly +
+      float cy = y + linhas[i].ly + colAc +
                  (ex >= 0 && (lista ? i > ex : linhas[i].fila > linhas[ex].fila) ? extra : 0.0f);
+      float hl = linhas[i].lh + (estilo == SPC_ESTILO ? SPC_EXTRA * colAbre[i] : 0.0f);
+      float xo = estilo == SPE_ESTILO ? spRolDe(linhas[i].fila) : 0.0f;
+      if (estilo == SPC_ESTILO) colAc += SPC_EXTRA * colAbre[i];
       // Fora da janela nao custa texto nem textura: numa lista de 200 titulos
       // rasterizar as 195 invisiveis estouraria o orcamento de linhas por
       // quadro de text.c e as visiveis sairiam EM BRANCO (ver ctxmenu.c).
-      if (cy + linhas[i].lh < listaTopo() || cy > SP_LISTA_BASE) continue;
+      if (cy + hl < listaTopo() || cy > SP_LISTA_BASE) continue;
+      // Na Estante tambem de lado: so os cartoes dentro da folha.
+      if (estilo == SPE_ESTILO && (linhas[i].lx - xo + linhas[i].lw < -SP_PAD ||
+                                   linhas[i].lx - xo > SP_INTERNO + SP_PAD)) continue;
       { GfxRect ra = lista ? linhaIlhaRet(x, cy, linhas[i].lh)
-                           : (GfxRect){ SP_X + x + SP_PAD + linhas[i].lx, cy, linhas[i].lw, linhas[i].lh };
+                           : (GfxRect){ SP_X + x + SP_PAD + linhas[i].lx - xo, cy, linhas[i].lw, hl };
 #ifdef NV_TOUCH_UI
         if (!telefoneui_ativo() || !ctx_inline_painel_ativo())
 #endif
         ponteiro_alvo_faixa(ra.x, ra.y, ra.w, ra.h, listaTopo(), SP_LISTA_BASE, ponteiroTitulo, NULL, i, 0); }
+      if (i < SP_MAX) {
+        GfxRect rt = lista ? linhaIlhaRet(x, cy, linhas[i].lh)
+                           : (GfxRect){ SP_X + x + SP_PAD + linhas[i].lx - xo, cy, linhas[i].lw, hl };
+        testeRet[i] = rt; testeRetQ[i] = testeQuadro;
+      }
       if (estilo == SORG_ESTILO_GRADE) desenhaCelulaGrade(i, x, cy, a);
       else if (estilo == SORG_ESTILO_PAISAGEM) desenhaCelulaPaisagem(i, x, cy, a);
+      else if (estilo == SPE_ESTILO) desenhaCartaoEstante(i, x, cy, a);
+      else if (estilo == SPC_ESTILO) desenhaLinhaColuna(i, x, cy, a, ordem);
       else desenhaLinha(i, x, cy, a);
+      ordem += 1.0f;
     }
     if (ex >= 0 && !lista) {
-      float passo = estilo == SORG_ESTILO_GRADE ? SPG_PASSO : SPP_PASSO;
-      desenhaBlocoAberto(ex, x, y + linhas[ex].ly + passo - 12.0f, a);
+      float ac = 0.0f;
+      if (estilo == SPC_ESTILO) { int k; for (k = 0; k < ex; k++) ac += SPC_EXTRA * colAbre[k]; }
+      desenhaBlocoAberto(ex, x, y + linhas[ex].ly + ac + passoEf() - 12.0f, a);
     } }
 
   gfx_sem_recorte();

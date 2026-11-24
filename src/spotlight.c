@@ -1056,7 +1056,27 @@ void spot_abrir(int voz) {
   spotAbrirBase(voz, 1);
 }
 
+// "A BARRA VIRA O CAMPO" (World 24/11, chorigem.h): aberta pela lupa do menu
+// do topo (ou pela pilula do relogio), a peca nasce do retangulo dela e cresce
+// ate a barra da busca; o campo entra quando a forma ja esta quase no lugar.
+static int spOrigOk;
+static GfxRect spOrig;
+static void spotAbrirBase(int voz, int tecladoAuto);
+void spot_abrir_de(int voz, float x, float y, float w, float h) {
+  float e = escala_min(SP_ESCALA_MIN);   // px reais -> a camada da busca
+  spot_abrir(voz);
+  if (!aberto || w < 4.0f || h < 4.0f) return;
+  spOrig = (GfxRect){ x / e, y / e, w / e, h / e };
+  spOrigOk = 1;
+}
+int spot_teste_origem(float *x, float *y, float *w, float *h) {
+  if (!spOrigOk) return 0;
+  *x = spOrig.x; *y = spOrig.y; *w = spOrig.w; *h = spOrig.h;
+  return 1;
+}
+
 static void spotAbrirBase(int voz, int tecladoAuto) {
+  spOrigOk = 0;
 #ifdef NV_TOUCH_UI
   toquerol_limpar(&toqueSpot);
   toquerol_limpar(&toqueTeclado); kbRol = 0.0f; toqueNoTeclado = 0;
@@ -2304,6 +2324,25 @@ static void spot_desenharCorpo_(Uint32 agora, int veuPronto) {
   { float ka = anim_suave(kbAnim);
     listaX = anim_mistura(SP_LISTA_X0, spRetrato() ? SP_LISTA_X0 : SP_LISTA_X1, ka);
     listaW = SP_LISTA_XF - listaX; }
+  // DA LUPA: a peca anda do retangulo de origem ate a barra (sem a descida do
+  // alto); o conteudo, recortado pela forma, entra na segunda metade.
+  if (spOrigOk && entrada < 0.999f && !ajustes_animacoes_reduzidas()) {
+    float h = SP_BH + (corpoH > SP_ILHA_VAO + 4.0f ? corpoH : 0.0f), rIni, rpx, ac;
+    GfxRect F = { SP_BX, SP_BY - SP_PENDURA, SP_BW, SP_PENDURA + h }, M;
+    M.x = spOrig.x + (F.x - spOrig.x) * a; M.y = spOrig.y + (F.y - spOrig.y) * a;
+    M.w = spOrig.w + (F.w - spOrig.w) * a; M.h = spOrig.h + (F.h - spOrig.h) * a;
+    rIni = spOrig.h * 0.5f;
+    rpx = rIni + (SP_RAIO - rIni) * a;
+    ilhaSpot(M, rpx, a < 0.25f ? a * 4.0f : 1.0f);
+    ac = anim_clamp((a - 0.5f) / 0.5f, 0.0f, 1.0f);
+    if (ac > 0.0f) {
+      gfx_recorte(M.x, M.y, M.w, M.h);
+      desenhaCampo(0.0f, ac, agora);
+      if (corpoH > 2.0f) { desenhaLista(0.0f, ac); desenhaRodape(0.0f, ac); }
+      gfx_sem_recorte();
+    }
+    return;
+  }
   sup = (GfxRect){ SP_BX, SP_BY + dy, SP_BW, SP_BH + (corpoH > 0.0f ? corpoH : 0.0f) };
   // A SUPERFICIE TODA e um anteparo para o ponteiro: clique fora das teclas e
   // das linhas nao vaza para a tela de tras.

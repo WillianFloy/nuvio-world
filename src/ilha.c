@@ -124,6 +124,10 @@ static int corpoPed, corpoSemSombra;
 static float corpoW, corpoH, corpoT, corpoV;
 static float corpoWa, corpoHa, corpoVw, corpoVh;   // o tamanho na mola (o pedido muda)
 static IlhaCorpo corpoFn;
+// DE ONDE O CORPO NASCE quando nao e da pilula (chorigem.h): o menu do topo ou
+// o centro do alto. Na camada da ilha (px reais / escala da interface).
+static int corpoOrigOk;
+static GfxRect corpoOrig;
 static void *corpoU;
 static Uint32 modalDesde;
 static int pedido, pedidoQual;
@@ -2104,8 +2108,18 @@ static void ilha_desenharCorpo_(Uint32 agora);
 // Camada ampliada (escala.h): o corpo desenha na tela virtual.
 void ilha_corpo(float w, float h, IlhaCorpo corpo, void *u) {
   corpoPed = 1; corpoW = w; corpoH = h; corpoFn = corpo; corpoU = u; corpoSemSombra = 0;
+  corpoOrigOk = 0;
   if (modalAberto) ilha_modal_fechar(1);
 }
+void ilha_corpo_de(float w, float h, IlhaCorpo corpo, void *u, const GfxRect *origemReal) {
+  ilha_corpo(w, h, corpo, u);
+  if (origemReal && origemReal->w > 2.0f && origemReal->h > 2.0f) {
+    float e = gfx_escala_ui();
+    corpoOrig = (GfxRect){ origemReal->x / e, origemReal->y / e, origemReal->w / e, origemReal->h / e };
+    corpoOrigOk = 1;
+  }
+}
+int ilha_corpo_teste_origem(void) { return corpoOrigOk; }
 float ilha_corpo_t(void) { return corpoT; }
 void ilha_corpo_sem_sombra(void) { corpoSemSombra = 1; }
 
@@ -2181,7 +2195,10 @@ static void ilha_desenharCorpo_(Uint32 agora) {
       corpoWa = molaIlha(&corpoVw, corpoWa, corpoW, dt);
       corpoHa = molaIlha(&corpoVh, corpoHa, corpoH, dt);
     } }
-  vis = alvo != M_RELOGIO || relogioQuer || central_segurar_progresso(agora) > 0.0f ||
+  // SEGURAR CH+ COM O RELOGIO DESLIGADO (dono, 24/11): a pilula NAO aparece so
+  // para encher; o progresso e o da Central (central_segurar_sem_relogio).
+  if (!relogioQuer && alvo == M_RELOGIO) central_segurar_sem_relogio(agora);
+  vis = alvo != M_RELOGIO || relogioQuer ||
         (modalAviso && (modalAberto || modalT > 0.01f)) || corpoT > 0.0f;
   // O MEDIDOR so ocupa a ilha LIVRE: com aviso, atividade, modal, voo ou o
   // TRAILER tocando (destaque da home, pagina do titulo — dono no S18, 2.0.6)
@@ -2308,14 +2325,15 @@ static void ilha_desenharCorpo_(Uint32 agora) {
       float k3 = (corpoT - 0.08f) * 5.0f;
       float off = topoOff(y);
       GfxRect C = { dir ? x - corpoWa : x, y + off, corpoWa, corpoHa };
+      GfxRect O = corpoOrigOk ? corpoOrig : r;   // da pilula, ou da barra/centro
       float t = corpoT > 1.06f ? 1.06f : corpoT, tr = t > 1.0f ? 1.0f : t, rpx;
-      R.x = r.x + (C.x - r.x) * t; R.y = r.y + (C.y - r.y) * t;
-      R.w = r.w + (C.w - r.w) * t; R.h = r.h + (C.h - r.h) * t;
+      R.x = O.x + (C.x - O.x) * t; R.y = O.y + (C.y - O.y) * t;
+      R.w = O.w + (C.w - O.w) * t; R.h = O.h + (C.h - O.h) * t;
       if (off > 0.0f && C.y + C.h > NV_TELA_H - NV_FOLHA_MARGEM) {   // desceu: nao passa do fim da tela
         C.h = NV_TELA_H - NV_FOLHA_MARGEM - C.y;
-        R.h = r.h + (C.h - r.h) * t;
+        R.h = O.h + (C.h - O.h) * t;
       }
-      rpx = r.h * 0.5f + (MD_RAIO - r.h * 0.5f) * tr;
+      rpx = O.h * 0.5f + (MD_RAIO - O.h * 0.5f) * tr;
       raio = rpx / (R.h > 1.0f ? R.h : 1.0f);
       fundo = 0.80f + 0.08f * tr;
       solido = 0.86f + 0.08f * tr;
@@ -2325,11 +2343,14 @@ static void ilha_desenharCorpo_(Uint32 agora) {
       aPil = soHora ? 0.0f : 1.0f - corpoT * 10.0f;
       if (aPil < 0.0f) aPil = 0.0f;
       aHora = soHora && conteudoA > k3 ? conteudoA : k3;
+      // Nascendo de fora da pilula, a hora do cabecalho entra com o conteudo.
+      if (corpoOrigOk) { aPil = 0.0f; aHora = -1.0f; }
       // O painel e muito maior que o modal: o conteudo so entra com a forma
       // quase assentada, senao ele aparece cortado pela borda que ainda cresce.
       aMod = (corpoT - 0.78f) / 0.20f; aMod = aMod < 0.0f ? 0.0f : aMod > 1.0f ? 1.0f : aMod;
       if (anim_politica_reduzida || ajustes_animacoes_reduzidas() || gfx_efeitos_minimos())
         aMod = corpoT >= 0.5f ? 1.0f : 0.0f;
+      if (aHora < 0.0f) aHora = aMod;
     }
     // A PILULA RECEBE O QUADRO: depois do pouso ela cresce ~6% e assenta
     // (ilha_voo_pulso), em volta do proprio centro. So o vidro; o conteudo
