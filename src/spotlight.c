@@ -82,7 +82,7 @@
 // as duas alargam para 1240 (a mola do teclado): o teclado ocupa 500 px a
 // esquerda e em 980 a lista ficaria com menos de 460.
 #define SP_BW_BASE   1100.0f
-#define SP_BW_KB     1480.0f
+#define SP_BW_KB     1360.0f
 static float spBW = SP_BW_BASE;
 static int spTelefone(void) {
   return telefoneui_ativo();

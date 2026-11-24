@@ -263,6 +263,13 @@ int main(int argc, char **argv) {
   st_teste_evento("V filmes de acao ");
   captura(saida, "voz-4-resultado");
   fechar();
+  // Digitando com o teclado do app: painel largo (teclado + resultados ao vivo).
+  st_teste_ligar(0);
+  spot_abrir(0);
+  tecla(SDLK_RETURN);
+  digitar("the");
+  captura(saida, "digitando-largo");
+  fechar();
   puts("capturas da voz: ok");
   return 0;
 }
