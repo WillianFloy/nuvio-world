@@ -118,6 +118,7 @@ static IlhaCartao modalC;
 static IlhaModal modalM;
 static char modalChave[80];
 static float modalT, modalV, modalFocoA[ILHA_MODAL_BOTOES], modalOutroA;
+static GfxRect modalSuperficie;   // a forma desenhada: a arte de fundo sangra ate a borda dela
 // O CORPO PEDIDO (ilha_corpo): vale um quadro; o ultimo fica para a saida.
 static int corpoPed, corpoSemSombra;
 static float corpoW, corpoH, corpoT, corpoV;
@@ -1734,8 +1735,14 @@ static void desenharModal(GfxRect m, float a) {
   float ax = m.x + MD_PAD, ay = m.y + MD_PAD;
   // Cartaz em pe (o amigo assistindo traz so o poster) numa moldura 2:3, como
   // no modal de aviso; antes ia centrado no 16:9 com sobra preta dos lados.
-  float ladoW = arteLadoW(c->arte[0] ? c->arte : c->poster);
-  float cx = ax + ladoW + 32.0f, cw = m.x + m.w - MD_PAD - cx;
+  // COM O STILL DO EPISODIO / FUNDO DO TITULO (c->arte) a arte vira o FUNDO do
+  // modal inteiro (dono 23/11: cartao A do relogio, "arte do titulo de fundo")
+  // e o texto fica numa coluna a esquerda, sobre um veu preto que some para a
+  // direita. So com o cartaz em pe (amigo) a miniatura 2:3 ao lado continua.
+  const int fundoArte = c->arte[0] != 0;
+  float ladoW = fundoArte ? 0.0f : arteLadoW(c->poster);
+  float cx = fundoArte ? ax : ax + ladoW + 32.0f;
+  float cw = fundoArte ? fminf(520.0f, m.w * 0.46f) : m.x + m.w - MD_PAD - cx;
   float extraSin = modalSinopseExtra();
   float y = ay, by = ay + MD_ARTE_H + extraSin + 24.0f, sy, cr, cg, cb;
   int i;
@@ -1823,6 +1830,24 @@ static void desenharModal(GfxRect m, float a) {
     }
     return;
   }
+  if (fundoArte) {
+    GLuint tex = tex_obter_larg(c->arte, MD_W);
+    float rr = MD_RAIO / m.h;
+    if (tex) {
+      // O recorte do quadro come 6 px de cada lado (o conteudo respira dentro da
+      // forma); a ARTE de fundo sangra ate a borda, o resto continua recuado.
+      const GfxRect S = modalSuperficie;
+      gfx_recorte(S.x, S.y, S.w, S.h);
+      gfx_tex_aspect_atual = tex_aspecto(c->arte);
+      gfx_rect(m, tex, GFX_ARTE, 0.0f, 0.0f, 0.0f, rr, 1, 1, 1, a);
+      gfx_tex_aspect_atual = 0.0f;
+      // Veu da esquerda (rampa por pixel, com os cantos do modal) e o da base,
+      // sob os botoes e a linha do outro cartao.
+      gfx_rect(m, 0, GFX_VEU, 0.0f, 1.0f, 0.0f, rr, 0, 0, 0, 0.97f * a);
+      gfx_rect(m, 0, GFX_VEU, 0.0f, 0.0f, 0.0f, rr, 0, 0, 0, 0.95f * a);   // base escura (por pixel, com os cantos)
+      gfx_recorte(S.x + 6.0f, S.y, S.w - 12.0f, S.h);
+    }
+  } else
   // A arte: o still do episodio quando ha, senao o fundo do titulo, senao o cartaz.
   { const char *arte = c->arte[0] ? c->arte : c->poster;
     GfxRect ra = { ax, ay, ladoW, MD_ARTE_H };
@@ -2383,6 +2408,7 @@ static void ilha_desenharCorpo_(Uint32 agora) {
         gfx_cor((GfxRect){ R.x + (R.w - aw) * 0.5f, R.y + 10.0f, aw, 4.0f }, 0.5f, ar, ag, ab, 0.90f * k * A);
         gfx_anel(R, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.10f * k * A);
       } }
+    modalSuperficie = R;
     gfx_recorte(R.x + 6.0f, R.y, R.w - 12.0f, R.h);
     if (aPil > 0.0f) {
       if (mostra == M_CARTAO) desenharCartao(&mostraC, mostraQual, r, A * conteudoA * aPil);
