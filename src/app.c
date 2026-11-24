@@ -78,6 +78,7 @@
 #include "menu.h"
 #include "busca.h"
 #include "spotlight.h"
+#include "fundoparado.h"
 #include "biblioteca.h"
 #include "explorar.h"
 #include "agendaui.h"
@@ -7279,28 +7280,33 @@ void app_desenhar(Uint32 agora) {
   // refeita quando o catalogo muda e em 0,4 / 1,5 / 4 s, para a arte que
   // ainda chegava aparecer. Nada de congelar com video no ar (o PiP pinta o
   // furo) nem com o painel de Salvos, que usa o mesmo FBO.
-  { static int pronto, refeitas, regCongelado;
+  { static FundoParado fp;
+    static int regCongelado;
 #ifdef NV_TOUCH_UI
     static float fundoW, fundoH;
     static unsigned fundoGeracao;
     if (fundoW != NV_TELA_W || fundoH != NV_TELA_H || fundoGeracao != gfx_snap_geracao()) {
-      pronto = refeitas = regCongelado = 0;
+      memset(&fp, 0, sizeof fp); regCongelado = 0;
       fundoW = NV_TELA_W; fundoH = NV_TELA_H;
     }
 #endif
-    static unsigned revPronta;
-    static Uint32 desde;
     static const Uint32 REFAZ[] = { 400, 1500, 4000 };
     int parar = !registro_aberto() && spot_cheio() && gfx_snap_ok() &&
                 !player_mini_ativo() && !player_aberto() && !spainel_visivel();
+    // A decisao (copiar / repintar / direto) e pura e fica em fundoparado.h:
+    // republicacao do catalogo, arte faltando e copia preta recomecam ou
+    // desistem da copia, como no painel de Salvos.
+    FpAcao acao = fundoparado_passo(&fp, parar, cat_revisao(), SDL_GetTicks(), REFAZ, 3);
     spotVeuPronto = 0;
-    if (!parar) { pronto = 0; refeitas = 0; }
-    else if (revPronta != cat_revisao()) pronto = 0;
-    else if (pronto && refeitas < 3 && SDL_GetTicks() - desde >= REFAZ[refeitas]) {
-      pronto = 0; refeitas++;
-    }
-    if (parar && pronto) { gfx_snap_desenhar(); spotVeuPronto = 1; }
-    else if (parar) {
+    if (acao == FP_COPIAR) {
+      // A copia mantem as fileiras "vistas": sem isto a pintura seguinte, depois
+      // de mais de 1,5 s, lia a ausencia como volta de outra tela e recomecava
+      // a cascata de entrada, com as fileiras em opacidade 0 na copia.
+      home_fileiras_vistas(SDL_GetTicks());
+      gfx_snap_desenhar(); spotVeuPronto = 1;
+    } else if (acao == FP_PINTAR) {
+      unsigned faltas0 = tex_n_falta;
+      int mx = 0, preta;
       gfx_snap_comecar();
       gfx_sem_recorte();
       glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
@@ -7308,11 +7314,17 @@ void app_desenhar(Uint32 agora) {
       desenharTelas(agora);
       spot_veu();
       gfx_sem_recorte();
+      preta = gfx_snap_vazio(&mx);
       gfx_snap_terminar();
-      gfx_snap_desenhar();
-      if (!refeitas) desde = SDL_GetTicks();
-      pronto = 1; revPronta = cat_revisao();
-      spotVeuPronto = 1;
+      fundoparado_pintado(&fp, tex_n_falta != faltas0, preta, cat_revisao(), SDL_GetTicks());
+      if (preta) {
+        printf("[spotlight] copia parada saiu PRETA (max=%d): desenhando a home direto\n", mx);
+        fflush(stdout);
+        desenharTelas(agora);
+      } else {
+        gfx_snap_desenhar();
+        spotVeuPronto = 1;
+      }
     } else if (registro_aberto()) {
       // O PAINEL DE REGISTRO E VIDRO (03/10): a tela de tras e pintada UMA vez
       // no FBO do snapshot ao abrir e os quadros seguintes so copiam. Com o

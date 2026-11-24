@@ -1595,8 +1595,10 @@ void spot_veu(void) {
   ESCALA_MIN_FIM();
 }
 static void spot_veuCorpo_(void) {
-  // O veu do mockup: preto a 55 % sobre a tela de tras.
-  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.38f);
+  // O veu: preto a 30 % sobre a Home, so o bastante para a atencao ir para a
+  // Busca (dono, 24/11: "escurece um pouco, mas nao tanto"); os cartazes seguem
+  // inteiros e legiveis por tras.
+  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.30f);
 }
 
 // O MATERIAL DA ILHA, o mesmo da folha de Fontes, do menu e da ilha do relogio:
@@ -1663,6 +1665,7 @@ static void desenhaOnda(float x0, float x1, float yc, float a, Uint32 agora) {
   }
 }
 
+#define SP_CAMPO_FOCO_RAIO 14.0f   // curto como o foco do Ajustes (8) e dos chips (14), nao a pilula
 static void desenhaCampo(float dy, float a, Uint32 agora) {
   GfxRect barra = { SP_BX, SP_BY + dy, SP_BW, SP_BH };
   float ar, ag, ab, tx, xMax, ty = barra.y + barra.h * 0.5f;
@@ -1677,6 +1680,19 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
     ponteiro_alvo(barra.x, barra.y, barra.w - botoesW(), barra.h,
                   focarCampo, NULL, 0, 0);
   }
+  // FOCO DO CAMPO LEGIVEL (dono, 24/11: "nao da pra entender bem quando esta no
+  // digitar; so da pra saber pela lupa na cor do foco e a leve expandida").
+  // A mesma linguagem do foco do Ajustes World: faixa clara por dentro do campo
+  // (raio curto, nao a pilula toda) e um contorno de 2 px. Nasce e some com a
+  // mola do campo (animCampo), e some ouvindo (a onda ja diz o estado).
+  { float kc = painel == P_CAMPO && !ouve ? animCampo : 0.0f;
+    if (kc > 0.01f) {
+      float fx = barra.x + 12.0f, fy = barra.y + 12.0f;
+      GfxRect fr = { fx, fy, barra.w - botoesW() - 12.0f - (botoesW() > 0.0f ? 8.0f : 12.0f), barra.h - 24.0f };
+      float raio = SP_CAMPO_FOCO_RAIO / fr.h;
+      gfx_cor(fr, raio, 1.0f, 1.0f, 1.0f, 0.12f * kc * a);
+      gfx_anel_fora(fr, raio, 0.0f, 2.0f, 1.0f, 1.0f, 1.0f, 0.60f * kc * a);
+    } }
   // ICONE PROPRIO (ws_busca) com alma (dono, 23/11): a lupa pega um fio da cor do
   // acento (que no tema "Da arte" e a cor viva do titulo) e se acende com o
   // campo em foco; antes era o mesmo icone branco do resto do app.
@@ -1725,7 +1741,7 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
   // Cursor: 2 x 30 no acento (o do mockup), com o foco no campo ou com o
   // teclado do sistema aberto para ele.
   if ((painel == P_CAMPO || painel == P_TECLADO || digitandoSis()) && (agora / 500) % 2 == 0 &&
-      (nConsulta > 0 || digitandoSis()))
+      !ouve)
     gfx_cor((GfxRect){ tx, ty - 15.0f, 2.0f, 30.0f }, 0.5f, ar, ag, ab, 0.95f * a);
   // MICROFONE: botao focavel a direita, so onde ha voz (nao se promete o que a
   // TV nao faz). Ouvindo, acende na cor do tema e um anel cresce com o som.
