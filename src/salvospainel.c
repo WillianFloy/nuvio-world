@@ -5010,17 +5010,17 @@ static void desenharPainel(Uint32 agora) {
   // uma luz decorativa colorida competindo com posters e selos.
   { GfxRect p = { SP_X + x, SP_Y, SP_W, SP_H };
     float as = a;
-    const int vid = ajustes_vidro();
+    const int vid = 0;   // World 23/11: sem vidro; preto puro translucido como a Busca
     if (deIlha) { p = forma; as = entrada > 0.08f ? 1.0f : entrada / 0.08f; }
     // O PAINEL E UMA ILHA (Glass UI, mockup tela 3), no material da folha de
     // Fontes: sombra curta, miolo de vidro (gfx_vidro_folha) ou solido e uma
     // luz larga e fraca no canto de cima. Sem aro. Nascendo da pilula do
     // relogio a forma e a mesma, so o retangulo muda.
     gfx_sombra_sob((GfxRect){ p.x - 18.0f, p.y - 8.0f, p.w + 36.0f, p.h + 40.0f }, 1.0f, 0, 0.5f,
-                   0, 0, 0, .38f * as, p, raioForma * p.h, vid ? 0.0f : .98f * as);
+                   0, 0, 0, .50f * as, p, raioForma * p.h, vid ? 0.0f : .90f * as);
     if (vid) gfx_vidro_folha(p, raioForma, as);
-    else gfx_cor(p, raioForma, .071f, .075f, .086f, .98f * as);
-    if (!vid) gfx_luz_canto(p, raioForma, p.w * .25f, -p.h * .25f, p.w * .9f, 1, 1, 1, .04f * as);
+    else { gfx_cor(p, raioForma, 0.0f, 0.0f, 0.0f, .90f * as);
+           gfx_anel(p, raioForma, 1.5f, 1.0f, 1.0f, 1.0f, .12f * as); }
   }
 
   // Tudo daqui para baixo fica preso ao painel: sem o recorte, a lista rolada

@@ -2264,8 +2264,7 @@ static void ilha_desenharCorpo_(Uint32 agora) {
     // At rest (no modal, no body) the island is the A27 top chrome: the same
     // material and tint as the bar and the avatar chip (gfx_chrome).
     if (repouso) gfx_chrome(R, raio, A);
-    else if (ajustes_vidro()) gfx_vidro_material(R, raio, fundo, A);
-    else {
+    else {   // World 23/11: sem vidro; aberta (modal, Central, Fontes) e preto puro translucido
       // MATERIAL SOLIDO: a pilula em repouso tem de LER como pilula em paginas
       // escuras. Com 0,055 de cinza ela ficava igual ao fundo da pagina (0,051)
       // e ao escurecido da arte (perfil do amigo, pagina do titulo na TV do
@@ -2273,9 +2272,10 @@ static void ilha_desenharCorpo_(Uint32 agora) {
       // (~0,12) mais um fio claro, e volta ao escuro do modal ao crescer.
       float mk = modalT > corpoT ? modalT : corpoT;
       float em = mk > 0.0f ? 1.0f - (mk > 1.0f ? 1.0f : mk) : 1.0f;
-      float c0 = 0.055f + 0.065f * em, c1 = 0.058f + 0.066f * em, c2 = 0.068f + 0.075f * em;
-      gfx_cor(R, raio, c0, c1, c2, (solido + 0.06f * em) * A);
-      if (em > 0.01f) gfx_anel(R, raio, 1.5f, 1.0f, 1.0f, 1.0f, 0.085f * em * A);
+      float c0 = 0.120f * em, c1 = 0.124f * em, c2 = 0.143f * em;   // aberta: 0 = preto puro
+      float opac = 0.90f + (solido + 0.06f - 0.90f) * em;           // aberta 90%: a Home aparece por tras
+      gfx_cor(R, raio, c0, c1, c2, opac * A);
+      gfx_anel(R, raio, 1.5f, 1.0f, 1.0f, 1.0f, (0.085f * em + 0.12f * (1.0f - em)) * A);
     }
     desenharFocoRelogio(R, raio, A);
     // O "vidro": um brilho largo e fraco por cima, branco no relogio e na cor
