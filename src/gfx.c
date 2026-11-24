@@ -4883,10 +4883,74 @@ void gfx_icones_dir(const char *dirArte) {
   snprintf(dirIcones, sizeof dirIcones, "%s/icones", dirArte ? dirArte : ".");
 }
 
+// ICONES PROPRIOS DO WORLD (23/11): os "aj_<nome>" desta lista saem do desenho
+// proprio "ws_<nome>" (traco 1,9 com detalhe secundario), em todo o app. Quem nao
+// esta na lista continua no arquivo de sempre.
+static const char *const iconesWorld[] = {
+  "activity",
+  "alarm-clock",
+  "arrow-down",
+  "arrow-up",
+  "audio-lines",
+  "badge-check",
+  "bell",
+  "bookmark",
+  "calendar",
+  "captions",
+  "check",
+  "chevron-right",
+  "circle-check",
+  "circle-play",
+  "clapperboard",
+  "clock",
+  "eye",
+  "eye-off",
+  "film",
+  "folders",
+  "gauge",
+  "image",
+  "images",
+  "keyboard",
+  "layers",
+  "layout-dashboard",
+  "list-ordered",
+  "list-video",
+  "maximize-2",
+  "monitor-play",
+  "moon",
+  "move-horizontal",
+  "palette",
+  "pause",
+  "pencil",
+  "plus",
+  "quote",
+  "rotate-cw",
+  "rows-3",
+  "sliders-horizontal",
+  "sparkle",
+  "sparkles",
+  "sun-dim",
+  "thumbs-up",
+  "user-plus",
+  "users",
+  "wand",
+  "wifi",
+  "wifi-off",
+  "x"
+};
+static const char *iconeWorld(const char *nome, char *buf, size_t n) {
+  size_t i;
+  if (strncmp(nome, "aj_", 3)) return nome;
+  for (i = 0; i < sizeof iconesWorld / sizeof iconesWorld[0]; i++)
+    if (!strcmp(nome + 3, iconesWorld[i])) { snprintf(buf, n, "ws_%s", nome + 3); return buf; }
+  return nome;
+}
+
 void gfx_icone(GfxRect r, const char *nome, float cr, float cg, float cb, float ca) {
-  char cam[600];
+  char cam[600], ws[80];
   GLuint t;
   if (!nome || !nome[0] || ca <= 0.0f || r.w <= 0.0f || r.h <= 0.0f) return;
+  nome = iconeWorld(nome, ws, sizeof ws);
   if (!strcmp(nome, "aj_smartphone")) t = smartphoneObter();
   else {
     if (!dirIcones[0]) return;

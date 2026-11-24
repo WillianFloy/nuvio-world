@@ -587,8 +587,13 @@ static void botao(GfxRect r, const char *icone, const char *rot, const char *val
     gfx_brilho_topo(r, CC_BOTAO_R / r.h, 0.45f, 1, 1, 1, 0.16f * f * a);
     gfx_anel_fora(r, CC_BOTAO_R / r.h, 3.0f, 2.5f, 1, 1, 1, 0.95f * f * a);
   }
-  gfx_icone((GfxRect){ r.x + 14.0f, r.y + 14.0f, CC_ICONE, CC_ICONE }, icone, ti, ti, ti,
-            anim_mistura(0.88f, 1.0f, ligado >= 0 ? ligF : 0.0f) * a);
+  // ICONE COM ALMA (dono 23/11): em repouso ele puxa um fio da cor do acento (a
+  // cor da arte no tema dinamico); com o foco cresce e sobe, e a cor aprofunda.
+  // Ligado (bloco cheio no acento) volta a tinta escura de sempre.
+  { float k = 1.0f + 0.14f * f, sz = CC_ICONE * k, mx = (0.26f + 0.50f * f) * (1.0f - (ligado >= 0 ? ligF : 0.0f));
+    gfx_icone((GfxRect){ r.x + 14.0f + (CC_ICONE - sz) * 0.5f, r.y + 14.0f + (CC_ICONE - sz) * 0.5f - 2.0f * f, sz, sz }, icone,
+              ti + (ar - ti) * mx, ti + (ag - ti) * mx, ti + (ab - ti) * mx,
+              anim_mistura(0.88f, 1.0f, ligado >= 0 ? ligF : 0.0f) * a); }
   // Nome em 16/600; se nao couber (alemao, russo), um degrau menor; sem
   // valor embaixo (interruptor) e com mais de uma palavra, duas linhas em
   // 16/600 ("Choisir la / source"); o corte e o ultimo recurso.
@@ -710,8 +715,11 @@ static void desenhaEdicao(float x, float y, float w, float h, float a) {
     GfxRect ic = { r.x + r.w - 14.0f - 22.0f, r.y + (r.h - 22.0f) * 0.5f, 22, 22 };
     if (r.y + r.h < y || r.y > y + h) continue;
     if (j == focoEd) superficie(r, r.h * 0.5f, 1.0f, a);
-    gfx_icone((GfxRect){ r.x + 14.0f, r.y + (r.h - 22.0f) * 0.5f, 22, 22 }, c->icone,
-              0.953f, 0.949f, 0.937f, (j == focoEd ? 1.0f : 0.72f) * a);
+    { float ar, ag, ab, mx = j == focoEd ? 0.55f : 0.22f;
+      ajustes_acento(&ar, &ag, &ab);
+      gfx_icone((GfxRect){ r.x + 14.0f, r.y + (r.h - 22.0f) * 0.5f, 22, 22 }, c->icone,
+                0.953f + (ar - 0.953f) * mx, 0.949f + (ag - 0.949f) * mx, 0.937f + (ab - 0.937f) * mx,
+                (j == focoEd ? 1.0f : 0.72f) * a); }
     { TxtLinha t = txt_linha_corta(TXT_ILHA_SUB, ajustes_rapido_rotulo(op), 243, 242, 239, 255,
                                    r.w - 14.0f - 22.0f - 12.0f - 50.0f);
       txt_desenhar_alpha(t, r.x + 48.0f, r.y + (r.h - (float)t.h) * 0.5f, (j == focoEd ? 1.0f : 0.72f) * a); }

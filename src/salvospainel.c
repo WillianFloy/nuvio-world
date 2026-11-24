@@ -3628,8 +3628,11 @@ static void desenhaAbas(float dx, float a, float larguraDisp) {
       else { botao_luz(p, .55f, a); gfx_cor(p, 0.5f, ar, ag, ab, a); }
     }
     ic = (float)cor / 255.0f;
-    gfx_icone((GfxRect){ x + SP_SEG_PX, p.y + (p.h - SP_SEG_ICO) * 0.5f, SP_SEG_ICO, SP_SEG_ICO },
-              lapis ? "aj_pencil" : iconeAba(i), ic, ic, ic, a * alfaTxt);
+    // ICONE COM ALMA (dono 23/11): a aba ativa, sem foco, puxa a cor do acento
+    // (a da arte no tema dinamico); com o foco ele fica na tinta do foco.
+    { float mx = ativa && !focada ? 0.62f : 0.0f;
+      gfx_icone((GfxRect){ x + SP_SEG_PX, p.y + (p.h - SP_SEG_ICO) * 0.5f, SP_SEG_ICO, SP_SEG_ICO },
+                lapis ? "aj_pencil" : iconeAba(i), ic + (ar - ic) * mx, ic + (ag - ic) * mx, ic + (ab - ic) * mx, a * alfaTxt); }
     if (num.w > 0) {
       int novo;
       contaDaAba(i, &novo);

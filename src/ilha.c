@@ -2403,9 +2403,7 @@ static void ilha_desenharCorpo_(Uint32 agora) {
     { float k = modalT > corpoT ? modalT : corpoT;
       k = k > 1.0f ? 1.0f : k < 0.0f ? 0.0f : k;
       if (k > 0.02f) {
-        float ar, ag, ab, aw = (40.0f + 28.0f * k) * (R.w > 300.0f ? 1.0f : R.w / 300.0f);
-        ajustes_acento(&ar, &ag, &ab);
-        gfx_cor((GfxRect){ R.x + (R.w - aw) * 0.5f, R.y + 10.0f, aw, 4.0f }, 0.5f, ar, ag, ab, 0.90f * k * A);
+        // A ALCA SAIU (dono 23/11: o painel tem de parecer o app, sem enfeite solto); fica so o fio.
         gfx_anel(R, raio, 1.0f, 1.0f, 1.0f, 1.0f, 0.10f * k * A);
       } }
     modalSuperficie = R;
