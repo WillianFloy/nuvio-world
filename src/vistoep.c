@@ -1,3 +1,4 @@
+#include "idbase.h"
 #include "vistoep.h"
 #define NV_DUBLE_SESSAO
 #define NV_DUBLE_CONTAPEND
@@ -38,12 +39,10 @@ static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
 // que CatItem.imdb carrega num item de "Continuar assistindo", e quem chama
 // daqui nem sempre sabe qual dos dois tem na mao.
 static void base(const char *origem, char *dst, size_t tam) {
-  size_t k = 0;
   if (!dst || !tam) return;
   dst[0] = 0;
   if (!origem) return;
-  while (origem[k] && origem[k] != ':' && k + 1 < tam) { dst[k] = origem[k]; k++; }
-  dst[k] = 0;
+  idbase_copiar(origem, dst, tam);   // "tmdb:1726" inteiro, nao "tmdb" (idbase.h)
 }
 
 static int achar(const char *id, int t, int e) {

@@ -1,3 +1,4 @@
+#include "idbase.h"
 #include "arteurl.h"
 #include "contapend.h"
 #include "contacache.h"
@@ -72,15 +73,13 @@ void contapend_sem_fio(int sim) { semFio = sim; }
 
 static int ok2xx(const char *r, int st) { return r && st >= 200 && st < 300; }
 
-// Vistos: o id do titulo e tudo antes do primeiro ':' (a regra de syncprog.c e
-// vistoep.c). Lista: so o sufixo ":<temp>:<ep>" em digitos sai — "tmdb:55" e
+// Vistos: o id do titulo pela regra de idbase.h (IMDb: antes do primeiro ':';
+// "tmdb:55"/"kitsu:1" inteiros). Lista: so o sufixo ":<temp>:<ep>" em digitos sai — "tmdb:55" e
 // um id inteiro (a regra de salvos_id_titulo).
 static void idVisto(const char *s, char *d, size_t tam) {
-  size_t k = 0;
   d[0] = 0;
   if (!s) return;
-  while (s[k] && s[k] != ':' && k + 1 < tam) { d[k] = s[k]; k++; }
-  d[k] = 0;
+  idbase_copiar(s, d, tam);   // "tmdb:1726" inteiro, nao "tmdb" (idbase.h)
 }
 static void idLista(const char *s, char *d, size_t tam) {
   const char *a, *b;

@@ -1,3 +1,4 @@
+#include "idbase.h"
 #include "vistonao.h"
 #include "sessao.h"
 #include "perfis.h"
@@ -43,11 +44,9 @@ static long long agoraMs(void) {
 void vistonao_relogio(long long (*f)(void)) { relogio = f; }
 
 static void idBase(const char *s, char *d, size_t tam) {
-  size_t k = 0;
   d[0] = 0;
   if (!s) return;
-  while (s[k] && s[k] != ':' && k + 1 < tam) { d[k] = s[k]; k++; }
-  d[k] = 0;
+  idbase_copiar(s, d, tam);   // "tmdb:1726" inteiro, nao "tmdb" (idbase.h)
 }
 
 static void nomeArquivo(char *d, size_t tam) {

@@ -328,14 +328,13 @@ unsigned long long cat_historico_geracao(void) {
   return g;
 }
 
+// O id do TITULO, sem o ":temporada:episodio". Pela regra de idbase.h: "tt..."
+// corta no primeiro ':', todo outro id ("tmdb:1726", "kitsu:41370") no segundo.
+// Cortar sempre no primeiro dava a MESMA chave de historico a todo titulo do
+// mesmo addon — "Marcar como assistido" marcava a Home inteira (24/11).
 static void id_base(const char *origem, char *destino, size_t tam) {
-  size_t n = 0;
   if (!destino || tam == 0) return;
-  if (origem) {
-    while (origem[n] && origem[n] != ':' && n + 1 < tam) n++;
-    memcpy(destino, origem, n);
-  }
-  destino[n] = 0;
+  idbase_copiar(origem, destino, tam);
 }
 
 static const char *tipo_base(const char *tipo) {
