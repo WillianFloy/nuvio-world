@@ -70,12 +70,13 @@
 // A ILHA FLUTUA A NV_FOLHA_MARGEM das tres bordas e com o raio da folha de
 // Fontes (streams.c): as duas camadas da direita sao o mesmo objeto, e uma
 // colada no topo ao lado da outra solta leria como dois materiais.
-// COM A BARRA NO TOPO (layout Padrao, dono 23/11): a folha comeca ABAIXO da
-// barra (avatar, abas e relogio continuam visiveis) em vez de cobrir a ponta
-// dela; sem barra no topo, a margem de sempre e a altura toda.
+// ALTURA TOTAL, COM OU SEM A BARRA NO TOPO (dono, 24/11: a folha comecando
+// ABAIXO da barra "nao fica legal", era o "30 cm pra baixo"). A folha sobe ate a
+// margem de sempre; ela so cobre a ponta direita da barra, onde mora o relogio, e
+// ele ja sai de cena com o painel aberto (ilha_coberta). Avatar e abas, a
+// esquerda, continuam visiveis.
 static float spYTopo(void) {
-  float r = menu_topo_reserva() / gfx_escala();
-  return r > NV_FOLHA_MARGEM ? r : NV_FOLHA_MARGEM;
+  return NV_FOLHA_MARGEM;
 }
 #define SP_Y          spYTopo()
 #define SP_H          (NV_TELA_H - SP_Y - NV_FOLHA_MARGEM)
