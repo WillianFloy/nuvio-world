@@ -114,6 +114,7 @@ static float spLargura(void) {
 #define SP_CPAD_B    0.0f
 #define SP_RODAPE_H  58.0f          // 14 + a dica + 4, e os 22 de ar da ilha
 #define SP_MIC_D     60.0f
+#define SP_MIC_VAO   30.0f   // vao entre o microfone e o celular: o halo da voz cabe nele
 #define SP_TECLA     62.0f
 #define SP_TECLA_GAP 10.0f
 #define SP_KB_COLS   6
@@ -252,7 +253,7 @@ static int primeiraFocavel(void);
 // vao de 10 entre eles e os 12 da borda; 0 sem nenhum.
 static float botoesW(void) {
   int n = ditadoDisponivel() + celDisponivel();
-  return n ? n * SP_MIC_D + (n - 1) * 10.0f + 12.0f : 0.0f;
+  return n ? n * SP_MIC_D + (n - 1) * SP_MIC_VAO + 12.0f : 0.0f;
 }
 static int imeDisponivel(void) { return st_ime_disponivel(); }
 static int ouvindo(void) {
@@ -1729,14 +1730,14 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
   // MICROFONE: botao focavel a direita, so onde ha voz (nao se promete o que a
   // TV nao faz). Ouvindo, acende na cor do tema e um anel cresce com o som.
   if (comMic) {
-    float d = SP_MIC_D, cx = barra.x + barra.w - 12.0f - d - (celDisponivel() ? d + 10.0f : 0.0f);
+    float d = SP_MIC_D, cx = barra.x + barra.w - 12.0f - d - (celDisponivel() ? d + SP_MIC_VAO : 0.0f);
     float cy = barra.y + (barra.h - d) * 0.5f;
     float k = animMic;
     if (ponteiro_ativo()) ponteiro_alvo(cx - 8, barra.y, d + 16, barra.h, focarCampo, NULL, 1, 0);
     if (ouve) {
-      // Com o botao do celular colado (vao de 10 px) o halo cresce menos: antes o
-      // anel de 26 px corria por baixo dele (dono, 23/11). Sem ele, como sempre.
-      float folga = celDisponivel() ? 0.40f : 1.0f;
+      // O anel e o brilho crescem ate ~26 px; o vao ate o celular (SP_MIC_VAO) e
+      // o que impede o halo de correr por baixo do botao (dono, 23/11).
+      float folga = 1.0f;
       float anel = 10.0f + (26.0f * nivelVoz + 4.0f * SDL_sinf(agora * 0.006f)) * folga;
       float aro = 4.0f + (2.0f + 20.0f * nivelVoz) * folga;
       // Com texto no campo o placeholder "Ouvindo…" some: a palavra vai ao lado.
