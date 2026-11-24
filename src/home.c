@@ -8481,6 +8481,25 @@ static int home_cartao_foco_por_cima_(int indice) {
   return 1;
 }
 
+// O MESMO CARTAO, CRESCIDO `esc` vezes em torno do centro (menu de segurar OK,
+// proposta Facetas: o cartaz de origem cresce so um pouco ao abrir). `esc` = 1
+// e exatamente home_cartao_foco_por_cima_. Crescendo, o cartao cobre por inteiro
+// o que a home pintou embaixo; voltando a 1 a pessoa ve o mesmo cartao de antes.
+static int home_cartao_foco_por_cima_esc_(int indice, float esc) {
+  float og;
+  CartaoFoco k;
+  if (!temCartaoFoco || !temItemFoco || itemFoco.indice != indice) return 0;
+  k = cartaoFoco;
+  if (esc < 0.5f) esc = 0.5f;
+  k.px -= k.w * (esc - 1.0f) * 0.5f; k.py -= k.h * (esc - 1.0f) * 0.5f;
+  k.w *= esc; k.h *= esc;
+  og = gfx_opacidade_grupo;
+  gfx_opacidade_grupo = 1.0f;
+  pintarCartao(&k, cartaoFocoRaio);
+  gfx_opacidade_grupo = og;
+  return 1;
+}
+
 // O painel de Salvos parado mostra a copia da home sem desenha-la: as fileiras
 // continuam na tela, so nao passam por home_desenhar. Sem isto a copia refeita
 // depois de um intervalo longo (a repintura de 4 s) lia a ausencia como volta
@@ -9704,6 +9723,19 @@ int home_cartao_foco_por_cima(int indice) {
   int r;
   TXT_INI(); r = home_cartao_foco_por_cima_(indice); TXT_FIM();
   return r;
+}
+int home_cartao_foco_por_cima_esc(int indice, float esc) {
+  int r;
+  TXT_INI(); r = home_cartao_foco_por_cima_esc_(indice, esc); TXT_FIM();
+  return r;
+}
+// O foco da home e o do PALCO? O menu de segurar OK pergunta: la a ficha de
+// informacoes mora ao lado do cartaz e o nome do titulo logo abaixo.
+int home_foco_palco(float *abaixo) {
+  if (focoHero || foco.fileira < 0 || foco.fileira >= nFileiras) return 0;
+  if (fileiras[foco.fileira].tipo != FILEIRA_PALCO) return 0;
+  if (abaixo) *abaixo = 70.0f * homeUnidade();
+  return 1;
 }
 int home_ancora_foco(GfxRect *out) {
   float u = homeUnidade();
