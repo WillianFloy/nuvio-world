@@ -142,4 +142,22 @@ static inline int vitgeom_prebusca(int fr, int fc, int eixo, int dh, int dv,
   return n;
 }
 
+
+// AS DUAS PONTAS DA FILEIRA COM A MESMA RAMPA (dono, 24/11: "na esquerda e um
+// fade preto suave; na direita e grande e apaga o poster, os dois deviam ser
+// iguais ao da esquerda"). A esquerda sempre foi de `larg` px (40). A direita
+// ia do fim do ultimo cartao INTEIRO ate a borda da tela: com a sobra de quase
+// um cartao inteiro virava um degrade enorme que apagava o cartaz da ponta.
+// Agora a rampa da direita tem a mesma `larg` e termina na borda da tela; o
+// cartao inteiro (ate `fimInt`) nunca entra nela.
+//
+// `fimInt` = borda direita do ultimo cartao inteiro. Devolve onde a opacidade
+// volta a ser 1 (o "dirCheio" de gfx_esvanecer_x); o zero fica em `telaW`.
+static inline float vitgeom_fade_dir_cheio(float fimInt, float telaW, float larg) {
+  float cheio = telaW - larg;
+  if (cheio < fimInt) cheio = fimInt;          // o cartao inteiro fica intacto
+  if (cheio > telaW - 1.0f) cheio = telaW - 1.0f;
+  return cheio;
+}
+
 #endif

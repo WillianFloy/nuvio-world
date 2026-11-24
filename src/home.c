@@ -50,6 +50,7 @@ static void heroTempoInicio(int indice) {
 #include "pressdip.h"
 #include "revela.h"
 #include "layout.h"
+#include "segurar.h"
 #include "vitgeom.h"
 #include "herotexto.h"
 #include "transicao.h"
@@ -2067,8 +2068,9 @@ static void homeFocoFixoFade(int r) {
   cheio = zero + 40.0f;
   if (cheio > x0 - ov) cheio = x0 - ov;
   if (cheio < zero + 1.0f) cheio = zero + 1.0f;
-  if (fimInt > NV_TELA_W - 1.0f) fimInt = NV_TELA_W - 1.0f;
-  gfx_esvanecer_x(zero, cheio, fimInt, NV_TELA_W);
+  // A direita com a MESMA rampa da esquerda (a largura de `cheio - zero`), nao
+  // do ultimo cartao inteiro ate a borda: ver vitgeom_fade_dir_cheio.
+  gfx_esvanecer_x(zero, cheio, vitgeom_fade_dir_cheio(fimInt, NV_TELA_W, cheio - zero), NV_TELA_W);
 }
 
 // Alvo da rolagem horizontal da fileira `r` com a coluna `col` em foco, a
@@ -9206,7 +9208,8 @@ static void home_desenhar_(Uint32 agora) {
           // atingido o limiar, ctxmenu ja foi aberto e a soltura e consumida.
           // Mesma guarda: segurar o OK no destaque desenhava a barra de
           // progresso no primeiro card, que nao e o item sob pressao.
-          if (!focoHero && okPressionando && okHold > 0.0f &&
+          if (!focoHero && okPressionando && okDesde && okHold > 0.0f &&
+              segurar_barra_visivel(agora - okDesde) &&
               foco_pode_pressao_longa() && focus_indice(&foco, r, c)) {
             float bx = px + NV_HOME_TEXT_GUTTER;
             float bw = w - NV_HOME_TEXT_GUTTER * 2.0f;

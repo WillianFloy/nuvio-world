@@ -35,6 +35,22 @@ static void confere_repouso(float x0, float fim, float w, float passo, int total
 }
 
 int main(void) {
+  // AS DUAS PONTAS COM A MESMA RAMPA (24/11): a direita tem a largura da
+  // esquerda e o ultimo cartao inteiro nunca entra nela.
+  {
+    const float W = 1920.0f, L = 40.0f;
+    for (float fimInt = 800.0f; fimInt <= 1919.0f; fimInt += 37.0f) {
+      float cheio = vitgeom_fade_dir_cheio(fimInt, W, L);
+      assert(cheio >= fimInt - 0.001f || cheio >= W - 1.0f);       // cartao inteiro intacto
+      if (fimInt <= W - L) assert(fabsf((W - cheio) - L) < 0.001f);   // rampa = 40 px, como a esquerda
+      else assert(W - cheio <= L + 0.001f);                         // nunca maior que a esquerda
+      assert(cheio <= W - 1.0f);
+    }
+    // o caso do relato: sobra quase um cartao a direita (fimInt = 1450) NAO vira
+    // um degrade de 470 px
+    assert(W - vitgeom_fade_dir_cheio(1450.0f, W, L) <= L + 0.001f);
+  }
+
   // Layout 1920x1080 (px de layout): conteudo comeca em x0 e a margem direita e
   // NV_CHROME_EDGE (64). Passos medidos: retrato ~ 190+24, paisagem ~ 340+24.
   const float tela = 1920.0f, margem = 64.0f, gap = 24.0f;
