@@ -1595,10 +1595,11 @@ void spot_veu(void) {
   ESCALA_MIN_FIM();
 }
 static void spot_veuCorpo_(void) {
-  // O veu: preto a 30 % sobre a Home, so o bastante para a atencao ir para a
-  // Busca (dono, 24/11: "escurece um pouco, mas nao tanto"); os cartazes seguem
-  // inteiros e legiveis por tras.
-  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.30f);
+  // O veu: preto a 45 % sobre a Home. Medido no video do dono (24/11, TCL): a
+  // 30 % a hero e os cartazes quase nao mudavam de luminosidade ao abrir a
+  // Busca. 45 % escurece de forma PERCEPTIVEL sem apagar: os cartazes seguem
+  // inteiros e reconheciveis por tras (nao e o 55 % antigo, que os afogava).
+  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.45f);
 }
 
 // O MATERIAL DA ILHA, o mesmo da folha de Fontes, do menu e da ilha do relogio:

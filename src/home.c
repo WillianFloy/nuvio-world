@@ -7961,7 +7961,8 @@ typedef struct {
 } CartaoFoco;
 static CartaoFoco cartaoFoco; static float cartaoFocoRaio; static int temCartaoFoco;
 // O caminho da arte mora num buffer que o proximo cartao sobrescreve: copia propria.
-static char cartaoFocoArte[NV_TEX_URL_MAX];
+static char cartaoFocoArte[NV_TEX_URL_MAX], cartaoFocoArteB[NV_TEX_URL_MAX];
+static char itemFocoArte[NV_TEX_URL_MAX];   // copia propria de itemFoco.arte (camA e reescrito por card)
 // CHIP DE AMIGOS no canto de cima A ESQUERDA do cartaz (amigostitulo.h): ate 2
 // rostos + "+N". Fica longe do titulo (embaixo) e do selo "Assistido" (a
 // direita): `limiteX` e a borda esquerda desse selo, e o chip encolhe para nao
@@ -9124,7 +9125,13 @@ static void home_desenhar_(Uint32 agora) {
             GfxRect aqui = { px, py, w, h };
             itemFoco.indice = idxCat;
             itemFoco.rect   = aqui;
-            itemFoco.arte   = caminho;
+            // BUFFER PROPRIO (24/11): `caminho` aponta para camA, que e UM so
+            // buffer estatico reescrito a cada card do laco. O app.c e o menu de
+            // segurar OK leem itemFoco DEPOIS do quadro, quando camA guarda a
+            // arte do ULTIMO card pintado (um da borda direita ou de outra
+            // fileira): era o "outro titulo" que piscava ao abrir/fechar o menu.
+            snprintf(itemFocoArte, sizeof itemFocoArte, "%s", caminho ? caminho : "");
+            itemFoco.arte   = caminho ? itemFocoArte : NULL;
             itemFoco.titulo = cItem ? cItem->titulo : NULL;
             itemFoco.genero = cItem ? cItem->genero : NULL;
             itemFoco.meta   = cItem ? cItem->meta : NULL;
@@ -9200,7 +9207,10 @@ static void home_desenhar_(Uint32 agora) {
           }
           if (!focoHero && focus_indice(&foco, r, c)) { cartaoFoco = ck; cartaoFocoRaio = raio; temCartaoFoco = 1;
             snprintf(cartaoFocoArte, sizeof cartaoFocoArte, "%s", caminho ? caminho : "");
-            cartaoFoco.caminho = caminho ? cartaoFocoArte : NULL; }
+            cartaoFoco.caminho = caminho ? cartaoFocoArte : NULL;
+            // A deitada (caminhoB) tambem apontava para camB, compartilhado.
+            snprintf(cartaoFocoArteB, sizeof cartaoFocoArteB, "%s", caminhoB ? caminhoB : "");
+            cartaoFoco.caminhoB = caminhoB ? cartaoFocoArteB : NULL; }
 
 
           // Feedback progressivo do gesto, sem duplicar o menu contextual. A
