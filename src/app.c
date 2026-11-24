@@ -7003,8 +7003,13 @@ static void desenharAtrasDoPainel(void *ctx) {
   // (menu_sobre), ate recolher; a rail fixa nao aparece na pagina.
   // A ILHA DE BUSCA (CH-) toma o lugar do menu do topo: com ela na tela a barra
   // (avatar e abas) nao se desenha; ao fechar, volta (dono, 23/11).
+  // Sai em fade, na mesma curva da ilha que desce (spot_progresso), e nao de
+  // uma vez; com a ilha inteira na tela nem se desenha.
+  float menuSai = ajustes_menu_topo() ? spot_progresso() : 0.0f;
   if (menu_visivel() && sidebar_permitida() && (!detail_aberto() || menu_sobre()) &&
-      !(ajustes_menu_topo() && spot_visivel())) {
+      menuSai < 0.995f) {
+    float gaMenu = gfx_opacidade_grupo;
+    gfx_opacidade_grupo = gaMenu * (1.0f - menuSai);
     // Layout Dinamica: a pilula da barra fica no canto das telas do menu, no
     // lugar do titulo delas (que nao e desenhado: menu_pilula_titulo). Na
     // home some com a pagina rolada. Telas fora do menu (Addons, Social,
@@ -7018,6 +7023,7 @@ static void desenharAtrasDoPainel(void *ctx) {
                            tela == TELA_PERFIL || tela == TELA_AJUSTES) ? 1.0f : -1.0f);
     CAMADA_SE(menu_aberto());
     menu_desenhar(agora);
+    gfx_opacidade_grupo = gaMenu;
   }
   // Palco: o holofote escurece a home e a barra, nunca um menu ou a pagina.
   if (tela == TELA_HOME && !detail_aberto() && !vertudo_aberta() && !ctx_aberto() && !menu_aberto())
@@ -7444,11 +7450,15 @@ void app_desenhar(Uint32 agora) {
       spainel_recolher_para(ok, ix, iy, iw, ih); }
     // O CARTAO DA ATUALIZACAO e a pilula crescida (atualizacao.c): enquanto
     // ele esta na tela, ela fica por baixo, medindo, sem se desenhar.
-    ilha_coberta(spainel_da_ilha() || atualizacao_cobre_ilha() || spot_visivel());
+    // O relogio sai em fade junto com a ilha de busca (e nao desenha com ela inteira).
+    ilha_coberta(spainel_da_ilha() || atualizacao_cobre_ilha() || spot_progresso() > 0.995f);
 #ifdef NV_TOUCH_UI
     if (layout_modo_mobile()) CAMADA_SE(central_aberta() || ilha_modal_aberto());
 #endif
-    ilha_desenhar(agora);
+    { float gaIlha = gfx_opacidade_grupo;
+      gfx_opacidade_grupo = gaIlha * (1.0f - spot_progresso());
+      ilha_desenhar(agora);
+      gfx_opacidade_grupo = gaIlha; }
   }
   // O cartao do lembrete fica acima do player e da tela: e um aviso com hora.
   CAMADA_SE(glem_cartao_aberto());

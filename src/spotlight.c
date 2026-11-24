@@ -95,6 +95,7 @@ static float spLargura(void) {
 #define SP_BX        ((NV_TELA_W - SP_BW) * 0.5f)
 #define SP_BY        0.0f           // colada no topo da tela (layout "ilha de busca", 23/11)
 #define SP_BH        96.0f
+#define SP_OPACIDADE 0.90f        // preto puro, um pouco translucido (a Home aparece por tras)
 #define SP_RAIO      32.0f          // px do corpo aberto; a barra sozinha e pilula
 #define SP_CORPO_Y   (SP_BY + SP_BH)
 // A ilha dos resultados desce ate perto do fim da tela (dono, 03/10: "a lista
@@ -1153,6 +1154,8 @@ void spot_fechar(void) {
 }
 
 int spot_aberto(void)  { return aberto; }
+// 0..1 curvo: quanto a ilha ja entrou. O menu do topo e o relogio saem na mesma medida.
+float spot_progresso(void) { return anim_suave(entrada); }
 int spot_visivel(void) { return aberto || entrada > 0.004f; }
 int spot_cheio(void)   { return aberto && entrada >= 0.999f; }
 const char *spot_consulta(void) { return consulta; }
@@ -1474,7 +1477,11 @@ static float molaIlha(float *v, float x, float alvo, float dt) {
 
 void spot_atualizar(float dt, Uint32 agora) {
   int i, f, c;
-  entrada = anim_mola(entrada, aberto ? 1.0f : 0.0f, dt, aberto ? 16.0f : 22.0f);
+  // ENTRADA CINEMATOGRAFICA (dono, 23/11: "mais lentinha, pra nao parecer que
+  // brotou um icone"): relogio proprio, 560 ms para abrir e 400 para fechar,
+  // com a curva suave no desenho. A mola de antes assentava em ~250 ms.
+  if (ajustes_animacoes_reduzidas()) entrada = aberto ? 1.0f : 0.0f;
+  else entrada = anim_rampa(entrada, aberto ? 1.0f : 0.0f, dt, aberto ? 560.0f : 400.0f);
   if (!aberto) {
     if (entrada < 0.004f) {
       entrada = 0.0f;
@@ -1573,7 +1580,7 @@ void spot_veu(void) {
 }
 static void spot_veuCorpo_(void) {
   // O veu do mockup: preto a 55 % sobre a tela de tras.
-  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.55f);
+  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0.0f, 0.0f, 0.01f, 0.38f);
 }
 
 // O MATERIAL DA ILHA, o mesmo da folha de Fontes, do menu e da ilha do relogio:
@@ -1581,19 +1588,17 @@ static void spot_veuCorpo_(void) {
 // BRANCA no canto de cima, sem aro. A luz e a mancha na cor do tema que havia
 // atras da barra sairam: o acento agora so marca estado (o cursor, a voz).
 static void ilhaSpot(GfxRect p, float raioPx, float a) {
-  const int vid = ajustes_vidro();
   float raio;
   if (p.h < 2.0f || a <= 0.01f) return;
   if (raioPx > p.h * 0.5f) raioPx = p.h * 0.5f;
   raio = raioPx / p.h;
-  gfx_rect((GfxRect){ p.x - 18.0f, p.y - 8.0f, p.w + 36.0f, p.h + 40.0f }, 0, GFX_SOMBRA,
-           1.0f, 0, 0, 0.5f, 0, 0, 0, .42f * a);
-  // No vidro, a folha sozinha (78 %), como a do mockup (80 %): o miolo escuro
-  // extra que havia por baixo dela (01/10, sobre cartazes) fechava a ilha a
-  // ponto de a arte de tras sumir — o oposto do que o vidro e.
-  if (vid) gfx_vidro_folha(p, raio, a);
-  else gfx_cor(p, raio, .071f, .075f, .086f, .98f * a);
-  gfx_luz_canto(p, raio, p.w * .22f, -120.0f, p.w * .6f, 1, 1, 1, (vid ? .06f : .04f) * a);
+  // WORLD (23/11): sem vidro. Preto puro, um pouco translucido para a Home
+  // continuar aparecendo por tras (dono: "uma certa transparencia, pra ficar
+  // profissional"), com sombra larga e suave e um fio claro de 1,5 px.
+  gfx_rect((GfxRect){ p.x - 40.0f, p.y - 8.0f, p.w + 80.0f, p.h + 76.0f }, 0, GFX_SOMBRA,
+           1.0f, 0, 0, 0.5f, 0, 0, 0, .55f * a);
+  gfx_cor(p, raio, 0.0f, 0.0f, 0.0f, SP_OPACIDADE * a);
+  gfx_anel(p, raio, 1.5f, 1.0f, 1.0f, 1.0f, .12f * a);
 }
 
 // UMA PECA SO, PENDURADA NO TOPO (dono, 23/11: "como um dynamic island": reto em
@@ -1638,9 +1643,14 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
     ponteiro_alvo(barra.x, barra.y, barra.w - botoesW(), barra.h,
                   focarCampo, NULL, 0, 0);
   }
-  gfx_icone((GfxRect){ barra.x + 30.0f, ty - 14.0f, 28.0f, 28.0f },
-            "menu_search", .95f, .95f, .94f, a);
-  tx = barra.x + 30.0f + 28.0f + 18.0f;
+  // ICONE PROPRIO (ws_busca) com alma (dono, 23/11): a lupa pega um fio da cor do
+  // acento (que no tema "Da arte" e a cor viva do titulo) e se acende com o
+  // campo em foco; antes era o mesmo icone branco do resto do app.
+  { float kf = animCampo, bx = 0.80f + 0.20f * kf;
+    gfx_icone((GfxRect){ barra.x + 30.0f - 2.0f * kf, ty - 17.0f, 34.0f, 34.0f }, "ws_busca",
+              anim_mistura(.94f, ar, .30f + .45f * kf) * bx, anim_mistura(.94f, ag, .30f + .45f * kf) * bx,
+              anim_mistura(.94f, ab, .30f + .45f * kf) * bx, a); }
+  tx = barra.x + 30.0f + 34.0f + 16.0f;
   xMax = barra.x + barra.w - (botoesW() > 0.0f ? botoesW() + 12.0f : 30.0f) - (ouve ? 170.0f : 0.0f);
   // Sem botao a direita, a dica do campo mora la, apagada (o "Voz: segure
   // OK" do mockup — aqui o que o OK faz de verdade no campo).
@@ -1714,9 +1724,13 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
       else gfx_cor((GfxRect){ cx, cy, d, d }, 0.5f, .125f, .13f, .153f, (1.0f - k) * a);
       if (k > 0.01f) gfx_cor((GfxRect){ cx, cy, d, d }, 0.5f, ar, ag, ab, k * a);
     }
-    { int t = (ouve || k > 0.5f) ? ajustes_tinta_foco() : 224;
-      gfx_icone((GfxRect){ cx + 14, cy + 14, d - 28, d - 28 }, "aj_mic",
-                t / 255.0f, t / 255.0f, t / 255.0f, a); }
+    // Icone proprio (ws_voz): em repouso pega um fio do acento; no foco/ouvindo vai
+    // para a tinta do botao cheio e "respira" com o som.
+    { int cheio = ouve || k > 0.5f, t = cheio ? ajustes_tinta_foco() : 224;
+      float tf = t / 255.0f, mx = cheio ? 0.0f : 0.32f, pul = ouve ? 1.0f + 0.10f * nivelVoz : 1.0f;
+      float lado = (d - 22.0f) * pul;
+      gfx_icone((GfxRect){ cx + (d - lado) * 0.5f, cy + (d - lado) * 0.5f, lado, lado }, "ws_voz",
+                anim_mistura(tf, ar, mx), anim_mistura(tf, ag, mx), anim_mistura(tf, ab, mx), a); }
   }
   // CELULAR: o ultimo da barra, sempre na mesma ponta.
   if (celDisponivel()) {
@@ -2173,7 +2187,7 @@ static void spot_desenharCorpo_(Uint32 agora, int veuPronto) {
   GfxRect sup;
   if (entrada < 0.004f) return;
   a = anim_suave(entrada);
-  dy = (1.0f - a) * -24.0f;
+  dy = (1.0f - a) * -(SP_BH + 28.0f);   // desce de cima da tela, junto com o fade
   ponteiro_camada();
 #ifdef NV_TOUCH_UI
   toqueTeclado.offset = NULL;

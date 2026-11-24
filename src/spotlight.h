@@ -100,6 +100,7 @@ void spot_fechar(void);
 int  spot_aberto(void);
 // Ainda na tela (aberto ou saindo na animacao).
 int  spot_visivel(void);
+float spot_progresso(void);   // 0..1 curvo da entrada: o menu do topo e o relogio saem junto
 // Entrada assentada: o fundo de tras pode ser congelado (ver app.c).
 int  spot_cheio(void);
 void spot_evento(const SDL_Event *e);

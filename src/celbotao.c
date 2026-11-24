@@ -72,8 +72,10 @@ void celb_botao(int d, GfxRect r, int focado, PonteiroFn focar, int a, int b, fl
   gfx_cor(c, 0.5f, anim_mistura(0.18f, ar, k), anim_mistura(0.185f, ag, k),
           anim_mistura(0.205f, ab, k), alpha);
   t = k > 0.5f ? ajustes_tinta_foco() : 224;
-  gfx_icone((GfxRect){ c.x + c.w * 0.26f, c.y + c.h * 0.26f, c.w * 0.48f, c.h * 0.48f }, "aj_smartphone",
-            t / 255.0f, t / 255.0f, t / 255.0f, alpha);
+  // Icone proprio (ws_celular), com um fio do acento em repouso (23/11).
+  { float tf = t / 255.0f, mx = k > 0.5f ? 0.0f : 0.32f;
+    gfx_icone((GfxRect){ c.x + c.w * 0.20f, c.y + c.h * 0.20f, c.w * 0.60f, c.h * 0.60f }, "ws_celular",
+              anim_mistura(tf, ar, mx), anim_mistura(tf, ag, mx), anim_mistura(tf, ab, mx), alpha); }
 }
 
 int celb_abrir(int d, const char *t) {

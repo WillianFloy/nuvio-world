@@ -457,6 +457,25 @@ int main(void) {
     spot_evento(&ch);
     check(!spot_aberto(), "CH− (481) fecha o Spotlight"); }
 
+  // ENTRADA LENTA E SUAVE (dono, 23/11: "mais lentinha, cinematografica"): a ilha
+  // leva ~560 ms (nao os ~250 da mola antiga), cresce sem recuar e o menu do
+  // topo/relogio saem na mesma medida (spot_progresso).
+  { spot_fechar(); for (int i = 0; i < 120; i++) spot_atualizar(1.0f / 60, (unsigned)i);
+    check(!spot_visivel(), "fechada de vez antes de medir a entrada");
+    spot_abrir(0);
+    float ant = 0.0f; int crescente = 1; float em200 = 0, em600 = 0;
+    for (int i = 1; i <= 60; i++) {
+      spot_atualizar(1.0f / 60, (unsigned)i);
+      float pr = spot_progresso();
+      if (pr + 1e-4f < ant) crescente = 0;
+      ant = pr;
+      if (i == 12) em200 = pr;   // ~200 ms
+      if (i == 36) em600 = pr;   // ~600 ms
+    }
+    check(crescente, "entrada nunca recua");
+    check(em200 < 0.45f, "aos 200 ms a ilha ainda esta no comeco (entrada lenta)");
+    check(em600 > 0.97f, "aos ~600 ms a ilha ja assentou");
+    check(spot_progresso() >= 0.999f, "entrada completa"); }
   // ILHA DE BUSCA COLADA NO TOPO (dono, 23/11): a barra nasce em y = 0 (reta em
   // cima) e a peca toda, mesmo com a lista longa, termina antes do fim da tela.
   { CatItem um = item("ttTopo", "movie", "2020", 0);
