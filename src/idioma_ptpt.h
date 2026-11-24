@@ -2103,6 +2103,7 @@
   T("Estreia", "Estreia"),
   T("Estreia %s", "Estreia %s"),
   T("Estreia da temporada", "Estreia da temporada"),
+  T("Estreia hoje", "Estreia hoje"),
   T("Estreou hoje", "Estreou hoje"),
   T("Estrutura da página inicial e estilos de pôster", "Estrutura da página inicial e estilos de cartaz"),
   T("Está na tecla AZUL", "Está na tecla AZUL"),

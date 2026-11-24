@@ -117,7 +117,7 @@ static int modalAberto, modalQual, modalFoco, modalAviso;
 static IlhaCartao modalC;
 static IlhaModal modalM;
 static char modalChave[80];
-static float modalT, modalV, modalFocoA[ILHA_MODAL_BOTOES];
+static float modalT, modalV, modalFocoA[ILHA_MODAL_BOTOES], modalOutroA;
 // O CORPO PEDIDO (ilha_corpo): vale um quadro; o ultimo fica para a saida.
 static int corpoPed, corpoSemSombra;
 static float corpoW, corpoH, corpoT, corpoV;
@@ -165,7 +165,6 @@ static Uint32 svooDesde;
 static GfxRect svooDe;
 static char svooPoster[NV_ARTE_URL_MAX];
 static Uint32 pousouEm;          // o pulso da pilula conta daqui
-static Uint32 altBase;           // a alternancia dos cartoes conta daqui
 
 static int priorDoTipo(int tipo) {
   return tipo == ILHA_ERRO ? ILHA_P1 : tipo == ILHA_ACENTO ? ILHA_P2 : ILHA_P3;
@@ -460,14 +459,14 @@ void ilha_cartao_invalidar(int qual) {
   }
 }
 
-// QUAL CARTAO E O DA VEZ. Com os dois, alternam a cada ILHA_ALTERNA_MS: a
-// sessao interrompida e a estreia sao as duas "o que eu faco agora", e nenhuma
-// deve esconder a outra para sempre. Um so: ele.
-static int cartaoDaVez(Uint32 agora) {
-  int q[ILHA_N_CARTOES], n = 0, i;
-  for (i = 0; i < ILHA_N_CARTOES; i++) if (temCartao[i]) q[n++] = i;
-  if (!n) return -1;
-  return q[((agora - altBase) / ILHA_ALTERNA_MS) % (unsigned)n];
+// QUAL CARTAO FICA NA PILULA. SEM ROTACAO (dono 23/11): trocar o conteudo a
+// cada 6 s mexia sob o olhar e escondia o outro cartao. A ordem e fixa — sessao
+// interrompida, estreia, amigo — e o que sobra mora numa linha selecionavel
+// no modal (outroCartao).
+static int cartaoDaVez(void) {
+  int i;
+  for (i = 0; i < ILHA_N_CARTOES; i++) if (temCartao[i]) return i;
+  return -1;
 }
 
 int ilha_cartao_na_tela(void) { return relogioQuer && cartaoVez >= 0; }
@@ -497,6 +496,27 @@ static int nBotoes(void) {
   if (modalAviso) return modalM.nBotoes < 1 ? 1 : modalM.nBotoes > ILHA_MODAL_BOTOES ? ILHA_MODAL_BOTOES : modalM.nBotoes;
   return 3;
 }
+// O OUTRO CARTAO (sem rotacao, 23/11): quando a sessao e a estreia coexistem,
+// o modal abre no primeiro e lista o outro numa linha selecionavel embaixo dos
+// botoes (seta para baixo, OK troca). Ordem estavel; so cartao de verdade.
+#define OUTRO_H  84.0f
+#define OUTRO_GAP 24.0f
+static int outroCartao(void) {
+  int i;
+  if (!modalAberto || modalAviso || modalAtividade) return -1;
+  for (i = 0; i < ILHA_N_CARTOES; i++) if (i != modalQual && temCartao[i]) return i;
+  return -1;
+}
+static float modalOutroExtra(void) {
+  return outroCartao() >= 0 ? OUTRO_GAP + OUTRO_H : 0.0f;
+}
+static void trocarParaCartao(int q) {
+  modalQual = q;
+  modalC = cartoes[q];
+  modalFoco = 0;
+  memset(modalFocoA, 0, sizeof modalFocoA);
+  modalOutroA = 0.0f;
+}
 static const char *rotuloBotao(int i) {
   if (modalAtividade) return i18n("Fechar");
   if (modalAviso) return modalM.botao[i];
@@ -524,6 +544,7 @@ static void abrirCartao(int qual) {
   modalQual = qual;
   modalC = cartoes[qual];
   modalFoco = 0;
+  modalOutroA = 0.0f;
   modalDesde = SDL_GetTicks();
   memset(modalFocoA, 0, sizeof modalFocoA);
 }
@@ -598,6 +619,11 @@ int ilha_pediu(IlhaCartao *c, int *qual) {
 
 static void acionar(int i) {
   if (modalAtividade) { ilha_modal_fechar(0); return; }
+  if (!modalAviso && i >= nBotoes()) {
+    int o = outroCartao();
+    if (o >= 0) trocarParaCartao(o);
+    return;
+  }
   if (modalAviso) {
     // Quem pos o aviso decide o que o botao faz (ilha_aviso_pediu).
     avPedido = i + 1;
@@ -652,6 +678,11 @@ int ilha_evento(const SDL_Event *e) {
     return 1;
   }
   if (e->key.repeat && k != SDLK_LEFT && k != SDLK_RIGHT) return 1;
+  // A LINHA DO OUTRO CARTAO (indice nBotoes()): para baixo chega, para cima
+  // volta aos botoes, OK troca de cartao; para os lados nao ha nada.
+  if (k == SDLK_DOWN) { if (outroCartao() >= 0 && modalFoco < nBotoes()) modalFoco = nBotoes(); return 1; }
+  if (k == SDLK_UP) { if (modalFoco >= nBotoes()) modalFoco = 0; return 1; }
+  if (modalFoco >= nBotoes() && (k == SDLK_LEFT || k == SDLK_RIGHT)) return 1;
   if (k == SDLK_LEFT) { if (modalFoco > 0) modalFoco--; return 1; }
   // A DIREITA DO ULTIMO BOTAO (ou a AZUL de novo) e o painel de Salvos, que
   // nasce do proprio modal. A seta para o lado e o gesto natural: o painel
@@ -1278,7 +1309,7 @@ static GfxRect modalAlvo(GfxRect p, int dir) {
   int compacto = modalAtividade && atvTemCarga;
   float mw = compacto ? AT_W : modalAviso && modalM.cabecalho ? MC_W : MD_W;
   GfxRect m = { dir ? p.x + p.w - mw : p.x, p.y + topoOff(p.y), mw, compacto ? AT_H : modalAviso ? modalAvisoH : MD_H };
-  if (!telefoneui_ativo()) m.h += modalSinopseExtra();
+  if (!telefoneui_ativo()) m.h += modalSinopseExtra() + (modalAviso || modalAtividade ? 0.0f : modalOutroExtra());
   if (telefoneui_ativo()) {
     m.w = telefoneui_largura(mw, NV_TELA_W, 40);
     m.h = fminf(m.h, NV_TELA_H - 80);
@@ -1640,6 +1671,46 @@ static float layoutModalAviso(GfxRect m, float a, int desenha) {
   return MD_PAD + corpoH + 24.0f + BOTAO_H_SECUNDARIO + MD_PAD;
 }
 
+// A linha do outro cartao: miniatura, a etiqueta (o que e) em acento, o titulo
+// e o episodio, e a seta. Repouso branco 6%; foco com veu e fio de 2 px no
+// acento, como as linhas do app.
+static void desenharLinhaOutro(GfxRect m, float ax, float y, float a) {
+  int o = outroCartao();
+  const IlhaCartao *c;
+  GfxRect r;
+  char tit[200], etq[96];
+  float f = modalOutroA, cr, cg, cb, tx;
+  if (o < 0 || a < 0.01f) return;
+  c = &cartoes[o];
+  r = (GfxRect){ ax, y, m.x + m.w - MD_PAD - ax, OUTRO_H };
+  ajustes_acento(&cr, &cg, &cb);
+  gfx_cor(r, 14.0f / OUTRO_H, 1.0f, 1.0f, 1.0f, (0.06f + 0.05f * f) * a);
+  if (f > 0.01f) gfx_anel(r, 14.0f / OUTRO_H, 2.0f, cr, cg, cb, 0.95f * f * a);
+  { const char *arte = c->arte[0] ? c->arte : c->poster;
+    GfxRect th = { r.x + 14.0f, r.y + 14.0f, 100.0f, OUTRO_H - 28.0f };
+    GLuint tex = arte[0] ? tex_obter_larg(arte, 200) : 0;
+    if (tex) {
+      gfx_tex_aspect_atual = tex_aspecto(arte);
+      gfx_rect(th, tex, GFX_CARD, 0.0f, 0.0f, 0.0f, 8.0f / th.h, 0, 0, 0, a);
+      gfx_tex_aspect_atual = 0.0f;
+    } else gfx_cor(th, 8.0f / th.h, NV_COR_ESQUELETO_R, NV_COR_ESQUELETO_G, NV_COR_ESQUELETO_B, a);
+    tx = th.x + th.w + 20.0f; }
+  if (o == ILHA_ESTREIA) snprintf(etq, sizeof etq, "%s", i18n("Estreia hoje"));
+  else if (o == ILHA_AMIGO) snprintf(etq, sizeof etq, i18n("%s · agora"), c->pessoa);
+  else snprintf(etq, sizeof etq, "%s", i18n("Continuar assistindo"));
+  if (c->serie && c->t > 0 && c->e > 0) snprintf(tit, sizeof tit, "%s · T%dE%d", c->titulo, c->t, c->e);
+  else snprintf(tit, sizeof tit, "%s", c->titulo);
+  { float seta = 40.0f, w = r.x + r.w - 24.0f - seta - tx;
+    TxtLinha l1 = txt_linha_corta(TXT_CAPTION2, etq, (int)(cr * 255), (int)(cg * 255), (int)(cb * 255), 255, w);
+    TxtLinha l2 = txt_linha_corta(TXT_CALLOUT, tit, 246, 247, 252, 255, w);
+    TxtLinha ch = txt_linha(TXT_CALLOUT, "›", 176, 180, 190, 255);
+    float h = (float)(l1.h + l2.h) + 2.0f, y0 = r.y + (r.h - h) * 0.5f;
+    txt_desenhar_alpha(l1, tx, y0, a);
+    txt_desenhar_alpha(l2, tx, y0 + (float)l1.h + 2.0f, a);
+    txt_desenhar_alpha(ch, r.x + r.w - 24.0f - (float)ch.w, r.y + (r.h - (float)ch.h) * 0.5f - 2.0f, a * (0.55f + 0.45f * f)); }
+  if (a > 0.3f) ponteiro_alvo(r.x, r.y, r.w, r.h, pontFoco, NULL, nBotoes(), 0);
+}
+
 static void desenharModal(GfxRect m, float a) {
   const IlhaCartao *c = &modalC;
   if (modalAviso) { if (a >= 0.01f) layoutModalAviso(m, a, 1); return; }
@@ -1842,6 +1913,7 @@ static void desenharModal(GfxRect m, float a) {
     txt_desenhar_alpha(t, x0, yc - (float)t.h * 0.5f, a * 0.9f);
     txt_desenhar_alpha(v, xr - (float)v.w, yc - (float)v.h * 0.5f - 2.0f, a * 0.9f);
     if (a > 0.3f) ponteiro_alvo(x0 - 10.0f, by, xr - x0 + 20.0f, BOTAO_H_SECUNDARIO, NULL, pontSalvos, 0, 0); }
+  desenharLinhaOutro(m, ax, by + BOTAO_H_SECUNDARIO + OUTRO_GAP, a);
 }
 
 // --- minimizar na ilha ----------------------------------------------------------
@@ -1860,7 +1932,6 @@ int ilha_minimizar(const char *fundoReserva) {
   // relogioQuer ainda e o do ultimo quadro desenhado (o da pagina, antes do
   // player): quem vale e o do proximo, conferido em ilha_desenhar.
   if (!temCartao[ILHA_VIVO] || !ajustes_relogio_ligado()) return 0;
-  altBase = SDL_GetTicks();
   if (anim_politica_reduzida || ajustes_animacoes_reduzidas()) { voo = 0; return 1; }
   snprintf(vooArte, sizeof vooArte, "%s", c->arte[0] ? c->arte : fundoReserva ? fundoReserva : "");
   // A arte do episodio pode nunca ter sido decodificada nesta sessao (serie
@@ -1887,7 +1958,6 @@ void ilha_minimizar_dissolver(int sim) {
 static void vooFim(const char *por, Uint32 agora) {
   if (!voo) return;
   voo = 0;
-  altBase = agora;
   pousouEm = strcmp(por, "pousou") ? 0 : agora ? agora : 1;
   printf("[ilha] minimizar: fim (%s, %u ms)\n", por, vooDesde ? (unsigned)(agora - vooDesde) : 0u);
 }
@@ -2046,7 +2116,7 @@ static void ilha_desenharCorpo_(Uint32 agora) {
   if (temCur && cur.abrir && curAte) { cur.abrir = 0; abrirDoAviso(); }
   atualizarHora();
 
-  cartaoVez = cartaoDaVez(agora);
+  cartaoVez = cartaoDaVez();
   // EM VOO o cartao e o da sessao que acabou de sair; se ela sumiu, a pilula
   // saiu da tela ou o modal abriu por cima, o voo acaba seco.
   if (voo) {
@@ -2153,6 +2223,8 @@ static void ilha_desenharCorpo_(Uint32 agora) {
   if (!modalAberto && modalT < 0.01f) { modalT = 0.0f; modalV = 0.0f; }
   for (int i = 0; i < ILHA_MODAL_BOTOES; i++)
     modalFocoA[i] = anim_mola(modalFocoA[i], modalAberto && i == modalFoco ? 1.0f : 0.0f, dt, NV_MOLA_FOCO);
+  if (modalFoco >= nBotoes() && outroCartao() < 0) modalFoco = 0;   // o outro cartao saiu
+  modalOutroA = anim_mola(modalOutroA, modalAberto && modalFoco >= nBotoes() && !modalAviso ? 1.0f : 0.0f, dt, NV_MOLA_FOCO);
   // POSICAO, num ponto so (ilha_ancorar ou o padrao, que e a direita).
   if (ancDef) { x = ancX; y = ancY; dir = ancDir; }
   else { x = NV_TELA_W - NV_ILHA_MARGEM_D / gfx_escala_txt(); y = NV_ILHA_Y / gfx_escala_txt(); dir = 1; }
@@ -2370,7 +2442,7 @@ void ilha_abrir_sessao(void) {
   corpoPed = 0; corpoFn = NULL; corpoU = NULL;
   corpoW = corpoH = corpoT = corpoV = corpoWa = corpoHa = corpoVw = corpoVh = 0.0f;
   voo = vooDissolve = vooAlvoOk = svooQuer = svoo = 0;
-  vooDesde = svooDesde = pousouEm = altBase = 0; vooT = svooT = 0.0f;
+  vooDesde = svooDesde = pousouEm = 0; vooT = svooT = 0.0f;
   vooArte[0] = vooCapa[0] = svooPoster[0] = 0; svooIconeA = 1.0f;
   pontoEnquete = pontoPediu = coberta = ultRectOk = relogioFocado = 0;
   W = vW = H = vH = A = conteudoA = 0.0f; ultQuadro = 0;

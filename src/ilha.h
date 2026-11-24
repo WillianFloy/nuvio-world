@@ -223,14 +223,13 @@ int  ilha_ocupada(void);
 // cabe). Um cartao fica AO LADO do relogio, na mesma pilula, ate quem o poe
 // tira-lo (ilhacart.c): a sessao interrompida do player (ILHA_VIVO) e o
 // episodio novo de uma serie com lembrete ainda nao lido (ILHA_ESTREIA). Os
-// avisos e a atividade continuam passando na frente; dois cartoes alternam a
-// cada ILHA_ALTERNA_MS. AZUL/CH+ com um cartao na pilula abre o MODAL — a
+// avisos e a atividade continuam passando na frente; com dois cartoes a pilula
+// mostra o primeiro (sem rotacao) e o modal lista o outro. AZUL/CH+ com um cartao na pilula abre o MODAL — a
 // pilula cresce ate um cartao maior com a arte e os botoes (ilha_evento).
 // ILHA_AMIGO (02/10, mockup aprovado): o terceiro cartao, "Ana · Severance ·
 // agora", com o rosto dela e a capa — o evento de inicio mais novo do feed
 // enquanto ele tiver menos de 15 min (a regra de RecAmigo.temAgora).
 enum { ILHA_VIVO = 0, ILHA_ESTREIA, ILHA_AMIGO, ILHA_N_CARTOES };
-#define ILHA_ALTERNA_MS 6000u
 typedef struct {
   char chave[80];        // muda = outro conteudo (a pilula remorfa)
   char imdb[64];

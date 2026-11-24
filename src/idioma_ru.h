@@ -2102,6 +2102,7 @@
   T("Estreia", "Премьера"),
   T("Estreia %s", "Выход %s"),
   T("Estreia da temporada", "Премьера сезона"),
+  T("Estreia hoje", "Премьера сегодня"),
   T("Estreou hoje", "Вышел сегодня"),
   T("Estrutura da página inicial e estilos de pôster", "Структура главной страницы и стили постеров"),
   T("Está na tecla AZUL", "Она на СИНЕЙ клавише"),

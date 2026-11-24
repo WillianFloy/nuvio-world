@@ -2102,6 +2102,7 @@
   T("Estreia", "Premieră"),
   T("Estreia %s", "Premieră %s"),
   T("Estreia da temporada", "Premiera sezonului"),
+  T("Estreia hoje", "Premieră azi"),
   T("Estreou hoje", "A avut premiera azi"),
   T("Estrutura da página inicial e estilos de pôster", "Structura paginii principale și stilurile de afiș"),
   T("Está na tecla AZUL", "Este pe tasta ALBASTRĂ"),

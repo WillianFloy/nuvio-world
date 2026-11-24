@@ -2102,6 +2102,7 @@
   T("Estreia", "Première"),
   T("Estreia %s", "Diffusion %s"),
   T("Estreia da temporada", "Première de la saison"),
+  T("Estreia hoje", "Sortie aujourd’hui"),
   T("Estreou hoje", "Sorti aujourd'hui"),
   T("Estrutura da página inicial e estilos de pôster", "Structure de l'accueil et styles d'affiche"),
   T("Está na tecla AZUL", "Sur la touche BLEUE"),

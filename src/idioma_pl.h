@@ -2103,6 +2103,7 @@
   T("Estreia", "Premiera"),
   T("Estreia %s", "Emisja %s"),
   T("Estreia da temporada", "Premiera sezonu"),
+  T("Estreia hoje", "Premiera dzisiaj"),
   T("Estreou hoje", "Premiera dziś"),
   T("Estrutura da página inicial e estilos de pôster", "Struktura ekranu głównego i style plakatów"),
   T("Está na tecla AZUL", "Jest pod NIEBIESKIM przyciskiem"),

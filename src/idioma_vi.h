@@ -2103,6 +2103,7 @@
   T("Estreia", "Ra mắt"),
   T("Estreia %s", "Chiếu %s"),
   T("Estreia da temporada", "Ra mắt mùa mới"),
+  T("Estreia hoje", "Ra mắt hôm nay"),
   T("Estreou hoje", "Chiếu lần đầu hôm nay"),
   T("Estrutura da página inicial e estilos de pôster", "Cấu trúc Trang chủ và kiểu poster"),
   T("Está na tecla AZUL", "Nằm ở nút XANH DƯƠNG"),

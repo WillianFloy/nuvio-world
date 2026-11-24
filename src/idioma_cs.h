@@ -2103,6 +2103,7 @@
   T("Estreia", "Premiéra"),
   T("Estreia %s", "Vysílá se %s"),
   T("Estreia da temporada", "Premiéra řady"),
+  T("Estreia hoje", "Premiéra dnes"),
   T("Estreou hoje", "Premiéra dnes"),
   T("Estrutura da página inicial e estilos de pôster", "Struktura úvodní obrazovky a styly plakátů"),
   T("Está na tecla AZUL", "Je na modrém tlačítku"),

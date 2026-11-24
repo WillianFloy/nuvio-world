@@ -2102,6 +2102,7 @@
   { "Estreia", "Premiere" },
   { "Estreia %s", "Airs %s" },
   { "Estreia da temporada", "Season premiere" },
+  { "Estreia hoje", "Premiering today" },
   { "Estreou hoje", "Premiered today" },
   { "Estrutura da página inicial e estilos de pôster", "Home structure and poster styles" },
   { "Está na tecla AZUL", "It lives on the BLUE key" },

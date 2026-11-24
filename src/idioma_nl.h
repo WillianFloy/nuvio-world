@@ -2103,6 +2103,7 @@
   T("Estreia", "Première"),
   T("Estreia %s", "Uitzending %s"),
   T("Estreia da temporada", "Seizoenspremière"),
+  T("Estreia hoje", "Vandaag in première"),
   T("Estreou hoje", "Vandaag in première"),
   T("Estrutura da página inicial e estilos de pôster", "Structuur van Start en posterstijlen"),
   T("Está na tecla AZUL", "Zit op de BLAUWE knop"),

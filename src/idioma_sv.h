@@ -2103,6 +2103,7 @@
   T("Estreia", "Premiär"),
   T("Estreia %s", "Sänds %s"),
   T("Estreia da temporada", "Säsongspremiär"),
+  T("Estreia hoje", "Premiär idag"),
   T("Estreou hoje", "Hade premiär i dag"),
   T("Estrutura da página inicial e estilos de pôster", "Startsidans struktur och affischstilar"),
   T("Está na tecla AZUL", "Den finns på den BLÅ knappen"),

@@ -2102,6 +2102,7 @@
   T("Estreia", "Прем'єра"),
   T("Estreia %s", "Вихід %s"),
   T("Estreia da temporada", "Прем'єра сезону"),
+  T("Estreia hoje", "Прем’єра сьогодні"),
   T("Estreou hoje", "Вийшов сьогодні"),
   T("Estrutura da página inicial e estilos de pôster", "Структура головної сторінки та стилі постерів"),
   T("Está na tecla AZUL", "Вона на СИНІЙ клавіші"),

@@ -2103,6 +2103,7 @@
   T("Estreia", "Premier"),
   T("Estreia %s", "Tayang %s"),
   T("Estreia da temporada", "Premier musim"),
+  T("Estreia hoje", "Tayang perdana hari ini"),
   T("Estreou hoje", "Tayang perdana hari ini"),
   T("Estrutura da página inicial e estilos de pôster", "Struktur Beranda dan gaya poster"),
   T("Está na tecla AZUL", "Ada di tombol BIRU"),

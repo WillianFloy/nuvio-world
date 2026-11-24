@@ -2102,6 +2102,7 @@
   T("Estreia", "Start"),
   T("Estreia %s", "Startet %s"),
   T("Estreia da temporada", "Staffelstart"),
+  T("Estreia hoje", "Heute neu"),
   T("Estreou hoje", "Heute gestartet"),
   T("Estrutura da página inicial e estilos de pôster", "Aufbau der Startseite und Poster-Stile"),
   T("Está na tecla AZUL", "Liegt auf der BLAUEN Taste"),

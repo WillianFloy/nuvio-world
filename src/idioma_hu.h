@@ -2103,6 +2103,7 @@
   T("Estreia", "Premier"),
   T("Estreia %s", "Adásban: %s"),
   T("Estreia da temporada", "Évadpremier"),
+  T("Estreia hoje", "Ma debütál"),
   T("Estreou hoje", "Ma debütált"),
   T("Estrutura da página inicial e estilos de pôster", "A főoldal szerkezete és a posztersztílusok"),
   T("Está na tecla AZUL", "A KÉK gombon van"),

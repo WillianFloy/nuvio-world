@@ -2103,6 +2103,7 @@
   T("Estreia", "Prömiyer"),
   T("Estreia %s", "%s yayınlanır"),
   T("Estreia da temporada", "Sezon prömiyeri"),
+  T("Estreia hoje", "Bugün yayında"),
   T("Estreou hoje", "Bugün prömiyer yaptı"),
   T("Estrutura da página inicial e estilos de pôster", "Ana ekran yapısı ve afiş stilleri"),
   T("Está na tecla AZUL", "MAVİ tuşta durur"),

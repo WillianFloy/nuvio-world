@@ -2103,6 +2103,7 @@
   T("Estreia", "Πρεμιέρα"),
   T("Estreia %s", "Προβάλλεται %s"),
   T("Estreia da temporada", "Πρεμιέρα σεζόν"),
+  T("Estreia hoje", "Πρεμιέρα σήμερα"),
   T("Estreou hoje", "Έκανε πρεμιέρα σήμερα"),
   T("Estrutura da página inicial e estilos de pôster", "Δομή της Αρχικής και στυλ αφισών"),
   T("Está na tecla AZUL", "Βρίσκεται στο ΜΠΛΕ πλήκτρο"),

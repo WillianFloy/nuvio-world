@@ -2103,6 +2103,7 @@
   T("Estreia", "Premiera"),
   T("Estreia %s", "Predvaja se %s"),
   T("Estreia da temporada", "Premiera sezone"),
+  T("Estreia hoje", "Premiera danes"),
   T("Estreou hoje", "Premiera danes"),
   T("Estrutura da página inicial e estilos de pôster", "Struktura domačega zaslona in slogi plakatov"),
   T("Está na tecla AZUL", "Je na modrem gumbu"),

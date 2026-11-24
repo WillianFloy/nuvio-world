@@ -2103,6 +2103,7 @@
   T("Estreia", "العرض الأول"),
   T("Estreia %s", "يُعرض %s"),
   T("Estreia da temporada", "العرض الأول للموسم"),
+  T("Estreia hoje", "يُعرض اليوم"),
   T("Estreou hoje", "عُرض لأول مرة اليوم"),
   T("Estrutura da página inicial e estilos de pôster", "بنية الرئيسية وأنماط الملصقات"),
   T("Está na tecla AZUL", "يقع على المفتاح الأزرق"),

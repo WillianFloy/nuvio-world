@@ -2103,6 +2103,7 @@
   T("Estreia", "Premiéra"),
   T("Estreia %s", "Vysiela sa %s"),
   T("Estreia da temporada", "Premiéra série"),
+  T("Estreia hoje", "Premiéra dnes"),
   T("Estreou hoje", "Premiéra dnes"),
   T("Estrutura da página inicial e estilos de pôster", "Štruktúra domovskej obrazovky a štýly plagátov"),
   T("Está na tecla AZUL", "Je na modrom tlačidle"),

@@ -2103,6 +2103,7 @@
   T("Estreia", "首播"),
   T("Estreia %s", "%s 播出"),
   T("Estreia da temporada", "本季首播"),
+  T("Estreia hoje", "今日首播"),
   T("Estreou hoje", "今日首播"),
   T("Estrutura da página inicial e estilos de pôster", "主页结构与海报样式"),
   T("Está na tecla AZUL", "在蓝色键上"),

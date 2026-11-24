@@ -2103,6 +2103,7 @@
   T("Estreia", "プレミア"),
   T("Estreia %s", "%s 放送"),
   T("Estreia da temporada", "シーズンプレミア"),
+  T("Estreia hoje", "本日公開"),
   T("Estreou hoje", "本日初放送"),
   T("Estrutura da página inicial e estilos de pôster", "ホームの構成とポスターのスタイル"),
   T("Está na tecla AZUL", "青ボタンにあります"),

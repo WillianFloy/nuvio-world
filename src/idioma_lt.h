@@ -2103,6 +2103,7 @@
   T("Estreia", "Premjera"),
   T("Estreia %s", "Transliuojama %s"),
   T("Estreia da temporada", "Sezono premjera"),
+  T("Estreia hoje", "Premjera šiandien"),
   T("Estreou hoje", "Premjera šiandien"),
   T("Estrutura da página inicial e estilos de pôster", "Pradžios struktūra ir plakatų stiliai"),
   T("Está na tecla AZUL", "Jis yra MĖLYNAME mygtuke"),
