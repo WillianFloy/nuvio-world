@@ -1734,8 +1734,11 @@ static void desenhaCampo(float dy, float a, Uint32 agora) {
     float k = animMic;
     if (ponteiro_ativo()) ponteiro_alvo(cx - 8, barra.y, d + 16, barra.h, focarCampo, NULL, 1, 0);
     if (ouve) {
-      float anel = 10.0f + 26.0f * nivelVoz + 4.0f * SDL_sinf(agora * 0.006f);
-      float aro = 6.0f + 20.0f * nivelVoz;
+      // Com o botao do celular colado (vao de 10 px) o halo cresce menos: antes o
+      // anel de 26 px corria por baixo dele (dono, 23/11). Sem ele, como sempre.
+      float folga = celDisponivel() ? 0.40f : 1.0f;
+      float anel = 10.0f + (26.0f * nivelVoz + 4.0f * SDL_sinf(agora * 0.006f)) * folga;
+      float aro = 4.0f + (2.0f + 20.0f * nivelVoz) * folga;
       // Com texto no campo o placeholder "Ouvindo…" some: a palavra vai ao lado.
       if (nConsulta) {
         TxtLinha o = txt_linha(TXT_CAPTION, i18n("Ouvindo…"), 200, 204, 212, 255);
