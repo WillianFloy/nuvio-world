@@ -532,7 +532,15 @@ void  ajustes_ui_saida(int w, int h);
 // continuam saindo dela). _pos: 0 automatica, 1 esquerda, 2 direita.
 int   ajustes_relogio_ligado(void);
 int   ajustes_relogio_pos(void);
-int   ajustes_relogio_12h(void);   // 1 = 12 h com AM/PM (relogio.h)
+int   ajustes_relogio_12h(void);
+// World 24/11. Menu do cartaz: 0 Folha, 1 Lista simples, 2 Desdobrar.
+int   ajustes_menu_cartaz_estilo(void);
+// Salvos (CH+ toque): 0 Estante, 1 Coluna.
+int   ajustes_salvos_estilo(void);
+// De onde os paineis do CH nascem: 0 Automatica, 1 Relogio, 2 Centro.
+int   ajustes_ch_origem(void);
+// 1 = a lupa do menu do topo vira o campo da Busca.
+int   ajustes_busca_da_barra(void);   // 1 = 12 h com AM/PM (relogio.h)
 // Local interface factor: 0.8..1.5, or automatic from physical panel size.
 // #477: synopsis typography follows the local Synopsis size (Normal/Grande).
 int ajustes_sinopse_tamanho(void);

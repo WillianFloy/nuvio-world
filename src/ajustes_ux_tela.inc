@@ -64,6 +64,8 @@ static const Item TELA[] = {
       OPC(AJ_FONTE_UI), OPC(AJ_TAMANHO_UI), OPC(AJ_ESCALA_TEXTO), OPC(AJ_TAMANHO_AJUSTES), OPC(AJ_LAYOUT_AJUSTES),
     ROT("Movimento e relógio"),
       OPC(AJ_ANIM), OPC(AJ_RELOGIO), OPC(AJ_RELOGIO_12H),
+    ROT("Atalhos CH+ e CH−"),
+      OPC(AJ_SALVOS_ESTILO), OPC(AJ_CH_ORIGEM), OPC(AJ_BUSCA_DA_BARRA),
     ROT("Logo e abertura"),
       OPC(AJ_LOGO_APP), OPC(AJ_ABERTURA),
 #ifdef NV_ANDROID

@@ -363,3 +363,6 @@
   0, /* Android opening video: On, local */
   0, /* World: Collections GIF: Automatic (by RAM), local */
   1, /* World: side rail size: Medium (the usual), local */
+  0, /* World 24/11: Salvos style: Estante, local */
+  0, /* World 24/11: CH panels origin: Automatic, local */
+  0, /* World 24/11: Search grows from the top menu: On, local */

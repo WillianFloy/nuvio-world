@@ -6927,6 +6927,7 @@ static void desenharCtxDoPainel(Uint32 agora) {
 // TUDO QUE FICA ATRAS DO PAINEL DE SALVOS: a tela, "Ver tudo", o cartaz com
 // menu, o detalhe e o menu lateral. Funcao propria para spainel_fundo poder
 // pinta-la direto ou uma vez so, dentro do FBO do fundo parado.
+static int ctxPintandoFundo;   // pintando a copia parada do menu de segurar OK: o menu nao entra nela
 static void desenharAtrasDoPainel(void *ctx) {
   Uint32 agora = *(const Uint32 *)ctx;
   // "Ver tudo" cobre a tela de tras por completo (fundo opaco), entao a home
@@ -6966,7 +6967,7 @@ static void desenharAtrasDoPainel(void *ctx) {
   gfx_deslocar_base(0.0f);
   // Com o painel de Salvos na tela o menu do cartaz e desenhado DEPOIS dele
   // (desenharTelas): e o painel que o abre, e por baixo ele ficaria sob o veu.
-  if (!spainel_visivel() && !detail_aberto()) {
+  if (!spainel_visivel() && !detail_aberto() && !ctxPintandoFundo) {
     CAMADA_SE(ctx_aberto());
     ctx_desenhar(agora);
   }
@@ -7031,6 +7032,49 @@ static void desenharAtrasDoPainel(void *ctx) {
     home_holofote_desenhar(agora);
 }
 
+static void desenharTelas(Uint32 agora);
+// A HOME CONGELADA ATRAS DO MENU DE SEGURAR OK (World 24/11). O menu antigo
+// custava a Home inteira redesenhada + um veu de tela cheia a cada quadro: 32
+// fps na TCL com ele aberto (log de 24/11). Com a Folha ou o Desdobrar na tela,
+// a Home e pintada UMA vez no FBO do snapshot (sem o menu) e os quadros
+// seguintes so copiam — recuada e escurecida na mesma passada, e no Desdobrar
+// com a faixa da fileira deslocada (gfx_snap_desenhar_ex). So na Home, sem
+// outra camada no meio; repinta quando o catalogo muda ou faltou arte.
+static int ctxFundoDesenhar(Uint32 agora) {
+  static FundoParado fp;
+  CtxFundo cf;
+  int quer = ctx_fundo(&cf);
+  int parar = quer && tela == TELA_HOME && !detail_aberto() && !vertudo_aberta() && !spainel_visivel() &&
+              gfx_snap_ok() && !player_aberto() && !player_mini_ativo() && !menu_aberto() && !spot_aberto();
+  FpAcao acao = fundoparado_passo(&fp, parar, cat_revisao(), SDL_GetTicks(), NULL, 0);
+  ctx_fundo_pronto(0);
+  if (acao == FP_DIRETO) return 0;
+  if (acao == FP_PINTAR) {
+    unsigned faltas0 = tex_n_falta;
+    int mx = 0, preta;
+    gfx_snap_comecar();
+    gfx_sem_recorte();
+    glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ctxPintandoFundo = 1;
+    desenharTelas(agora);
+    ctxPintandoFundo = 0;
+    gfx_sem_recorte();
+    preta = gfx_snap_vazio(&mx);
+    gfx_snap_terminar();
+    fundoparado_pintado(&fp, tex_n_falta != faltas0, preta, cat_revisao(), SDL_GetTicks());
+    if (preta) {
+      printf("[ctx] copia parada saiu PRETA (max=%d): desenhando a home direto\n", mx);
+      fflush(stdout);
+      return 0;
+    }
+  } else home_fileiras_vistas(SDL_GetTicks());
+  gfx_snap_desenhar_ex(cf.esc, cf.veu, &cf.faixa, cf.dx);
+  ctx_fundo_pronto(1);
+  CAMADA_SE(ctx_aberto());
+  ctx_desenhar(agora);
+  return 1;
+}
 static void desenharTelas(Uint32 agora) {
   if (tela == TELA_LOGIN)          { login_desenhar(agora);     return; }
   if (tela == TELA_ESCOLHA_PERFIL) { perfilsel_desenhar(agora); return; }
@@ -7341,7 +7385,7 @@ void app_desenhar(Uint32 agora) {
         regCongelado = 1;
       }
       if (regCongelado) gfx_snap_desenhar();
-    } else desenharTelas(agora);
+    } else if (!ctxFundoDesenhar(agora)) desenharTelas(agora);
     if (!registro_aberto()) regCongelado = 0;
 #ifdef NV_TOUCH_UI
     fundoGeracao = gfx_snap_geracao();

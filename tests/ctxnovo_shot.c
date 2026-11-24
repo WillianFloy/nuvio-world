@@ -23,6 +23,7 @@
 #include "corviva.h"
 #include "ctxinfo.h"
 #include "ctxmenu.h"
+#include "ctxgeo.h"
 #include "dados.h"
 #include "extras.h"
 #include "fileiras.h"
@@ -286,7 +287,7 @@ int main(int argc, char **argv) {
 
   dados_iniciar("deploy/app/art");
   dirDados = dados_dir();
-  if (!dirDados || !strstr(dirDados, "nuvio-facetas-shot")) {
+  if (!dirDados || !strstr(dirDados, "nuvio-ctxnovo-shot")) {
     fprintf(stderr, "recuse: NUVIO_DADOS tem de ser a pasta temporaria do teste\n");
     return 1;
   }
@@ -316,8 +317,8 @@ int main(int argc, char **argv) {
   ajustes(0);
   { int op = ajustes_rapido_op("menuCartazLocal");
     confere("poster menu setting is visible", op >= 0);
-    confere("Full is the default", !ajustes_menu_cartaz_simples() &&
-            !strcmp(ajustes_rapido_valor(op), "Ligado")); }
+    confere("Folha is the default", ajustes_menu_cartaz_estilo() == 0 &&
+            !strcmp(ajustes_rapido_valor(op), "Folha")); }
   // The empty-Home gate requires a configured addon even with a seeded catalog.
   { AddonRemoto addon = { "Shot", "https://addon.invalid/x/manifest.json", 1 };
     assert(addons_definir_lista(&addon, 1)); }
@@ -368,53 +369,99 @@ int main(int argc, char **argv) {
                    2, 9, "Episódio 9", "2026-10-10", "2026-10-03");
   quadros(60, NULL);
 
-  printf("\nFacetas:\n");
+  printf("\nMenu de segurar OK: Folha (padrao):\n");
   quadros(60, NULL);
   tecla(SDLK_DOWN); quadros(90, NULL);
-  snprintf(png, sizeof png, "%s/f0-home.png", saida); quadros(2, png);
-  { double base = luma_regiao(900, 60, 900, 420), ant = base, v[6], fim, volta;
-    int ok = 1, k2;
+  snprintf(png, sizeof png, "%s/n0-home.png", saida); quadros(2, png);
+  { int op = ajustes_rapido_op("menuCartazLocal");
+    confere("o ajuste existe e o padrao e a Folha", op >= 0 && ajustes_menu_cartaz_estilo() == 0); }
+  { HomeItem hi; GfxRect sup, item; double base, ant, v, fim, volta; int ok = 1, k2;
+    confere("ha cartaz em foco", home_item_focado(&hi));
+    item = (GfxRect){ hi.rect.x / gfx_escala_ui(), hi.rect.y / gfx_escala_ui(), hi.rect.w / gfx_escala_ui(), hi.rect.h / gfx_escala_ui() };
+    base = luma_regiao(60, 1000, 400, 60); ant = base;
     segurar();
     confere("o menu abriu", ctx_aberto());
-    // abrir: o veu entra de forma continua (monotonico), sem salto de um quadro para outro
-    for (k2 = 0; k2 < 6; k2++) { v[k2] = amostra(3); }
-    for (k2 = 0; k2 < 6; k2++) { if (v[k2] > ant + 0.6) ok = 0; ant = v[k2]; }
-    confere("abertura: o escurecimento so cresce, quadro a quadro (sem piscar)", ok);
+    { CtxFundo cf; float va = -1.0f; for (k2 = 0; k2 < 10; k2++) { quadros(2, NULL); ctx_fundo(&cf); if (cf.veu < va - 1e-4f) ok = 0; va = cf.veu; } (void)v; }
+    confere("abrir: o veu do menu so cresce, quadro a quadro (sem piscar)", ok);
     quadros(40, NULL);
-    fim = luma_regiao(900, 60, 900, 420);
-    printf("  luma base %.1f aberto %.1f (%.0f%%)\n", base, fim, 100.0 * fim / base);
-    confere("escurecimento leve: a Home perde de 10 a 30% (nem preta, nem imperceptivel)", fim / base > 0.70 && fim / base < 0.90);
-    snprintf(png, sizeof png, "%s/f2-aberto.png", saida); quadros(1, png);
+    snprintf(png, sizeof png, "%s/n1-folha.png", saida); quadros(1, png);
+    confere("a forma na tela e a Folha", ctx_novo_estilo() == 0);
+    confere("a superficie existe", ctx_novo_superficie(&sup));
+    printf("  folha %.0f,%.0f %.0fx%.0f  item %.0f,%.0f %.0fx%.0f\n", sup.x, sup.y, sup.w, sup.h, item.x, item.y, item.w, item.h);
+    confere("a folha fica dentro da tela", sup.x >= 0 && sup.y >= 0 && sup.x + sup.w <= 1920.0f / gfx_escala_ui() + 0.5f && sup.y + sup.h <= 1080.0f / gfx_escala_ui() + 0.5f);
+    confere("a folha nao cobre o item", sup.x >= item.x + item.w || sup.x + sup.w <= item.x);
+    confere("a folha fica no lado oposto ao item", (item.x + item.w * 0.5f < 1920.0f / gfx_escala_ui() * 0.62f) == (sup.x > 1920.0f / gfx_escala_ui() * 0.5f));
+    fim = luma_regiao(60, 1000, 400, 60);
+    printf("  brilho fora da folha: %.1f -> %.1f (%.0f%%)\n", base, fim, 100.0 * fim / base);
+    confere("a Home atras escurece de 30 a 70% (nem preta, nem igual)", fim / base > 0.30 && fim / base < 0.70);
+    // a arte larga no topo: a faixa nao e uniforme (arte desenhada)
+    { unsigned char *px = malloc(1920 * 1080 * 4); int x, y, n = 0; double sm = 0, s2 = 0;
+      glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, px);
+      for (y = (int)(sup.y * gfx_escala_ui()) + 30; y < (int)(sup.y * gfx_escala_ui()) + 250; y += 6)
+        for (x = (int)(sup.x * gfx_escala_ui()) + 20; x < (int)((sup.x + sup.w) * gfx_escala_ui()) - 20; x += 6) {
+          const unsigned char *q = px + ((1079 - y) * 1920 + x) * 4; double l = (q[0] + q[1] + q[2]) / 3.0; sm += l; s2 += l * l; n++; }
+      free(px);
+      printf("  variancia da arte: %.1f\n", s2 / n - (sm / n) * (sm / n));
+      confere("a arte do titulo aparece no topo da folha", n && s2 / n - (sm / n) * (sm / n) > 20.0); }
+    { SDL_Event e; memset(&e,0,sizeof e); e.type=SDL_KEYDOWN; e.key.keysym.sym=SDLK_DOWN; ctx_evento(&e); }
+    quadros(20, NULL);
+    snprintf(png, sizeof png, "%s/n2-folha-foco.png", saida); quadros(1, png);
     { SDL_Event e; memset(&e,0,sizeof e); e.type=SDL_KEYDOWN; e.key.keysym.sym=SDLK_RIGHT; ctx_evento(&e); }
-    quadros(30, NULL); snprintf(png, sizeof png, "%s/f3-foco2.png", saida); quadros(1, png);
-    confere("seta para os lados nao fecha o menu", ctx_aberto());
+    confere("seta para o lado nao fecha", ctx_aberto());
     { SDL_Event e; memset(&e,0,sizeof e); e.type=SDL_KEYDOWN; e.key.keysym.sym=SDLK_ESCAPE; ctx_evento(&e); }
     confere("Voltar fecha", !ctx_aberto());
-    // fechar: o mesmo caminho para tras, e a Home volta exatamente ao que era
-    ant = luma_regiao(900, 60, 900, 420); ok = 1;
-    for (k2 = 0; k2 < 6; k2++) { v[k2] = amostra(3); if (v[k2] < ant - 0.6) ok = 0; ant = v[k2]; }
-    confere("fechamento: o brilho so volta, quadro a quadro", ok);
+    ant = luma_regiao(60, 1000, 400, 60); ok = 1;
+    { CtxFundo cf; float va = 2.0f; int vivo = 1; for (k2 = 0; k2 < 12 && vivo; k2++) { vivo = ctx_fundo(&cf); quadros(2, NULL); if (vivo && cf.veu > va + 1e-4f) ok = 0; if (vivo) va = cf.veu; } }
+    confere("fechar: o veu do menu so diminui, pelo mesmo caminho", ok);
     quadros(40, NULL);
-    volta = luma_regiao(900, 60, 900, 420);
-    printf("  luma depois de fechar %.1f (base %.1f)\n", volta, base);
+    volta = luma_regiao(60, 1000, 400, 60);
     confere("fechado: a Home volta ao brilho original", fabs(volta - base) / base < 0.02);
-    snprintf(png, sizeof png, "%s/f5-fechado.png", saida); quadros(1, png); }
-  tecla(SDLK_DOWN); quadros(40, NULL); tecla(SDLK_DOWN); quadros(60, NULL);
-  for (i = 0; i < 7; i++) { tecla(SDLK_RIGHT); quadros(20, NULL); }
-  quadros(60, NULL); segurar(); quadros(50, NULL);
-  confere("em alta: o menu abriu", ctx_aberto());
-  snprintf(png, sizeof png, "%s/f4-direita.png", saida); quadros(1, png);
-  fechar();
-  // Simples: a lista antiga, sem facetas (o ajuste do dono continua valendo)
+    confere("fechado: nenhuma forma na tela", ctx_novo_estilo() == -1); }
+
+  printf("\nDesdobrar:\n");
   { int op = ajustes_rapido_op("menuCartazLocal");
-    double antes, aberto2;
-    confere("Simples ligado", ajustes_rapido_passo(op, 1) && ajustes_menu_cartaz_simples());
-    quadros(30, NULL); antes = luma_regiao(900, 60, 900, 420);
-    segurar(); quadros(40, NULL);
-    aberto2 = luma_regiao(900, 60, 900, 420);
-    confere("Simples: o menu abre e usa o veu antigo (30%), nao o das facetas", ctx_aberto() && aberto2 / antes < 0.80);
+    HomeItem hi; GfxRect sup, item; CtxFundo cf;
+    ajustes_rapido_passo(op, 1); ajustes_rapido_passo(op, 1);
+    confere("Desdobrar selecionado", ajustes_menu_cartaz_estilo() == 2);
+    quadros(20, NULL);
+    confere("ha cartaz em foco", home_item_focado(&hi));
+    item = (GfxRect){ hi.rect.x / gfx_escala_ui(), hi.rect.y / gfx_escala_ui(), hi.rect.w / gfx_escala_ui(), hi.rect.h / gfx_escala_ui() };
+    segurar(); quadros(5, NULL);
+    snprintf(png, sizeof png, "%s/n3-desdobrando.png", saida); quadros(1, png);
+    quadros(40, NULL);
+    snprintf(png, sizeof png, "%s/n4-desdobrado.png", saida); quadros(1, png);
+    confere("a forma na tela e o Desdobrar", ctx_novo_estilo() == 2);
+    confere("a superficie existe", ctx_novo_superficie(&sup));
+    printf("  superficie %.0f,%.0f %.0fx%.0f  item %.0f,%.0f %.0fx%.0f\n", sup.x, sup.y, sup.w, sup.h, item.x, item.y, item.w, item.h);
+    confere("a superficie nasce no item e cresce para um lado", fabsf(sup.x - item.x) < 1.5f || fabsf(sup.x + sup.w - item.x - item.w) < 1.5f);
+    confere("a superficie e o item + o painel (470)", fabsf(sup.w - item.w - CTXG_DESD_W) < 1.5f);
+    confere("pede a copia parada com a faixa deslocando", ctx_fundo(&cf) && fabsf(cf.dx) > 100.0f && cf.faixa.w > 10.0f);
+    confere("a faixa comeca na borda do item", fabsf(cf.faixa.x - (item.x + item.w) * gfx_escala_ui()) < 2.0f || fabsf(cf.faixa.x) < 0.5f);
     fechar();
-    confere("volta ao completo", ajustes_rapido_passo(op, 1) && !ajustes_menu_cartaz_simples()); }
+    confere("fechado", !ctx_aberto() && ctx_novo_estilo() == -1);
+    ajustes_rapido_passo(op, 1);
+    confere("volta para a Folha", ajustes_menu_cartaz_estilo() == 0); }
+
+  printf("\nDestaque (hero):\n");
+  { GfxRect sup;
+    tecla(SDLK_UP); quadros(90, NULL);
+    segurar(); quadros(45, NULL);
+    snprintf(png, sizeof png, "%s/n5-destaque.png", saida); quadros(1, png);
+    confere("no destaque o menu abre na forma nova", ctx_aberto() && ctx_novo_estilo() == 0 && ctx_novo_superficie(&sup));
+    fechar(); }
+
+  printf("\nLista simples:\n");
+  { int op = ajustes_rapido_op("menuCartazLocal"); double antes, aberto2;
+    tecla(SDLK_DOWN); quadros(60, NULL);
+    ajustes_rapido_passo(op, 1);
+    confere("Lista simples ligada", ajustes_menu_cartaz_simples());
+    quadros(30, NULL); antes = luma_regiao(60, 1000, 400, 60);
+    segurar(); quadros(40, NULL);
+    aberto2 = luma_regiao(60, 1000, 400, 60);
+    confere("Lista simples: abre com a lista antiga, sem forma nova", ctx_aberto() && ctx_novo_estilo() == -1 && aberto2 / antes < 0.95);
+    fechar();
+    ajustes_rapido_passo(op, 1); ajustes_rapido_passo(op, 1);
+    confere("volta para a Folha", ajustes_menu_cartaz_estilo() == 0); }
   (void)gl;
   printf("\n%s\n", falhas ? "FALHOU" : "PASSOU");
   return falhas ? 1 : 0;

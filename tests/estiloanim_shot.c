@@ -149,7 +149,7 @@ static void ajustes(int vidro) {
   a = fopen(cam, "w");
   assert(a);
   fprintf(a, "idioma 0\ntrailerHero 0\nhomeLayoutLocal 0\nvidroLocal %d\n"
-             "modernLandscapePostersEnabled 1\n", vidro);
+             "modernLandscapePostersEnabled 1\nmenuCartazLocal 1\n", vidro);   /* a lista antiga (ver ctxnovo_shot para as formas novas) */
   if (fonte) fprintf(a, "fonteInterface %d\n", atoi(fonte));
   fclose(a);
   ajustes_dir(dirDados);
