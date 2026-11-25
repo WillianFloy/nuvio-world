@@ -88,10 +88,6 @@
 // `voz` = 1 quando quem abriu foi o botao de microfone: com ditado disponivel
 // ele comeca na hora.
 void spot_abrir(int voz);
-// A mesma abertura, nascendo do retangulo (x, y, w, h) — a lupa do menu do
-// topo ou a pilula do relogio (chorigem.h). Testes: a origem guardada.
-void spot_abrir_de(int voz, float x, float y, float w, float h);
-int  spot_teste_origem(float *x, float *y, float *w, float *h);
 // Abre sem pedir o teclado do sistema (demonstracao das Dicas do controle).
 void spot_abrir_demo(void);
 // Busca somente preferencias locais, sem consultas de catalogo/pessoas nem historico.

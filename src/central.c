@@ -3,7 +3,6 @@
 #include "central.h"
 #include "centrallista.h"
 #include "chsegura.h"
-#include "chorigem.h"
 #include "ajustes.h"
 #include "anim.h"
 #include "catalogo.h"
@@ -40,16 +39,9 @@
 // O PAINEL e a ilha do relogio esticada, numa coluna estreita pendurada no
 // canto dela (dono, 06/10: "muito grandao... menos largo e so aumentar se
 // tiver mais botoes"). A altura segue o conteudo: poucos botoes, painel curto.
-// C2, A COLUNA (World 24/11, prancha R8 aprovada pelo dono): os atalhos viram
-// LINHAS (icone, nome, valor ou interruptor a direita), a lingua das linhas do
-// Ajustes World; a grade 3x3 de blocos saiu. CC_COLS = 1 mantem a conta das
-// fileiras do resto do arquivo.
 #define CC_W       492.0f
 #define CC_PAD      20.0f
-#define CC_COLS      1
-#define CC_ROW_H    60.0f
-#define CC_ROW_GAP   6.0f
-#define CC_ROW_R    12.0f
+#define CC_COLS      3
 #define CC_GAP      10.0f
 #define CC_BOTAO_H 104.0f
 #define CC_BOTAO_R  22.0f
@@ -173,33 +165,9 @@ static int ofertas(int *item) {
   return n;
 }
 
-// DE ONDE A CENTRAL NASCE (chorigem.h): da pilula do relogio quando ele esta
-// na tela (o caminho de sempre); sem ele, da barra do topo ou de uma capsula
-// no centro do alto, que e tambem onde o segurar do CH+ se desenha.
-static int origemOk;          // 0 = da pilula
-static GfxRect origemReal;    // px reais
-static int centralOrigem(GfxRect *o) {
-  GfxRect r;
-  ChOrigemTipo t = chorigem(CHO_P_CENTRAL, &r);
-  if (t == CHO_RELOGIO) return 0;
-  if (t == CHO_TOPO) *o = r;
-  else {   // a capsula do centro cabe o nome traduzido ("Punkt управления" e longo)
-    float w = 52.0f + (float)txt_largura(TXT_ILHA_HORA, "Central de controle") + 24.0f;
-    if (w < 196.0f) w = 196.0f;
-    *o = (GfxRect){ r.x + r.w * 0.5f - w * 0.5f, r.y, w, 48.0f };
-  }
-  return 1;
-}
-int central_teste_origem(float *x, float *y, float *w, float *h) {
-  if (!origemOk) return 0;
-  *x = origemReal.x; *y = origemReal.y; *w = origemReal.w; *h = origemReal.h;
-  return 1;
-}
-
 void central_abrir(void) {
   carregar();
   if (aberta) return;
-  origemOk = centralOrigem(&origemReal);
   aberta = 1;
   editando = 0;
   escolhendoCor = 0;
@@ -312,21 +280,11 @@ void central_evento(const SDL_Event *e) {
     int n = botoes(NULL, NULL) + 1;   // + "Editar atalhos"
     if (foco >= n) foco = n - 1;
     if (nv_tecla_voltar(e)) { central_fechar(); return; }
-    if (k == SDLK_UP && foco > 0) foco--;
-    else if (k == SDLK_DOWN && foco + 1 < n) foco++;
-    // ESQUERDA/DIREITA na linha mudam o valor ali mesmo, para tras e para a
-    // frente, como as linhas de escolha do Ajustes (OK continua sendo "o
-    // proximo" e, na Cor, o seletor).
-    else if ((k == SDLK_LEFT || k == SDLK_RIGHT) && foco < n - 1) {
-      int op[CENTRAL_MAX + 1];
-      botoes(op, NULL);
-      if (op[foco] != CC_OP_ESTAT) {
-        if (ajustes_rapido_passo(op[foco], k == SDLK_RIGHT ? 1 : -1))
-          printf("[central] %s -> %s\n", ajustes_rapido_rotulo(op[foco]), ajustes_rapido_valor(op[foco]));
-        else avisar("Não foi possível salvar. O valor anterior foi mantido.");
-        fflush(stdout);
-      }
-    }
+    if (k == SDLK_LEFT && foco % CC_COLS > 0) foco--;
+    else if (k == SDLK_RIGHT && foco % CC_COLS < CC_COLS - 1 && foco + 1 < n) foco++;
+    else if (k == SDLK_UP && foco >= CC_COLS) foco -= CC_COLS;
+    else if (k == SDLK_DOWN && foco + CC_COLS < n) foco += CC_COLS;
+    else if (k == SDLK_DOWN && foco / CC_COLS < (n - 1) / CC_COLS) foco = n - 1;
     else if (k == SDLK_RETURN || k == SDLK_KP_ENTER) ativarBotao(foco);
   }
 }
@@ -355,7 +313,7 @@ void central_atualizar(float dt, Uint32 agora) {
   if (!aberta) return;
   carregar();
   centralPassoFoco(dt);
-  if (!player_aberto()) ilha_corpo_de(CC_W, altura(1), corpo, NULL, origemOk ? &origemReal : NULL);
+  if (!player_aberto()) ilha_corpo(CC_W, altura(1), corpo, NULL);
 }
 // No player o pedido vai logo antes de plrilha_desenhar: o ultimo pedido com
 // corpo vence, e o player faz os dele no proprio desenho. O cabecalho e o da
@@ -430,36 +388,6 @@ void central_segurar_desenhar(GfxRect r, float raio, float a, Uint32 agora) {
   rpx = raio * r.h;                      // raio em px (raio chega relativo a altura)
   bx = r.x + rpx * 0.75f; bw = (r.w - rpx * 1.5f) * p;
   if (bw > 0.5f) gfx_cor((GfxRect){ bx, r.y + r.h - 7.0f, bw, 4.0f }, 0.5f, cr, cg, cb, a);
-}
-
-// SEGURAR CH+ SEM O RELOGIO (dono, 24/11: "Não quero que o relógio apareça
-// nesse caso"). Nada de pilula com a hora: na barra do topo, o mesmo veu claro
-// que avanca e o fio de 4 px no acento, por cima dela; sem barra, uma capsula
-// discreta no centro do alto com "Central de controle" e o fio. Soltar antes recolhe pelo
-// mesmo progresso (central_segurar_progresso), e a Central nasce dali.
-void central_segurar_sem_relogio(Uint32 agora) {
-  float p = central_segurar_progresso(agora), e = gfx_escala(), cr, cg, cb, a;
-  GfxRect o;
-  int barra;
-  if (p <= 0.0f || player_aberto()) return;
-  if (!centralOrigem(&o)) return;          // relogio na tela: a pilula cuida
-  barra = chorigem(CHO_P_CENTRAL, NULL) == CHO_TOPO;
-  o.x /= e; o.y /= e; o.w /= e; o.h /= e;
-  ajustes_acento(&cr, &cg, &cb);
-  a = anim_clamp(p * 4.0f, 0.0f, 1.0f);
-  if (!barra) {
-    TxtLinha t = txt_linha_corta(TXT_ILHA_HORA, "Central de controle", 243, 242, 239, 255, o.w - 52.0f - 18.0f);
-    gfx_cor(o, 0.5f, 0.0f, 0.0f, 0.0f, 0.78f * a);
-    gfx_anel(o, 0.5f, 1.5f, 1.0f, 1.0f, 1.0f, 0.12f * a);
-    gfx_icone((GfxRect){ o.x + 22.0f, o.y + (o.h - 20.0f) * 0.5f, 20.0f, 20.0f }, "aj_sliders-horizontal",
-              0.953f, 0.949f, 0.937f, 0.85f * a);
-    txt_desenhar_alpha(t, o.x + 52.0f, o.y + (o.h - (float)t.h) * 0.5f, 0.9f * a);
-  }
-  gfx_recorte(o.x, o.y, o.w * p, o.h);
-  gfx_cor(o, 0.5f, 1.0f, 1.0f, 1.0f, 0.14f * a);
-  gfx_sem_recorte();
-  { float rpx = o.h * 0.5f, bw = (o.w - rpx * 1.5f) * p;
-    if (bw > 0.5f) gfx_cor((GfxRect){ o.x + rpx * 0.75f, o.y + o.h - 7.0f, bw, 4.0f }, 0.5f, cr, cg, cb, a); }
 }
 
 int central_tecla(const SDL_Event *e, int pode) {
@@ -571,7 +499,7 @@ static float altura(int comFaixa) {
     int n = linhasBotoes();
     h += 6.0f;
     if (tocando(t, sizeof t, m, sizeof m)) h += CC_TOC_H + 10.0f;
-    h += (float)n * (CC_ROW_H + CC_ROW_GAP) - CC_ROW_GAP;
+    h += (float)n * (CC_BOTAO_H + CC_GAP) - CC_GAP;
   }
   h += CC_PAD;
   return h > CC_TETO ? CC_TETO : h;
@@ -636,62 +564,80 @@ static void cartaoTocando(GfxRect r, const char *tit, const char *meta, float a)
     if (meta[0]) txt_desenhar_alpha(m, tx, hy + (float)t.h + 2.0f, 0.55f * a); }
 }
 
-// Center smoothly, while keeping the entire focused tile inside the viewport.
-static float rolagemBotoes(float h) {
-  float passo = CC_ROW_H + CC_ROW_GAP;
-  float top = (float)(foco / CC_COLS) * passo;
-  float maxR = fmaxf(0, (float)linhasBotoes() * passo - CC_ROW_GAP - h);
-  float alvo = anim_clamp(top - (h - CC_ROW_H) * 0.5f, 0, maxR);
-  float r = anim_mola(rolaBotoes, alvo, quadroDt, 12.0f);
-  return anim_clamp(r, fmaxf(0, top + CC_ROW_H - h), fminf(top, maxR));
+// UM BOTAO: icone em cima, nome curto e, quando nao e interruptor, o valor.
+// Active tiles keep their accent; focus adds frost, a top light and the ring.
+// `ligF` (0..1) e `f` (0..1) sao MOLAS: o realce liga/desliga e o anel entra
+// em ~120 ms (NV_MOLA_FOCO), em vez de trocar num quadro. A tinta do TEXTO
+// troca no ponto medio (rasterizado nao recolor por quadro); icone, superficies
+// e anel crossfadezam de verdade.
+static void botao(GfxRect r, const char *icone, const char *rot, const char *val,
+                  int ligado, float ligF, float f, float a) {
+  float ar, ag, ab, w = r.w - 24.0f, y;   // 14 a esquerda, 10 a direita
+  int acesoV = ligado >= 0 ? ligF > 0.5f : 0;
+  int tinta = acesoV ? ajustes_tinta_foco() : 243;
+  float ti = ligado >= 0 ? anim_mistura(243.0f, (float)ajustes_tinta_foco(), ligF) / 255.0f
+                        : (float)tinta / 255.0f;
+  TxtLinha l, v;
+  ajustes_acento(&ar, &ag, &ab);
+  // Share the cached frost even with interface glass off; never blur per tile.
+  if (f > 0.01f) gfx_vidro_folha(r, CC_BOTAO_R / r.h, f * a);
+  if (ligado >= 0 && ligF > 0.005f) gfx_cor(r, CC_BOTAO_R / r.h, ar, ag, ab, a * ligF * (1.0f - 0.08f * f));
+  if (ligado < 0 || ligF < 0.995f) superficie(r, CC_BOTAO_R, f, a * (1.0f - ligF) * (1.0f - f));
+  if (f > 0.01f) {
+    gfx_brilho_topo(r, CC_BOTAO_R / r.h, 0.45f, 1, 1, 1, 0.16f * f * a);
+    gfx_anel_fora(r, CC_BOTAO_R / r.h, 3.0f, 2.5f, 1, 1, 1, 0.95f * f * a);
+  }
+  // ICONE COM ALMA (dono 23/11): em repouso ele puxa um fio da cor do acento (a
+  // cor da arte no tema dinamico); com o foco cresce e sobe, e a cor aprofunda.
+  // Ligado (bloco cheio no acento) volta a tinta escura de sempre.
+  { float k = 1.0f + 0.14f * f, sz = CC_ICONE * k, mx = (0.26f + 0.50f * f) * (1.0f - (ligado >= 0 ? ligF : 0.0f));
+    gfx_icone((GfxRect){ r.x + 14.0f + (CC_ICONE - sz) * 0.5f, r.y + 14.0f + (CC_ICONE - sz) * 0.5f - 2.0f * f, sz, sz }, icone,
+              ti + (ar - ti) * mx, ti + (ag - ti) * mx, ti + (ab - ti) * mx,
+              anim_mistura(0.88f, 1.0f, ligado >= 0 ? ligF : 0.0f) * a); }
+  // Nome em 16/600; se nao couber (alemao, russo), um degrau menor; sem
+  // valor embaixo (interruptor) e com mais de uma palavra, duas linhas em
+  // 16/600 ("Choisir la / source"); o corte e o ultimo recurso.
+  l = txt_linha(TXT_G16B, rot, tinta, tinta, tinta, 255);
+  if ((float)l.w > w) {
+    TxtLinha m = txt_linha(TXT_ILHA_HORA, rot, tinta, tinta, tinta, 255);
+    if ((float)m.w <= w) l = m;
+    else if (ligado >= 0 && strchr(i18n(rot), ' ')) {
+      float g = gfx_opacidade_grupo, h;
+      gfx_opacidade_grupo = 0.0f;
+      h = txt_bloco_corta(TXT_G16B, rot, tinta, tinta, tinta, 0, 0, w, 19.0f, 1.0f, 2);
+      gfx_opacidade_grupo = g;
+      txt_bloco_corta(TXT_G16B, rot, tinta, tinta, tinta, r.x + 14.0f, r.y + r.h - 14.0f - h, w, 19.0f, a, 2);
+      return;
+    } else l = txt_linha_corta(TXT_ILHA_HORA, rot, tinta, tinta, tinta, 255, w);
+  }
+  y = r.y + r.h - 14.0f;
+  if (ligado < 0 && val && val[0]) {
+    v = txt_linha_corta(TXT_ILHA_HORA, val, tinta, tinta, tinta, 255, w);
+    y -= (float)v.h;
+    txt_desenhar_alpha(v, r.x + 14.0f, y, 0.6f * a);
+    y -= 1.0f;
+  }
+  txt_desenhar_alpha(l, r.x + 14.0f, y - (float)l.h, a);
 }
 
-// UMA LINHA DA COLUNA: icone (com o fio do acento, como antes), o nome e, a
-// direita, o interruptor (atalho liga/desliga) ou o valor. Foco: a faixa clara
-// de raio curto e o contorno de 2 px do Ajustes World. As molas (ligF, f) sao
-// as mesmas dos blocos de antes.
-static void linhaAtalho(GfxRect r, const char *icone, const char *rot, const char *val,
-                        int ligado, float ligF, float f, float a) {
-  float ar, ag, ab, raio = CC_ROW_R / r.h, dirX = r.x + r.w - 16.0f, tx = r.x + 56.0f, tw;
-  float ti = 0.953f;
-  ajustes_acento(&ar, &ag, &ab);
-  if (f > 0.01f) {
-    gfx_cor(r, raio, 1.0f, 1.0f, 1.0f, 0.10f * f * a);
-    gfx_anel_fora(r, raio, 0.0f, 2.0f, 1.0f, 1.0f, 1.0f, 0.62f * f * a);
-  }
-  { float k = 1.0f + 0.10f * f, sz = 24.0f * k, mx = 0.26f + 0.50f * f;
-    gfx_icone((GfxRect){ r.x + 18.0f + (24.0f - sz) * 0.5f, r.y + (r.h - sz) * 0.5f, sz, sz }, icone,
-              ti + (ar - ti) * mx, ti + (ag - ti) * mx, ti + (ab - ti) * mx, (0.82f + 0.18f * f) * a); }
-  // A direita: interruptor de 46x26 ou o valor (60 %).
-  if (ligado >= 0) {
-    GfxRect tr = { dirX - 46.0f, r.y + (r.h - 26.0f) * 0.5f, 46.0f, 26.0f };
-    float kx = tr.x + 3.0f + (46.0f - 26.0f) * ligF;
-    gfx_cor(tr, 0.5f, 1.0f, 1.0f, 1.0f, 0.16f * (1.0f - ligF) * a);
-    if (ligF > 0.005f) gfx_cor(tr, 0.5f, ar, ag, ab, ligF * a);
-    // A bola ligada leva a tinta que contrasta com o acento (escura no
-    // Branco/Dourado), como o texto dos botoes acesos do app.
-    { float tk = (float)ajustes_tinta_foco() / 255.0f, kc = 0.97f + (tk - 0.97f) * ligF;
-      gfx_cor((GfxRect){ kx, tr.y + 3.0f, 20.0f, 20.0f }, 0.5f, kc, kc, kc * 0.99f, a); }
-    dirX = tr.x - 14.0f;
-  } else if (val && val[0]) {
-    TxtLinha v = txt_linha_corta(TXT_ILHA_HORA, val, 243, 242, 239, 255, r.w * 0.38f);
-    txt_desenhar_alpha(v, dirX - (float)v.w, r.y + (r.h - (float)v.h) * 0.5f, (0.55f + 0.25f * f) * a);
-    dirX -= (float)v.w + 14.0f;
-  }
-  tw = dirX - tx;
-  { TxtLinha l = txt_linha(TXT_ILHA_SUB, rot, 243, 242, 239, 255);
-    if ((float)l.w > tw) l = txt_linha(TXT_G16B, rot, 243, 242, 239, 255);
-    if ((float)l.w > tw) l = txt_linha_corta(TXT_ILHA_HORA, rot, 243, 242, 239, 255, tw);
-    txt_desenhar_alpha(l, tx, r.y + (r.h - (float)l.h) * 0.5f, (0.86f + 0.14f * f) * a); }
+// Center smoothly, while keeping the entire focused tile inside the viewport.
+static float rolagemBotoes(float h) {
+  float passo = CC_BOTAO_H + CC_GAP;
+  float top = (float)(foco / CC_COLS) * passo;
+  float maxR = fmaxf(0, (float)linhasBotoes() * passo - CC_GAP - h);
+  float alvo = anim_clamp(top - (h - CC_BOTAO_H) * 0.5f, 0, maxR);
+  float r = anim_mola(rolaBotoes, alvo, quadroDt, 12.0f);
+  return anim_clamp(r, fmaxf(0, top + CC_BOTAO_H - h), fminf(top, maxR));
 }
 
 static void desenhaBotoes(float x, float y, float w, float h, float a) {
   int op[CENTRAL_MAX + 1], item[CENTRAL_MAX + 1], n = botoes(op, item), i;
+  float bw = (w - CC_GAP * (CC_COLS - 1)) / CC_COLS;
   float scroll = 0;
   if (foco > n) foco = n;
   if (!previa) {
 #ifdef NV_TOUCH_UI
-    float maxR = fmaxf(0, (float)linhasBotoes() * (CC_ROW_H + CC_ROW_GAP) - CC_ROW_GAP - h);
+    float maxR = fmaxf(0, (float)linhasBotoes() * (CC_BOTAO_H + CC_GAP) - CC_GAP - h);
     toquerol_vincular(&toqueCentral, (GfxRect){x, y, w, h}, gfx_escala(), 0, maxR, 1, &rolaBotoes);
     if (aberta && a > 0.5f) ponteiro_rolagem(toqueCentralRolar);
     if (!toqueCentral.livre)
@@ -701,33 +647,21 @@ static void desenhaBotoes(float x, float y, float w, float h, float a) {
   }
   gfx_recorte(x - 8.0f, y - 6.0f, w + 16.0f, h + 12.0f);
   for (i = 0; i <= n; i++) {
-    GfxRect r = { x, y + (float)i * (CC_ROW_H + CC_ROW_GAP) - scroll, w, CC_ROW_H };
-    // A ENTRADA DA COLUNA: as linhas descem 8 px e acendem uma depois da
-    // outra (30 ms), com o corpo da ilha ja quase no lugar (`a`).
-    float ka = 1.0f;
-    if (!previa && !ajustes_animacoes_reduzidas()) {
-      static float entra;
-      if (i == 0) entra = aberta ? anim_clamp(entra + quadroDt * 3.2f, 0.0f, 3.0f) : 0.0f;
-      ka = anim_clamp(entra * 3.0f - (float)i * 0.09f * 3.0f, 0.0f, 1.0f);
-      ka = 1.0f - (1.0f - ka) * (1.0f - ka);
-      r.y += 8.0f * (1.0f - ka);
-    }
+    GfxRect r = { x + (float)(i % CC_COLS) * (bw + CC_GAP), y + (float)(i / CC_COLS) * (CC_BOTAO_H + CC_GAP) - scroll,
+                  bw, CC_BOTAO_H };
     if (r.y + r.h < y || r.y > y + h) continue;
-    if (i < n && op[i] == CC_OP_ESTAT) linhaAtalho(r, "aj_gauge", "Estatísticas", "", -1, 0.0f, animFoco[i], a * ka);
+    if (i < n && op[i] == CC_OP_ESTAT) botao(r, "aj_gauge", "Estatísticas", "", -1, 0.0f, animFoco[i], a);
     else if (i < n) {
       const CentralItem *c = central_catalogo(item[i]);
       int lig = ajustes_rapido_ligado(op[i]);
       if (previa && i == previaInverte && lig >= 0) lig = !lig;
-      linhaAtalho(r, c->icone, c->curto, op[i] == AJ_RAPIDO_COR ? ajustes_rapido_cor_nome(ajustes_rapido_cor_atual() >= 0 ? ajustes_rapido_cor_atual() : 0) : ajustes_rapido_valor(op[i]),
-                  lig, animLig[i], animFoco[i], a * ka);
-      if (op[i] == AJ_RAPIDO_COR) {   // a cor de agora, num ponto antes do nome dela
+      botao(r, c->icone, c->curto, ajustes_rapido_valor(op[i]), lig, animLig[i], animFoco[i], a);
+      if (op[i] == AJ_RAPIDO_COR) {   // a cor de agora, num ponto no canto
         float cr, cg, cb;
-        TxtLinha v = txt_linha_corta(TXT_ILHA_HORA, ajustes_rapido_cor_nome(ajustes_rapido_cor_atual() >= 0 ? ajustes_rapido_cor_atual() : 0),
-                                     243, 242, 239, 255, r.w * 0.38f);
         ajustes_acento_marca(&cr, &cg, &cb);
-        gfx_cor((GfxRect){ r.x + r.w - 16.0f - (float)v.w - 24.0f, r.y + (r.h - 14.0f) * 0.5f, 14.0f, 14.0f }, 0.5f, cr, cg, cb, a * ka);
+        gfx_cor((GfxRect){ r.x + r.w - 14.0f - 14.0f, r.y + 16.0f, 14.0f, 14.0f }, 0.5f, cr, cg, cb, a);
       }
-    } else linhaAtalho(r, "aj_sliders-horizontal", "Editar atalhos", "", -1, 0.0f, animFoco[i], a * ka);
+    } else botao(r, "aj_sliders-horizontal", "Editar", "", 0, 0.0f, animFoco[i], a);
     if (aberta && a > 0.5f && ponteiro_ativo())
       ponteiro_alvo_faixa(r.x, r.y, r.w, r.h, y, y + h, ptFoco, ptOk, i, 0);
   }
@@ -920,8 +854,7 @@ void central_previa_desenhar(float x, float y, float a, int f, int inverte) {
 }
 
 float central_rotulo_w(void) {
-  // A linha: 56 do icone, 16 a direita, o interruptor (46) e 14 de folga.
-  return CC_W - 2.0f * CC_PAD - 56.0f - 16.0f - 46.0f - 14.0f;
+  return (CC_W - 2.0f * CC_PAD - CC_GAP * (CC_COLS - 1)) / CC_COLS - 24.0f;   // o `w` de botao()
 }
 
 #ifdef CENTRAL_TESTE

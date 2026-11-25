@@ -198,12 +198,6 @@ int main(int argc, char **argv) {
   if (!dir || !dir[0]) { printf("NUVIO_DADOS ausente; recusando\n"); return 2; }
   dados_iniciar(dir);
   if (strcmp(dados_dir(), dir)) { printf("dados_dir() != NUVIO_DADOS; recusando\n"); return 2; }
-  // A LISTA de Salvos (Classico): este teste cobra o gesto e a remocao numa
-  // lista vertical (BAIXO = proximo titulo). A Estante e a Coluna (World 24/11)
-  // tem o proprio teste de navegacao: tests/salvos_estilos_shot.c.
-  { char cam[600]; FILE *aj;
-    snprintf(cam, sizeof cam, "%s/ajustes.txt", dir);
-    if ((aj = fopen(cam, "a"))) { fputs("salvosEstiloLocal 2\n", aj); fclose(aj); } }
   ajustes_dir(dir);
 
   SDL_SetHint("SDL_MAC_BACKGROUND_APP", "1");

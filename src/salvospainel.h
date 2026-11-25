@@ -74,12 +74,5 @@ int spainel_foco_indice(void);
 // Abre (se preciso) na aba Atividade e poe o foco no primeiro evento de amigo
 // do titulo `imdb` (a lista rola ate ele). Sem evento desse titulo, so a aba.
 void spainel_abrir_titulo(const char *imdb);
-// Testes (World 24/11): a apresentacao aberta (0 Estante, 1 Coluna, 2 Classico),
-// quantas pilulas a barra tem, o retangulo DESENHADO da linha `i` no ultimo
-// quadro (0 se ela nao saiu) e o retangulo do banner da Estante.
-int spainel_teste_modo(void);
-int spainel_teste_n_chips(void);
-int spainel_teste_linha(int i, float *x, float *y, float *w, float *h);
-int spainel_teste_banner(float *x, float *y, float *w, float *h);
 
 #endif
