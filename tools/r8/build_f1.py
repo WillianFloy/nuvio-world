@@ -147,3 +147,17 @@ if __name__ == "__main__" and len(sys.argv) < 3:
         if f not in idx["order"]: idx["order"].append(f)
     json.dump(idx, open(f"{OUT}/canvas.json", "w"), ensure_ascii=False, indent=1)
 print("ok", [(n, os.path.getsize(f"{OUT}/{n}.dc.html") // 1024, h) for n, _, h in BOARDS])
+live_board("R10-B-busca-flutuante", "10.13 · CH− Busca · flutuante, sem encostar no topo",
+  "Proposta: a pílula nasce no meio, em cima, e se abre no lugar num campo flutuante (não gruda no topo). O corpo é um cartão próprio, 12 px abaixo. O fundo escurece mais.",
+  F.build_busca_flut(), F.F1B_MARKS,
+  ["0–200 ms: a pílula de 464 × 52 desliza de fora da tela (y −64) até y 40, centrada na horizontal.",
+   "160–550 ms: ali mesmo ela cresce para 1100 × 72, sempre com cantos redondos e 40 px de folga do topo; a lupa vai para a esquerda e o texto cresce de 20 para 26 px.",
+   "Fundo: a Home recua 2,5 % e escurece 80 % (antes 60 %); a barra e o relógio somem nos primeiros 160 ms.",
+   "450–650 ms: o corpo nasce 12 px abaixo do campo, como um cartão separado (y 124, 1100 × 840), desdobrando de cima para baixo; o teclado sobe em cascata.",
+   "Resultados iguais aos da 10.11. Fechar: o corpo recolhe, o campo volta a 464 × 52 e a pílula sobe para fora da tela."],
+  [(0.9, "deslizando"), (1.15, "abrindo no lugar"), (1.4, "corpo"), (4.2, "resultados"), (7.75, "fechando")])
+live_board("R10-B-busca-modos-flutuante", "10.14 · CH− Busca flutuante · recentes, voz, celular e nada encontrado",
+  "Os mesmos estados da 10.12, com o campo flutuante e o corpo separado da 10.13.",
+  F.build_busca_modos_flut(), F.F1M_MARKS,
+  ["Tudo igual à 10.12; muda só a geometria do campo e do corpo e o fundo mais escuro."],
+  [(1.5, "recentes"), (2.8, "voz"), (5.2, "celular"), (7.2, "nada encontrado")])

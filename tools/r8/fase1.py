@@ -755,6 +755,11 @@ CP = (728, 40, 464, 52)         # a pilula nasce no meio, em cima (linha da barr
 CP_Y0 = -64                     # comeca acima da tela
 FLD = panels.FIELD
 BODY_H = 900
+# geometria da Busca: G muda com o modo flutuante (10.13/10.14): o campo nao encosta no topo
+G = dict(flut=False, fld=FLD, icy=34, fty=48, veil=0.6, bdy=0)
+def busca_geo(flut):
+    if flut: G.update(flut=True, fld=(410, 40, 1100, 72), icy=54, fty=58, veil=0.8, bdy=68, body=(410, 124, 1100, 840))
+    else: G.update(flut=False, fld=FLD, icy=34, fty=48, veil=0.6, bdy=0)
 def busca_m(t, O0=0.8, C0=7.6):
     """progresso LINEAR da abertura (0,65 s); cada fase aplica a propria curva. Fecha voltando ao meio (0,3 s)."""
     if t < O0: return 0.0
@@ -762,35 +767,38 @@ def busca_m(t, O0=0.8, C0=7.6):
     return 1 - seg(t, C0, C0 + 0.3)
 def busca_base(a, m, typed_fn=None):
     a.add("bg", lambda t: dict(x=0, y=0, w=SW, h=SH, s=lerp(1, 0.975, dec(m(t)))), home_plain(False), "transform-origin:50% 50%")
-    a.add("veil", lambda t: dict(x=0, y=0, w=SW, h=SH, o=0.6 * dec(m(t)), bg="#000"))
+    a.add("veil", lambda t: dict(x=0, y=0, w=SW, h=SH, o=G["veil"] * dec(m(t)), bg="#000"))
     a.add("bar", lambda t: dict(x=0, y=-10 * dec(m(t)), w=SW, h=140, o=1 - seg(m(t), 0, 0.25)), topbar())
+    FL = G["fld"]; flut = G["flut"]; BD = G.get("body")
     def corpo(t):
         k = dec(seg(m(t), 0.7, 1))
+        if flut:   # cartao proprio, 12 px abaixo do campo: desdobra de cima para baixo
+            return dict(x=BD[0], y=BD[1] - 10 * (1 - k), w=BD[2], h=lerp(60, BD[3], k), r=lerp(36, 28, k), o=seg(m(t), 0.7, 0.8))
         return dict(x=FLD[0], y=FLD[1] + FLD[3] - 40, w=FLD[2], h=lerp(40, BODY_H, k), r=34, o=1 if m(t) > 0.7 else 0)
     a.add("corpo", corpo, "", MAT)
-    a.add("sep", lambda t: dict(x=FLD[0] + 30, y=FLD[1] + FLD[3] - 2, w=(FLD[2] - 60) * dec(seg(m(t), 0.75, 1)), h=1.5, o=0.5 if m(t) > 0.75 else 0, bg="rgba(255,255,255,.18)"))
+    a.add("sep", lambda t: dict(x=FLD[0] + 30, y=FLD[1] + FLD[3] - 2, w=(FLD[2] - 60) * dec(seg(m(t), 0.75, 1)), h=1.5, o=(0.5 if m(t) > 0.75 else 0) * (0 if flut else 1), bg="rgba(255,255,255,.18)"))
     def fase(mm):
         ap = dec(seg(mm, 0, 0.3))                        # desliza de cima para a linha da barra
         k1, k2 = dec(seg(mm, 0.25, 0.85)), dec(seg(mm, 0.35, 0.95))
         return ap, k1, k2, lerp(CP_Y0, CP[1], ap)
     def field(t):
         mm = m(t); ap, k1, k2, yb = fase(mm)
-        return dict(x=lerp(CP[0], FLD[0], k1), y=lerp(yb, FLD[1], k2), w=lerp(CP[2], FLD[2], k1), h=lerp(CP[3], FLD[3], k2), r=lerp(26, 34, k2),
+        return dict(x=lerp(CP[0], FL[0], k1), y=lerp(yb, FL[1], k2), w=lerp(CP[2], FL[2], k1), h=lerp(CP[3], FL[3], k2), r=lerp(26, FL[3] / 2 if flut else 34, k2),
                     o=seg(mm, 0, 0.12) if mm > 0.001 else 0)
     a.add("field", field, "", "background:rgba(14,14,16,.97);box-shadow:0 0 0 1.5px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)")
     def lupa(t):
         mm = m(t); ap, k1, k2, yb = fase(mm)
-        return dict(x=lerp(CP[0] + 14, FLD[0] + 30, k1), y=lerp(yb + 4, 34, k2), w=44, h=44, o=seg(mm, 0, 0.12) if mm > 0.001 else 0, s=lerp(0.9, 1.1, k2))
+        return dict(x=lerp(CP[0] + 14, FL[0] + 30, k1), y=lerp(yb + 4, G["icy"], k2), w=44, h=44, o=seg(mm, 0, 0.12) if mm > 0.001 else 0, s=lerp(0.9, 1.1, k2))
     a.add("lupa", lupa, center(ico("search", 26), 20, BONE))
     # o texto de ajuda viaja junto e cresce de 20 para 26 px
     def ph(t):
         mm = m(t); ap, k1, k2, yb = fase(mm)
         hide = 1 - seg(t, typed_fn[0], typed_fn[0] + 0.08) if typed_fn else 1
-        return dict(x=lerp(CP[0] + 62, FLD[0] + 92, k1), y=lerp(yb + 13, 48, k2), w=700, h=40, o=seg(mm, 0.05, 0.2) * hide if mm > 0.001 else 0, s=lerp(0.77, 1, k2))
+        return dict(x=lerp(CP[0] + 62, FL[0] + 92, k1), y=lerp(yb + 13, G["fty"], k2), w=700, h=40, o=seg(mm, 0.05, 0.2) * hide if mm > 0.001 else 0, s=lerp(0.77, 1, k2))
     a.add("ph", ph, txt(0, 0, "Buscar filmes, séries, pessoas e canais", 26, DIM, 500), "transform-origin:0% 0%")
     ca = lambda t, i: casc(t, i, 0.8 + 0.45, 7.6, 0.05)
-    a.add("mic", lambda t: dict(x=FLD[0] + FLD[2] - 130, y=34, w=44, h=44, o=ca(t, 2)), center(ico("mic", 28), 20, BONE))
-    a.add("phn", lambda t: dict(x=FLD[0] + FLD[2] - 70, y=34, w=44, h=44, o=ca(t, 3)), center(ico("qr", 28), 20, BONE))
+    a.add("mic", lambda t: dict(x=FLD[0] + FLD[2] - 130, y=G["icy"], w=44, h=44, o=ca(t, 2)), center(ico("mic", 28), 20, BONE))
+    a.add("phn", lambda t: dict(x=FLD[0] + FLD[2] - 70, y=G["icy"], w=44, h=44, o=ca(t, 3)), center(ico("qr", 28), 20, BONE))
     return ca
 KEYROWS = "abcdef ghijkl mnopqr stuvwx yz1234 567890".split()
 def teclado(a, ca, o_fn=lambda t: 1.0, dx=lambda t: 0.0):
@@ -827,7 +835,8 @@ def resultados(a, t0, t1):
     for j, nm in enumerate(["Dune TV 24h", "Sci-Fi Clássicos"]):
         put(f"rc{j}", 12 + j, RX + j * 250, 812, 236, 52, center(ico("tv", 20) + nm, 17, BONE, 600, 8), "background:rgba(255,255,255,.07)", 26)
 
-def build_busca_meio():
+def build_busca_meio(flut=False):
+    busca_geo(flut)
     a = Anim("FB", cycle=F1_CYC)
     typed, TT = "duna", [2.4, 2.75, 3.1, 3.45]
     m = lambda t: busca_m(t)
@@ -835,7 +844,7 @@ def build_busca_meio():
     teclado(a, ca)
     for j in range(len(typed)):
         fim = TT[j + 1] if j + 1 < len(typed) else 7.6
-        a.add(f"ty{j}", (lambda j, fim: lambda t: dict(x=FLD[0] + 92, y=48, w=600, h=40, o=seg(t, TT[j], TT[j] + 0.04) * (1 - seg(t, fim, fim + 0.04))))(j, fim),
+        a.add(f"ty{j}", (lambda j, fim: lambda t: dict(x=FLD[0] + 92, y=G["fty"], w=600, h=40, o=seg(t, TT[j], TT[j] + 0.04) * (1 - seg(t, fim, fim + 0.04))))(j, fim),
               txt(0, 0, typed[:j + 1] + '<span style="display:inline-block;width:2px;height:28px;margin-left:3px;background:#F4F2EE;vertical-align:-4px"></span>', 28, BONE, 600))
     resultados(a, 3.6, 7.6)
     RK = [(0, key_rect("a")), (2.15, key_rect("d")), (2.6, key_rect("u")), (2.95, key_rect("n")), (3.3, key_rect("a")),
@@ -860,7 +869,8 @@ def qr_html(n=25, px=8, seed=7):
             if on: cells += f'<div style="position:absolute;left:{x*px}px;top:{y*px}px;width:{px}px;height:{px}px;background:#0B0B0C"></div>'
     return f'<div style="position:absolute;left:16px;top:16px;width:{n*px}px;height:{n*px}px">{cells}</div>'
 
-def build_busca_modos():
+def build_busca_modos(flut=False):
+    busca_geo(flut)
     a = Anim("FM", cycle=F1_CYC)
     O0, C0 = 0.3, 8.4
     m = lambda t: busca_m(t, O0, C0)
@@ -870,7 +880,7 @@ def build_busca_modos():
     LM = [(0, 0), (2.1, 1), (4.6, 2), (6.05, 0)]
     teclado(a, lambda t, i: casc(t, i, O0 + 0.45, C0, 0.05), lambda t: xf(t, LM, 0)[0], lambda t: xf(t, LM, 0)[1])
     for k, txt_ in ((1, "o urso"), (2, "x"), (3, "xq"), (4, "xqz")):
-        a.add(f"ft{k}", (lambda k: lambda t: dict(x=FLD[0] + 92, y=48, w=600, h=40, o=xf(t, FT, k)[0] if t < C0 else 0))(k),
+        a.add(f"ft{k}", (lambda k: lambda t: dict(x=FLD[0] + 92, y=G["fty"], w=600, h=40, o=xf(t, FT, k)[0] if t < C0 else 0))(k),
               txt(0, 0, txt_ + '<span style="display:inline-block;width:2px;height:28px;margin-left:3px;background:#F4F2EE;vertical-align:-4px"></span>', 28, BONE, 600))
     LX, LY, LW, LH = FLD[0] + 30, 150, 460, 520
     # voz
@@ -917,8 +927,22 @@ def build_busca_modos():
     a.add("nf", lambda t: dict(x=RX + ro(t, 2)[1], y=250, w=560, h=200, o=ro(t, 2)[0]),
           box(0, 0, 72, 72, "border-radius:36px;background:rgba(255,255,255,.08)", center(ico("search", 32), 20, MUT))
           + txt(0, 96, "Nada encontrado para “xqz”", 30, BONE, 800) + txt(0, 140, "Confira a ortografia ou busque por pessoa ou canal.", 19, MUT, 500, w=560))
-    RK = [(0, key_rect("a")), (1.7, (FLD[0] + FLD[2] - 136, 28, 56, 56, 28)), (4.2, (FLD[0] + FLD[2] - 76, 28, 56, 56, 28)),
+    RK = [(0, key_rect("a")), (1.7, (FLD[0] + FLD[2] - 136, G["icy"] - 6 - G["bdy"], 56, 56, 28)), (4.2, (FLD[0] + FLD[2] - 76, G["icy"] - 6 - G["bdy"], 56, 56, 28)),
           (6.05, key_rect("x")), (6.42, key_rect("q")), (6.62, key_rect("z"))]
     a.add("ring", lambda t: (lambda v: dict(x=v[0], y=v[1], w=v[2], h=v[3], r=v[4], o=casc(t, 4, O0 + 0.45, C0)))(track(t, RK)), "", RING3)
     return a
 F1M_MARKS = [(0.3, 0.95, "abrir · recentes"), (2.1, 3.5, "voz"), (4.6, 6.0, "celular"), (6.3, 6.9, "nada encontrado"), (8.4, 8.7, "fechar")]
+
+
+FIXOS = ("bg", "veil", "bar", "corpo", "sep", "field", "lupa", "ph", "mic", "phn")
+def deslocar_corpo(a):
+    dy = G["bdy"]
+    if not dy: return a
+    def mv(fn):
+        def g(t):
+            d = dict(fn(t)); d["y"] = d["y"] + dy; return d
+        return g
+    a.els = [(e, f if (e in FIXOS or e.startswith(("ty", "ft"))) else mv(f), i, st) for e, f, i, st in a.els]
+    return a
+def build_busca_flut(): return deslocar_corpo(build_busca_meio(True))
+def build_busca_modos_flut(): return deslocar_corpo(build_busca_modos(True))
