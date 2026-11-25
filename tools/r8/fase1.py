@@ -751,7 +751,8 @@ def build_hold_C2(relogio):
     return a
 
 # ================================================================ 10.9 · Busca (CH-) abrindo do meio
-CP = (728, 514, 464, 52)        # a pilula nasce no meio da tela
+CP = (728, 40, 464, 52)         # a pilula nasce no meio, em cima (linha da barra), descendo do topo
+CP_Y0 = -64                     # comeca acima da tela
 FLD = panels.FIELD
 BODY_H = 900
 def busca_m(t, O0=0.8, C0=7.6):
@@ -768,22 +769,24 @@ def busca_base(a, m, typed_fn=None):
         return dict(x=FLD[0], y=FLD[1] + FLD[3] - 40, w=FLD[2], h=lerp(40, BODY_H, k), r=34, o=1 if m(t) > 0.7 else 0)
     a.add("corpo", corpo, "", MAT)
     a.add("sep", lambda t: dict(x=FLD[0] + 30, y=FLD[1] + FLD[3] - 2, w=(FLD[2] - 60) * dec(seg(m(t), 0.75, 1)), h=1.5, o=0.5 if m(t) > 0.75 else 0, bg="rgba(255,255,255,.18)"))
+    def fase(mm):
+        ap = dec(seg(mm, 0, 0.3))                        # desliza de cima para a linha da barra
+        k1, k2 = dec(seg(mm, 0.25, 0.85)), dec(seg(mm, 0.35, 0.95))
+        return ap, k1, k2, lerp(CP_Y0, CP[1], ap)
     def field(t):
-        mm = m(t)
-        ap = dec(seg(mm, 0, 0.22))                       # nasce: escala 0,92 -> 1
-        k1, k2 = dec(seg(mm, 0.18, 0.8)), dec(seg(mm, 0.25, 0.9))
-        return dict(x=lerp(CP[0], FLD[0], k1), y=lerp(CP[1], FLD[1], k2), w=lerp(CP[2], FLD[2], k1), h=lerp(CP[3], FLD[3], k2), r=lerp(26, 34, k2),
-                    o=ap if mm > 0.001 else 0, s=lerp(0.92, 1, ap))
+        mm = m(t); ap, k1, k2, yb = fase(mm)
+        return dict(x=lerp(CP[0], FLD[0], k1), y=lerp(yb, FLD[1], k2), w=lerp(CP[2], FLD[2], k1), h=lerp(CP[3], FLD[3], k2), r=lerp(26, 34, k2),
+                    o=seg(mm, 0, 0.12) if mm > 0.001 else 0)
     a.add("field", field, "", "background:rgba(14,14,16,.97);box-shadow:0 0 0 1.5px rgba(255,255,255,.12),0 24px 60px rgba(0,0,0,.55)")
     def lupa(t):
-        mm = m(t); ap = dec(seg(mm, 0, 0.22)); k1, k2 = dec(seg(mm, 0.18, 0.8)), dec(seg(mm, 0.25, 0.9))
-        return dict(x=lerp(CP[0] + 14, FLD[0] + 30, k1), y=lerp(CP[1] + 4, 34, k2), w=44, h=44, o=ap if mm > 0.001 else 0, s=lerp(0.9, 1.1, k2))
+        mm = m(t); ap, k1, k2, yb = fase(mm)
+        return dict(x=lerp(CP[0] + 14, FLD[0] + 30, k1), y=lerp(yb + 4, 34, k2), w=44, h=44, o=seg(mm, 0, 0.12) if mm > 0.001 else 0, s=lerp(0.9, 1.1, k2))
     a.add("lupa", lupa, center(ico("search", 26), 20, BONE))
     # o texto de ajuda viaja junto e cresce de 20 para 26 px
     def ph(t):
-        mm = m(t); ap = dec(seg(mm, 0.05, 0.25)); k1, k2 = dec(seg(mm, 0.18, 0.8)), dec(seg(mm, 0.25, 0.9))
+        mm = m(t); ap, k1, k2, yb = fase(mm)
         hide = 1 - seg(t, typed_fn[0], typed_fn[0] + 0.08) if typed_fn else 1
-        return dict(x=lerp(CP[0] + 62, FLD[0] + 92, k1), y=lerp(CP[1] + 13, 48, k2), w=700, h=40, o=ap * hide if mm > 0.001 else 0, s=lerp(0.77, 1, k2))
+        return dict(x=lerp(CP[0] + 62, FLD[0] + 92, k1), y=lerp(yb + 13, 48, k2), w=700, h=40, o=seg(mm, 0.05, 0.2) * hide if mm > 0.001 else 0, s=lerp(0.77, 1, k2))
     a.add("ph", ph, txt(0, 0, "Buscar filmes, séries, pessoas e canais", 26, DIM, 500), "transform-origin:0% 0%")
     ca = lambda t, i: casc(t, i, 0.8 + 0.45, 7.6, 0.05)
     a.add("mic", lambda t: dict(x=FLD[0] + FLD[2] - 130, y=34, w=44, h=44, o=ca(t, 2)), center(ico("mic", 28), 20, BONE))
@@ -839,7 +842,7 @@ def build_busca_meio():
           (4.6, (RX - 6, 172, 572, 212, 18)), (5.5, (RX - 6, 422, 140, 204, 14))]
     a.add("ring", lambda t: (lambda v: dict(x=v[0], y=v[1], w=v[2], h=v[3], r=v[4], o=ca(t, 4)))(track(t, RK)), "", RING3)
     return a
-F1B_MARKS = [(0.8, 1.45, "nasce e sobe"), (1.5, 1.95, "teclado"), (2.4, 3.5, "digita"), (3.6, 4.4, "resultados"), (7.6, 7.9, "fechar")]
+F1B_MARKS = [(0.8, 1.45, "desce e abre"), (1.5, 1.95, "teclado"), (2.4, 3.5, "digita"), (3.6, 4.4, "resultados"), (7.6, 7.9, "fechar")]
 
 # ================================================================ 10.10 · Busca: historico, voz, celular e sem resultados
 def qr_html(n=25, px=8, seed=7):

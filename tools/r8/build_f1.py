@@ -117,16 +117,16 @@ live_board("R10-H-C2-sem-relogio", "10.10 · Segurar CH+ → C2 Coluna (relógio
    "A Coluna nasce do fio cheio (retângulo de 160 × 14 px) e cresce até 520 × 900.",
    "A hora entra em cascata com as linhas (não há pílula para viajar)."],
   [(2.5, "enchendo"), (2.9, "completou"), (3.1, "abrindo"), (3.6, "aberta")])
-live_board("R10-B-busca-meio", "10.11 · CH− Busca · abre do meio",
-  "Decisão 5: sempre do meio. A pílula nasce no centro da tela, sobe e se abre no campo grudado no topo; o corpo desce dele.",
+live_board("R10-B-busca-meio", "10.11 · CH− Busca · nasce no meio, em cima",
+  "Decisão 5: sempre do meio. A pílula nasce no meio, em cima, deslizando de fora da tela até a linha da barra, e ali se abre no campo grudado no topo; o corpo desce dele.",
   F.build_busca_meio(), F.F1B_MARKS,
-  ["0–140 ms: uma pílula de 464 × 52 nasce no centro (escala 0,92 → 1), com a lupa e o texto de ajuda.",
-   "120–550 ms: sobe até o topo e cresce para 1100 × 128 (largura antes da altura); a lupa vai para a esquerda e o texto cresce de 20 para 26 px.",
+  ["0–200 ms: uma pílula de 464 × 52, centrada na horizontal, desliza de cima (y −64) até a linha da barra (y 40), com a lupa e o texto de ajuda.",
+   "160–550 ms: ali mesmo ela se abre no campo de 1100 × 128 grudado no topo (largura antes da altura); a lupa vai para a esquerda e o texto cresce de 20 para 26 px.",
    "A barra do topo e o relógio somem nos primeiros 160 ms; a Home recua 2,5 % e escurece 60 %.",
    "450–650 ms: o corpo desce do campo; as linhas do teclado sobem em cascata.",
    "Resultados: melhor resultado, títulos, pessoas e canais, em cascata de 60 ms.",
-   "Fechar: o caminho inverso, voltando ao meio (300 ms)."],
-  [(0.9, "nasce no meio"), (1.15, "subindo"), (1.6, "teclado"), (3.9, "resultados"), (7.75, "fechando")])
+   "Fechar: o caminho inverso; a pílula volta a subir para fora da tela (300 ms)."],
+  [(0.9, "deslizando"), (1.05, "na linha da barra"), (1.3, "abrindo"), (3.9, "resultados"), (7.75, "fechando")])
 live_board("R10-B-busca-modos", "10.12 · CH− Busca · recentes, voz, celular e nada encontrado",
   "Os estados da Busca que a 8.18 não mostra. O lado esquerdo (teclado, voz, celular) e o direito (recentes, resultados) trocam com a mesma troca de 160 ms.",
   F.build_busca_modos(), F.F1M_MARKS,
