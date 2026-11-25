@@ -67,14 +67,9 @@ enum { CTX_PENDENTE = 1, CTX_CONFIRMADA = 2, CTX_FALHA = 3 };
 // elas. Era um dialogo de 720 no meio da tela, com selos de estado e rodape de
 // teclas — os dois sairam com o mockup: o rotulo de cada opcao ja diz o
 // estado ("Remover dos Salvos", "Desmarcar como assistido"). O logo ficou.
-// LAYOUT APROVADO (dono, 24/11, prancha "Segurar OK: menu do titulo"): folha
-// preta com cantos de 16, linhas mais altas, foco em faixa clara de 8 px de
-// raio (a linguagem do Ajustes World) e rotulos de secao. Antes: pilulas de 32.
-#define CTX_W        480.0f
+#define CTX_W        420.0f
 #define CTX_ILHA_PAD  14.0f
-#define CTX_ILHA_RAIO 16.0f
-#define CTX_FOCO_RAIO  8.0f     // faixa de foco da linha (Ajustes World)
-#define CTX_SEC_H     34.0f     // rotulo de secao: ASSISTIR / SUA CONTA / FILEIRA
+#define CTX_ILHA_RAIO 32.0f
 #define CTX_CAB       75.0f     // 12 + nome + 4 + meta + 10
 // O LOGO DO TITULO NO LUGAR DO NOME (pedido do dono, 01/10, reafirmado em
 // 02/10 sobre o mockup): uma caixa de 300 x 52 reservada sempre que o titulo
@@ -86,7 +81,7 @@ enum { CTX_PENDENTE = 1, CTX_CONFIRMADA = 2, CTX_FALHA = 3 };
 // COM A EXTENSAO AO LADO (ctxinfo.h) o logo e a meta moram nela, e o menu fica
 // so com uma linha de cabecalho: o nome, ou o estado da escrita em curso.
 #define CTX_CAB_CURTO 44.0f
-#define CTX_LINHA     68.0f
+#define CTX_LINHA     60.0f
 #define CTX_GAP        4.0f
 #define CTX_AO_LADO   30.0f     // do poster a ilha
 #define CTX_BORDA     48.0f     // margem minima da tela
@@ -412,35 +407,6 @@ static int extraJunta(void) {
   if (!doSocial) return -1;
   for (k = 0; k < nExtras; k++) if (extras[k].juntaAssistido) return k;
   return -1;
-}
-
-// SECOES DO MENU DO TITULO (prancha aprovada): ASSISTIR, SUA CONTA, FILEIRA. So
-// aparecem com 2 ou mais presentes — um menu de uma secao so nao ganha rotulo.
-// Reaproveitam frases que ja existem nas 29 tabelas ("Assistir", "Sua conta",
-// "Fileira"). A cabeca da secao custa CTX_SEC_H de altura.
-static int secaoDaOp(int acao) {
-  if (acao == OP_DETALHES) return 0;
-  if (acao == OP_ESTILO) return 2;
-  return 1;
-}
-static const char *const SEC_ROT[3] = { "Assistir", "Sua conta", "Fileira" };
-static int secoesAtivas(void) {
-  int i, vistas[3] = { 0, 0, 0 }, n = 0;
-  if (doSocial || doLista) return 0;
-  for (i = 0; i < nOps; i++) vistas[secaoDaOp(ops[i].acao)] = 1;
-  for (i = 0; i < 3; i++) n += vistas[i];
-  return n >= 2 ? n : 0;
-}
-// A op `i` abre secao nova? (a primeira op e sempre abertura quando ha secoes)
-static int abreSecao(int i) {
-  return i == 0 || secaoDaOp(ops[i].acao) != secaoDaOp(ops[i - 1].acao);
-}
-// Quantos rotulos de secao existem ate a op `i` (inclusive).
-static int rotulosAte(int i) {
-  int k, n = 0;
-  if (!secoesAtivas()) return 0;
-  for (k = 0; k <= i && k < nOps; k++) if (abreSecao(k)) n++;
-  return n;
 }
 
 static void montar(void) {
@@ -1362,11 +1328,8 @@ static void ilhaCtx(GfxRect p, float raioPx, float a) {
   // Frost on: the shared glass material alone. The old .985 opaque base under it
   // hid the blur, so the quick menu read flat.
   if (vid) gfx_vidro_folha(p, raio, a);
-  else {
-    // PRETO #0B0B0C com fio de 1,5 px (prancha aprovada), sem a luz de canto.
-    gfx_cor(p, raio, .043f, .047f, .050f, .98f * a);
-    gfx_anel(p, raio, 1.5f, 1, 1, 1, .08f * a);
-  }
+  else gfx_cor(p, raio, .071f, .075f, .086f, .98f * a);
+  if (!vid) gfx_luz_canto(p, raio, p.w * .25f, -p.h * .25f, p.w * .9f, 1, 1, 1, .04f * a);
 }
 
 // KICKER das ilhas: 15/700 em caixa alta (a do idioma), espacado .14em,
@@ -1396,11 +1359,10 @@ static void linhaCtxTinta(GfxRect r, const char *rot, const char *icone, float f
   if (tinta >= 0.0f) {
     cr = cg = cb = (int)(tinta * 255.0f + 0.5f);
     lum = .80f + .20f * k;
-    if (k > 0.01f) gfx_cor(r, CTX_FOCO_RAIO / r.h, tinta, tinta, tinta, .12f * k * a);
+    if (k > 0.01f) gfx_cor(r, 0.5f, tinta, tinta, tinta, .12f * k * a);
   } else if (k > 0.01f) {
-    // FAIXA CLARA DE 18 % com 8 px de raio, a do foco do Ajustes World: nao
-    // mais a pilula inteira (dono: "muito redondo").
-    gfx_cor(r, CTX_FOCO_RAIO / r.h, 1, 1, 1, .18f * k * a);
+    if (ajustes_vidro()) { if (!gfx_foco_placa(r, 0.5f, k, a)) gfx_cor(r, 0.5f, 1, 1, 1, .14f * k * a); }
+    else gfx_cor(r, 0.5f, .19f, .195f, .215f, k * a);
   }
   if (icone && icone[0])
     gfx_icone((GfxRect){ r.x + 20.0f, r.y + (r.h - CTX_ICONE) * 0.5f, CTX_ICONE, CTX_ICONE },
@@ -1612,7 +1574,7 @@ static void desenhaEstilos(float a) {
     gfx_sombra_sob((GfxRect){ m.x - 18.0f, m.y - 8.0f, m.w + 36.0f, m.h + 40.0f }, 1.0f, 0, 0.5f,
                    0, 0, 0, .42f * a, m, 30.0f, 0.0f);
     gfx_vidro_folha(m, 30.0f / m.h, a);
-  } else ilhaCtx(m, CTX_ILHA_RAIO, a);
+  } else ilhaCtx(m, 30.0f, a);
   for (i = 0; i < n; i++) {
     GfxRect r = { m.x + EST_PAD, m.y + EST_PAD + (float)i * (lin + EST_GAP),
                   m.w - 2.0f * EST_PAD, lin };
@@ -1697,7 +1659,7 @@ static void desenhaConfirmar(const CatItem *ci, float a) {
     ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroCtxFora, 0, 0);
     ponteiro_alvo(x, y, CONF_W, alt, NULL, NULL, 0, 0);
   }
-  ilhaCtx((GfxRect){ x, y, CONF_W, alt }, CTX_ILHA_RAIO, a);
+  ilhaCtx((GfxRect){ x, y, CONF_W, alt }, 36.0f, a);
   y += CONF_PAD;
   kickerCtx(kicker, x + CONF_PAD, y, a);
   y += 18.0f + 8.0f;
@@ -2074,13 +2036,13 @@ static void ctx_desenharCorpo_(Uint32 agora) {
   infoOn = infoPossivel(ci);
   // The Home stays drawn underneath: one dim veil, and the glass panels frost
   // what the rows show through it. No full-screen art or extra blur here.
-  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0, 0, 0, 0.30f * a);   // 30 %: escurece sem apagar a Home (prancha aprovada)
+  gfx_cor((GfxRect){ 0, 0, NV_TELA_W, NV_TELA_H }, 0.0f, 0, 0, 0, 0.5f * a);
 
   est.salvo = tituloSalvo(ci);
   est.visto = historicoDe(ci);
   comLogo = !infoOn && logotitulo_url(ci, CTX_LOGO_W) != NULL;
   cab = infoOn ? CTX_CAB_CURTO : comLogo ? CTX_CAB_LOGO : CTX_CAB;
-  alt = CTX_ILHA_PAD * 2.0f + cab + (float)nOps * (CTX_LINHA + CTX_GAP) + (float)rotulosAte(nOps - 1) * CTX_SEC_H;
+  alt = CTX_ILHA_PAD * 2.0f + cab + (float)nOps * (CTX_LINHA + CTX_GAP);
   // AO LADO DO CARTAZ, alinhada ao topo: tenta a direita, depois a esquerda.
   // Se ambos os lados forem estreitos, ctxXCartaz escolhe o de maior espaco e
   // prende a ilha na viewport para manter todas as opcoes acessiveis.
@@ -2244,7 +2206,7 @@ static void ctx_desenharCorpo_(Uint32 agora) {
     txt_desenhar_alpha(m, hx, my, (mensagem ? .8f : infoOn ? .62f : .5f) * a); }
 
   for (i = 0; i < nOps; i++) {
-    float by = y + CTX_ILHA_PAD + cab + CTX_GAP + (float)i * (CTX_LINHA + CTX_GAP) + (float)rotulosAte(i) * CTX_SEC_H;
+    float by = y + CTX_ILHA_PAD + cab + CTX_GAP + (float)i * (CTX_LINHA + CTX_GAP);
     GfxRect r = { x + CTX_ILHA_PAD, by, CTX_W - CTX_ILHA_PAD * 2.0f, CTX_LINHA };
     float f = focoAnim[i];
     if (aberto && a > 0.5f)
@@ -2270,8 +2232,6 @@ static void ctx_desenharCorpo_(Uint32 agora) {
           icone = extras[ops[i].acao - OP_EXTRA].icone;
         break;
     }
-    if (secoesAtivas() && abreSecao(i))
-      kickerCtx(SEC_ROT[secaoDaOp(ops[i].acao)], r.x + 20.0f, r.y - CTX_SEC_H + 8.0f, a);
     linhaCtx(r, ops[i].rot, icone, f, a);
   }
 }
