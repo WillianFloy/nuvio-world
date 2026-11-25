@@ -79,12 +79,7 @@ static float spYTopo(void) {
 }
 #define SP_Y          spYTopo()
 #define SP_H          (NV_TELA_H - SP_Y - NV_FOLHA_MARGEM)
-// MENOS REDONDO (dono, 24/11: "ta muito redondo, lembra o que eu falei nos
-// ajustes"): a linguagem do Ajustes World (faixa de 8 px) e a prancha 3A (folha
-// de 20, linhas de 12). A folha de Salvos deixa de herdar os 28 de Fontes, as
-// linhas passam de 22 para 12 e as pilulas (abas, chips) viram cantos de 14.
-#define SP_RAIO        16.0f
-#define SP_CHIP_RAIO   14.0f
+#define SP_RAIO        NV_FOLHA_RAIO
 // A GRAMATICA DO MOCKUP APROVADO ("Glass UI — ilha", tela 3; o CSS esta em
 // design/glass-ilha/glass-ilha.html), em px de 1080p e RELATIVA AO TOPO E A
 // ESQUERDA DO PAINEL — o mockup poe a ilha a 40 da borda e a folha de Fontes
@@ -104,7 +99,7 @@ static float spYTopo(void) {
 #define SP_LINHA_X      26.0f   // do painel a superficie da linha
 #define SP_LINHA_W    (SP_W - SP_LINHA_X * 2.0f)
 #define SP_LINHA_PADX   22.0f
-#define SP_LINHA_RAIO   12.0f
+#define SP_LINHA_RAIO   22.0f
 // Reserve a full font line plus breathing room above the title/tab row.
 #define SP_KICK_Y      fminf(SP_Y + 40.0f, SP_ABAS_Y - txt_linha(TXT_MINI, "Ag", 255, 255, 255, 255).h - 12.0f)
 #define SP_TIT_Y       (SP_Y + 62.0f)
@@ -3583,8 +3578,8 @@ static void desenhaAbas(float dx, float a, float larguraDisp) {
   x = SP_X + dx + SP_W - SP_ABAS_X - w0;
   ajustes_acento(&ar, &ag, &ab);
   { GfxRect caixa = { x, SP_ABAS_Y, w0, SP_ABAS_H };
-    if (ajustes_vidro()) gfx_cor(caixa, SP_CHIP_RAIO / caixa.h, 1, 1, 1, .06f * a);
-    else gfx_cor(caixa, SP_CHIP_RAIO / caixa.h, .113f, .118f, .137f, a); }
+    if (ajustes_vidro()) gfx_cor(caixa, 0.5f, 1, 1, 1, .06f * a);
+    else gfx_cor(caixa, 0.5f, .113f, .118f, .137f, a); }
   x += SP_SEG_PAD;
   // A PILULA DA ABA ABERTA ANDA ate a nova na mola da ilha (movimento.h); o
   // icone e a contagem ficam no segmento. Primeiro o alvo (a posicao do
@@ -3604,10 +3599,10 @@ static void desenhaAbas(float dx, float a, float larguraDisp) {
         p = (GfxRect){ pilX, SP_ABAS_Y + SP_SEG_PAD, pilW, SP_ABAS_H - SP_SEG_PAD * 2.0f };
         if (foco == SP_FOCO_ABAS && !editLapis) {
           if (ajustes_vidro()) gfx_vidro_pilula_cheia(p, 0.5f, 1.0f, a);
-          else { botao_luz(p, .55f, a); gfx_cor(p, SP_CHIP_RAIO / p.h, ar, ag, ab, a); }
+          else { botao_luz(p, .55f, a); gfx_cor(p, 0.5f, ar, ag, ab, a); }
         } else if (!gfx_foco_placa(p, 0.5f, 1.0f, a)) {
-          if (ajustes_vidro()) gfx_cor(p, SP_CHIP_RAIO / p.h, 1, 1, 1, .14f * a);
-          else gfx_cor(p, SP_CHIP_RAIO / p.h, .204f, .212f, .243f, a);
+          if (ajustes_vidro()) gfx_cor(p, 0.5f, 1, 1, 1, .14f * a);
+          else gfx_cor(p, 0.5f, .204f, .212f, .243f, a);
         }
       }
       xs += w + SP_SEG_VAO;
@@ -3630,7 +3625,7 @@ static void desenhaAbas(float dx, float a, float larguraDisp) {
                               lapis ? NULL : ponteiroAbaAbrir, i, lapis);
     if (focada && lapis) {
       if (ajustes_vidro()) gfx_vidro_pilula_cheia(p, 0.5f, 1.0f, a);
-      else { botao_luz(p, .55f, a); gfx_cor(p, SP_CHIP_RAIO / p.h, ar, ag, ab, a); }
+      else { botao_luz(p, .55f, a); gfx_cor(p, 0.5f, ar, ag, ab, a); }
     }
     ic = (float)cor / 255.0f;
     // ICONE COM ALMA (dono 23/11): a aba ativa, sem foco, puxa a cor do acento
@@ -3738,7 +3733,7 @@ static void desenhaBarra(float dx, float a) {
     if (telefoneui_ativo()) { r = phoneChips[k]; r.x += dx; x = r.x; w = r.w; }
 #endif
     if (spPont) ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroChip, NULL, k, 0);
-    botaoSup(r, SP_CHIP_RAIO / r.h, f, a);
+    botaoSup(r, 0.5f, f, a);
     ix = x + 22.0f;
     if (icone) {
       float ic = anim_mistura(.85f * 243.0f / 255.0f, tinta, v);
@@ -4006,7 +4001,7 @@ static void desenhaBotaoLinha(int i, float dx, float y, float alt, float a,
   w = grupo + 44.0f;
   if (w > SP_INTERNO) w = SP_INTERNO;
   r = (GfxRect){ SP_X + dx + SP_PAD, y + (alt - h) * 0.5f, w, h };
-  botaoSup(r, SP_CHIP_RAIO / r.h, f, a);
+  botaoSup(r, 0.5f, f, a);
   x0 = r.x + 22.0f;
   if (icone && icone[0]) {
     float ic = anim_mistura(.85f * 243.0f / 255.0f, tinta, v);
@@ -4295,16 +4290,16 @@ static void desenhaAlcanceSeg(int i, float dx, float y, float alt, float a) {
     TxtLinha h = txtIlha(TXT_ILHA_HORA, "← → escolhe · OK confirma", 260.0f);
     txt_desenhar_alpha(h, r.x + r.w - SP_LINHA_PADX - (float)h.w, y + 4.0f, a * 0.5f);
   }
-  if (ajustes_vidro()) gfx_cor(t, SP_CHIP_RAIO / t.h, 1, 1, 1, 0.06f * a);
-  else gfx_cor(t, SP_CHIP_RAIO / t.h, .135f, .142f, .165f, a);
+  if (ajustes_vidro()) gfx_cor(t, 0.5f, 1, 1, 1, 0.06f * a);
+  else gfx_cor(t, 0.5f, .135f, .142f, .165f, a);
   for (k = 0; k < 3; k++) {
     GfxRect s = { t.x + 4.0f + sw * (float)k, t.y + 4.0f, sw, t.h - 8.0f };
     int cursor = v > 0.5f && k == sel;
     int aceso = k == cur;
     TxtLinha l;
-    if (cursor) { botaoSup(s, SP_CHIP_RAIO / s.h, 1.0f, a); l = txt_linha_corta(TXT_ILHA_SEG, ALC_SEG[k], tf, tf, tf, 255, s.w - 20.0f); }
+    if (cursor) { botaoSup(s, 0.5f, 1.0f, a); l = txt_linha_corta(TXT_ILHA_SEG, ALC_SEG[k], tf, tf, tf, 255, s.w - 20.0f); }
     else {
-      if (aceso) gfx_cor(s, SP_CHIP_RAIO / s.h, 1, 1, 1, 0.16f * a);
+      if (aceso) gfx_cor(s, 0.5f, 1, 1, 1, 0.16f * a);
       l = txtIlha(TXT_ILHA_SEG, ALC_SEG[k], s.w - 20.0f);
     }
     txt_desenhar_alpha(l, s.x + (s.w - (float)l.w) * 0.5f, s.y + (s.h - (float)l.h) * 0.5f,
@@ -4535,7 +4530,7 @@ static void desenhaSugLinha(int i, int idx, float dx, float y, float a, Uint32 a
     float pw = (float)acR.w + 40.0f;
     GfxRect p = { fimLinha - pw, y + (SPS_H_SUG - 44.0f) * 0.5f, pw, 44.0f };
     andaresIlha(tx, y, SPS_H_SUG, p.x - 18.0f - tx, v, a, s->nome, NULL, origem, NULL);
-    botaoSup(p, SP_CHIP_RAIO / p.h, f, a);
+    botaoSup(p, 0.5f, f, a);
     txt_desenhar_alpha(acR, p.x + 20.0f, p.y + (p.h - acR.h) * 0.5f, a * 0.85f * (1.0f - v));
     txt_desenhar_alpha(acF, p.x + 20.0f, p.y + (p.h - acF.h) * 0.5f, a * v); }
 }
@@ -4575,7 +4570,7 @@ static void desenhaPedidoLinha(int i, int idx, float dx, float y, float a, Uint3
               p->bio[0] ? p->bio : i18n("Quer ser seu amigo"), NULL);
   for (k = 0; k < 2; k++) {
     float fk = (k == pedCol) ? f : 0.0f, vk = focoVisual(fk);
-    botaoSup(pr[k], SP_CHIP_RAIO / pr[k].h, fk, a);
+    botaoSup(pr[k], 0.5f, fk, a);
     txt_desenhar_alpha(rr[k], pr[k].x + 20.0f, pr[k].y + (pr[k].h - rr[k].h) * 0.5f, a * 0.85f * (1.0f - vk));
     txt_desenhar_alpha(rf[k], pr[k].x + 20.0f, pr[k].y + (pr[k].h - rf[k].h) * 0.5f, a * vk);
 #ifdef NV_TOUCH_UI
@@ -4745,7 +4740,7 @@ static void desenhaEditar(float dx, float a) {
       int foc = (i == editLin && c == editCol);
       float ic = foc ? (float)tf / 255.0f : tinta;
       int sem = (c == 1 && i == 0) || (c == 2 && i == n - 1) || (c == 0 && lig && nLigadas() <= 1);
-      botaoSup(r, SP_CHIP_RAIO / r.h, foc ? 1.0f : 0.0f, a);
+      botaoSup(r, 0.5f, foc ? 1.0f : 0.0f, a);
       gfx_icone((GfxRect){ r.x + 14.0f, r.y + 14.0f, 28.0f, 28.0f },
                 c == 0 ? (lig ? "aj_eye" : "aj_eye-off") : c == 1 ? "aj_arrow-up" : "aj_arrow-down",
                 ic, ic, ic, a * (sem ? 0.3f : 1.0f));
@@ -4760,7 +4755,7 @@ static void desenhaEditar(float dx, float a) {
 #ifdef NV_TOUCH_UI
     if (aberto && entrada > .999f && trocaT > .999f) ponteiro_alvo_faixa(r.x, r.y, r.w, r.h, topo, base, toqueEditarFocar, toqueEditarOk, n, 0);
 #endif
-    botaoSup(r, SP_CHIP_RAIO / r.h, foc ? 1.0f : 0.0f, a);
+    botaoSup(r, 0.5f, foc ? 1.0f : 0.0f, a);
     txt_desenhar_alpha(foc ? tb : t, r.x + 22.0f, r.y + (r.h - (float)t.h) * 0.5f, a * (foc ? 1.0f : 0.85f)); }
 }
 
