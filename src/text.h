@@ -204,6 +204,45 @@ typedef enum {
   TXT_W_ABA_B,    // aba ativa, valor em foco, botoes (28 / 700)
   TXT_W_LN,       // rotulo da linha (30 / 500)
   TXT_W_LN_B,     // rotulo da linha em foco (30 / 700)
+  // PECAS R8 (r8estilo.h; pranchas das secoes 8 e 10): corpo e peso exatos das
+  // pranchas. X = 800 (Montserrat ExtraBold), B = 700, S = 600, M = 500. O 600
+  // nao tem arquivo: claro sobre o escuro vai para o Bold (regra optica acima).
+  TXT_R8_64X,      // 64 / 800
+  TXT_R8_60X,      // 60 / 800
+  TXT_R8_44X,      // 44 / 800
+  TXT_R8_40X,      // 40 / 800
+  TXT_R8_34X,      // 34 / 800
+  TXT_R8_30X,      // 30 / 800
+  TXT_R8_28X,      // 28 / 800
+  TXT_R8_26X,      // 26 / 800
+  TXT_R8_44B,      // 44 / 700
+  TXT_R8_30B,      // 30 / 700
+  TXT_R8_26B,      // 26 / 700
+  TXT_R8_24B,      // 24 / 700
+  TXT_R8_23B,      // 23 / 700
+  TXT_R8_22B,      // 22 / 700
+  TXT_R8_20B,      // 20 / 700
+  TXT_R8_19B,      // 19 / 700
+  TXT_R8_15B,      // 15 / 700
+  TXT_R8_14B,      // 14 / 700
+  TXT_R8_12B,      // 12 / 700
+  TXT_R8_34S,      // 34 / 600
+  TXT_R8_30S,      // 30 / 600
+  TXT_R8_28S,      // 28 / 600
+  TXT_R8_26S,      // 26 / 600
+  TXT_R8_24S,      // 24 / 600
+  TXT_R8_22S,      // 22 / 600
+  TXT_R8_21S,      // 21 / 600
+  TXT_R8_20S,      // 20 / 600
+  TXT_R8_19S,      // 19 / 600
+  TXT_R8_18S,      // 18 / 600
+  TXT_R8_16S,      // 16 / 600
+  TXT_R8_26M,      // 26 / 500
+  TXT_R8_21M,      // 21 / 500
+  TXT_R8_20M,      // 20 / 500
+  TXT_R8_19M,      // 19 / 500
+  TXT_R8_18M,      // 18 / 500
+  TXT_R8_17M,      // 17 / 500
   TXT_NFONTES
 } TxtEstilo;
 

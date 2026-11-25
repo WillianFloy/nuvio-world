@@ -9,7 +9,7 @@
 # que e o mesmo que gerou as pranchas: tools/r8/pranchas.py confere byte a byte).
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import base, menus, panels
+import base, menus, panels, fase1
 
 FPS = 60
 PECAS = {
@@ -20,7 +20,15 @@ PECAS = {
     "C2": ("CH+ segurado · C2 Coluna", panels.build_C2, panels.P_MARKS),
     "HO": ("Segurar CH+ sem relogio", lambda: panels.build_hold(False), panels.H_MARKS),
     "HR": ("Segurar CH+ com relogio", lambda: panels.build_hold(True), panels.H_MARKS),
-    "BU": ("CH- · Busca (referencia; a abertura do meio sai na Fase 1)", panels.build_busca, panels.P_MARKS),
+    "BU": ("CH- · Busca (referencia antiga, substituida pela BF)", panels.build_busca, panels.P_MARKS),
+    # Fase 1 (secao 10), aprovadas em 25/11 19:00
+    "BF": ("CH- · Busca flutuante (10.13)", fase1.build_busca_flut, fase1.F1B_MARKS),
+    "BM": ("CH- · Busca flutuante, estados (10.14)", fase1.build_busca_modos_flut, fase1.F1M_MARKS),
+    "FHR": ("Segurar CH+ -> C2 com relogio (10.9)", lambda: fase1.build_hold_C2(True), panels.H_MARKS),
+    "FHO": ("Segurar CH+ -> C2 sem relogio (10.10)", lambda: fase1.build_hold_C2(False), panels.H_MARKS),
+    "FA": ("S1 abas (10.1)", fase1.build_S1_abas, fase1.F1A_MARKS),
+    "F2": ("S2 abas e Organizar (10.5)", lambda: fase1.build_S2_abas(True), fase1.F2_MARKS),
+    "FC": ("C2 Editar atalhos e cor (10.7)", fase1.build_C2_editar, fase1.F1C_MARKS),
 }
 CAMPOS = ("x", "y", "w", "h", "o", "s", "r")
 

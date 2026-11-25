@@ -110,10 +110,16 @@ static SDL_RWops     *rwFonteCam[TXT_NCAM][TXT_FAMILIA_N][TXT_NFONTES];
 // O TERCEIRO e o numeral fino do relogio da tela de descanso (PESO_FINO,
 // fonts/Montserrat-ExtraLight-Relogio.ttf, so digitos e ':'), pelo mesmo
 // caminho: um arquivo, em toda familia.
-static char           caminhoMono[3][512];
-static unsigned char *bytesMono[3];
-static size_t         tamMono[3];
-static int            monoTentada[3];
+// O QUARTO e o peso 800 das pecas R8 (PESO_EXTRA, fonts/Montserrat-ExtraBold.ttf,
+// mesma origem e versao 9.000 dos outros tres Montserrat). Ao contrario dos
+// outros, so vale NA familia Montserrat: nas demais o 800 cai no Bold da propria
+// familia (ver arquivoDoPeso), para a escolha de fonte da interface continuar
+// valendo inteira.
+#define TXT_NMONO 4
+static char           caminhoMono[TXT_NMONO][512];
+static unsigned char *bytesMono[TXT_NMONO];
+static size_t         tamMono[TXT_NMONO];
+static int            monoTentada[TXT_NMONO];
 
 // Le o arquivo inteiro para um buffer novo. NULL se nao abrir.
 static unsigned char *lerTudo(const char *caminho, size_t *tam) {
@@ -259,7 +265,10 @@ enum { PESO_REGULAR, PESO_MEDIUM, PESO_BOLD,
        PESO_MONO_R, PESO_MONO_B,
        // Numeral fino do relogio da tela de descanso (descanso.c). Sem o
        // arquivo cai no Regular da familia.
-       PESO_FINO };
+       PESO_FINO,
+       // 800 das pecas R8 (r8estilo.h). So a Montserrat tem o arquivo; nas
+       // outras familias, e sem o arquivo, cai no Bold da familia.
+       PESO_EXTRA };
 static const struct { int corpo, peso; } ESTILOS[TXT_NFONTES] = {
   { NV_FT_TITULO1,  PESO_BOLD   },   // titulo do filme na tela de detalhe
   // ERA PESO_REGULAR, pelo cabecalho espacado da pagina de titulo do app da
@@ -454,6 +463,43 @@ static const struct { int corpo, peso; } ESTILOS[TXT_NFONTES] = {
   { 28, PESO_BOLD },    // TXT_W_ABA_B
   { 30, PESO_MEDIUM },  // TXT_W_LN
   { 30, PESO_BOLD },    // TXT_W_LN_B
+  // Pecas R8 (text.h, TXT_R8_*), na mesma ordem do enum.
+  { 64, PESO_EXTRA  },   // TXT_R8_64X
+  { 60, PESO_EXTRA  },   // TXT_R8_60X
+  { 44, PESO_EXTRA  },   // TXT_R8_44X
+  { 40, PESO_EXTRA  },   // TXT_R8_40X
+  { 34, PESO_EXTRA  },   // TXT_R8_34X
+  { 30, PESO_EXTRA  },   // TXT_R8_30X
+  { 28, PESO_EXTRA  },   // TXT_R8_28X
+  { 26, PESO_EXTRA  },   // TXT_R8_26X
+  { 44, PESO_BOLD   },   // TXT_R8_44B
+  { 30, PESO_BOLD   },   // TXT_R8_30B
+  { 26, PESO_BOLD   },   // TXT_R8_26B
+  { 24, PESO_BOLD   },   // TXT_R8_24B
+  { 23, PESO_BOLD   },   // TXT_R8_23B
+  { 22, PESO_BOLD   },   // TXT_R8_22B
+  { 20, PESO_BOLD   },   // TXT_R8_20B
+  { 19, PESO_BOLD   },   // TXT_R8_19B
+  { 15, PESO_BOLD   },   // TXT_R8_15B
+  { 14, PESO_BOLD   },   // TXT_R8_14B
+  { 12, PESO_BOLD   },   // TXT_R8_12B
+  { 34, PESO_BOLD   },   // TXT_R8_34S
+  { 30, PESO_BOLD   },   // TXT_R8_30S
+  { 28, PESO_BOLD   },   // TXT_R8_28S
+  { 26, PESO_BOLD   },   // TXT_R8_26S
+  { 24, PESO_BOLD   },   // TXT_R8_24S
+  { 22, PESO_BOLD   },   // TXT_R8_22S
+  { 21, PESO_BOLD   },   // TXT_R8_21S
+  { 20, PESO_BOLD   },   // TXT_R8_20S
+  { 19, PESO_BOLD   },   // TXT_R8_19S
+  { 18, PESO_BOLD   },   // TXT_R8_18S
+  { 16, PESO_BOLD   },   // TXT_R8_16S
+  { 26, PESO_MEDIUM },   // TXT_R8_26M
+  { 21, PESO_MEDIUM },   // TXT_R8_21M
+  { 20, PESO_MEDIUM },   // TXT_R8_20M
+  { 19, PESO_MEDIUM },   // TXT_R8_19M
+  { 18, PESO_MEDIUM },   // TXT_R8_18M
+  { 17, PESO_MEDIUM },   // TXT_R8_17M
 };
 
 // CORPO E PESO de um estilo, para teste e diagnostico (o desenho nao usa:
@@ -1095,6 +1141,28 @@ static void liberarFamilia(TxtFamilia familia) {
   familiaCarregada[familia] = 0;
 }
 
+// Os bytes do arquivo de um peso. Os tres pesos da familia ja estao lidos; os
+// extras (mono do registro, numeral fino, 800) sao lidos aqui na primeira vez
+// (`ler`) e valem para toda familia — menos o 800, que so existe na Montserrat.
+// Sem o arquivo extra, cai no peso de reserva da familia. Devolve o peso que
+// de fato foi usado (o Bold sintetico das fontes legadas depende dele).
+static int arquivoDoPeso(TxtFamilia familia, int peso, int ler, const unsigned char **buf, size_t *tam) {
+  if (peso >= PESO_MONO_R) {
+    int m = peso - PESO_MONO_R;
+    int reserva = (peso == PESO_MONO_B || peso == PESO_EXTRA) ? PESO_BOLD : PESO_REGULAR;
+    if (peso == PESO_EXTRA && familia != TXT_FAMILIA_MONTSERRAT) m = -1;
+    if (m >= 0 && ler && !monoTentada[m]) {
+      monoTentada[m] = 1;
+      bytesMono[m] = lerTudo(caminhoMono[m], &tamMono[m]);
+      if (!bytesMono[m]) printf("fonte extra indisponivel: %s\n", caminhoMono[m]);
+    }
+    if (m >= 0 && bytesMono[m]) { *buf = bytesMono[m]; *tam = tamMono[m]; return peso; }
+    peso = reserva;
+  }
+  *buf = bytesPeso[familia][peso]; *tam = tamPeso[familia][peso];
+  return peso;
+}
+
 // Cada família lê só seus três arquivos, e só quando uma linha passa a usar
 // aquela família. As dezenas de TTF_Font por tamanho são abertas sobre os
 // mesmos buffers em memória; a TV não relê cada arquivo para cada estilo.
@@ -1127,16 +1195,7 @@ static int carregarFamilia(TxtFamilia familia) {
     const unsigned char *buf;
     size_t tam;
     SDL_RWops *rw;
-    if (peso >= PESO_MONO_R) {
-      int m = peso - PESO_MONO_R;
-      if (!monoTentada[m]) {
-        monoTentada[m] = 1;
-        bytesMono[m] = lerTudo(caminhoMono[m], &tamMono[m]);
-        if (!bytesMono[m]) printf("fonte mono indisponivel: %s\n", caminhoMono[m]);
-      }
-      if (bytesMono[m]) { buf = bytesMono[m]; tam = tamMono[m]; }
-      else { peso = m == 1 ? PESO_BOLD : PESO_REGULAR; buf = bytesPeso[familia][peso]; tam = tamPeso[familia][peso]; }
-    } else { buf = bytesPeso[familia][peso]; tam = tamPeso[familia][peso]; }
+    peso = arquivoDoPeso(familia, peso, 1, &buf, &tam);
     rw = SDL_RWFromConstMem(buf, (int)tam);
     fontes[familia][i] = rw
       ? TTF_OpenFontRW(rw, 0, (int)(corpoAtual(i) * ESC_T + 0.5f))
@@ -1169,13 +1228,9 @@ static void abrirEstiloCamada(TxtFamilia familia, int i) {
   const unsigned char *buf;
   size_t tam;
   SDL_RWops *rw;
-  // A mono do registro: os mesmos bytes que carregarFamilia leu (ou, sem o
-  // arquivo, o Regular/Bold da familia, como la).
-  if (peso >= PESO_MONO_R) {
-    int m = peso - PESO_MONO_R;
-    if (bytesMono[m]) { buf = bytesMono[m]; tam = tamMono[m]; }
-    else { peso = m == 1 ? PESO_BOLD : PESO_REGULAR; buf = bytesPeso[familia][peso]; tam = tamPeso[familia][peso]; }
-  } else { buf = bytesPeso[familia][peso]; tam = tamPeso[familia][peso]; }
+  // Os arquivos extras (mono, fino, 800): os mesmos bytes que carregarFamilia
+  // leu (ou, sem o arquivo, o peso de reserva da familia, como la).
+  peso = arquivoDoPeso(familia, peso, 1, &buf, &tam);
   if (!buf) return;
   rw = SDL_RWFromConstMem(buf, (int)tam);
   if (!rw) return;
@@ -1277,6 +1332,7 @@ int txt_iniciar(const char *dirRecursos, float escala) {
   snprintf(caminhoMono[0], 512, "%sfonts/JetBrainsMonoNL-Regular.ttf", base);
   snprintf(caminhoMono[1], 512, "%sfonts/JetBrainsMonoNL-SemiBold.ttf", base);
   snprintf(caminhoMono[2], 512, "%sfonts/Montserrat-ExtraLight-Relogio.ttf", base);
+  snprintf(caminhoMono[3], 512, "%sfonts/Montserrat-ExtraBold.ttf", base);
 #ifdef NV_ANDROID
   // Android: nao ha LG_Display nem /usr/share/fonts. A "LG" vira Roboto do
   // sistema e a "Droid" a DroidSans (so nas versoes antigas) ou Roboto.
@@ -1415,7 +1471,7 @@ void txt_encerrar(void) {
   memset(familiaTentada, 0, sizeof familiaTentada);
   memset(avisoFallback, 0, sizeof avisoFallback);
   memset(caminhoReserva, 0, sizeof caminhoReserva);
-  for (int m = 0; m < 3; m++) { free(bytesMono[m]); bytesMono[m] = NULL; tamMono[m] = 0; monoTentada[m] = 0; }
+  for (int m = 0; m < TXT_NMONO; m++) { free(bytesMono[m]); bytesMono[m] = NULL; tamMono[m] = 0; monoTentada[m] = 0; }
   TTF_Quit();
 }
 

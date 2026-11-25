@@ -4822,6 +4822,33 @@ void gfx_snap_desenhar(void) {
     ESC_REAL_FIM(); }
 }
 
+// A COPIA PARADA COM RECUO (pecas R8, Fase 2): a Home congelada atras de um
+// painel recua (escala `esc` em torno de (ox, oy)), anda (dx, dy) e escurece
+// (veu preto `veu`) numa passada so — o veu e o mix do proprio GFX_SNAP, sem
+// uma segunda camada de tela cheia. Coordenadas no espaco 1920 x 1080 das
+// pranchas (o mesmo do gfx_snap_desenhar).
+void gfx_snap_desenhar_xf(float esc, float ox, float oy, float dx, float dy, float veu) {
+  if (!snapTex) return;
+  float W = NV_TELA_W, H = NV_TELA_H;
+  GfxRect r = { ox - ox * esc + dx, oy - oy * esc + dy, W * esc, H * esc };
+  if (veu < 0.0f) veu = 0.0f;
+  if (veu > 1.0f) veu = 1.0f;
+  gfx_tex_aspect_atual = 0.0f;
+  { ESC_REAL_INI();
+    gfx_rect(r, snapTex, GFX_SNAP, veu, 0.0f, 1.0f, 0.0f, 0, 0, 0, 1.0f);
+    ESC_REAL_FIM(); }
+}
+// So a parte da copia dentro de `faixa` (coordenadas da copia), deslocada `dx` (o Desdobrar: as
+// vizinhas da direita andam 470 px, as da esquerda recuam 18). Recorte de
+// tesoura: o preenchimento e so o da faixa.
+void gfx_snap_desenhar_faixa(GfxRect faixa, float dx, float veu) {
+  if (!snapTex || faixa.w <= 0.0f || faixa.h <= 0.0f) return;
+  // A faixa e da COPIA (a fonte); na tela ela aparece `dx` adiante.
+  gfx_recorte(faixa.x + dx, faixa.y, faixa.w, faixa.h);
+  gfx_snap_desenhar_xf(1.0f, 0.0f, 0.0f, dx, 0.0f, veu);
+  gfx_sem_recorte();
+}
+
 void gfx_snap_encerrar(void) {
 #ifdef NV_TOUCH_UI
   snapGeracao++;
