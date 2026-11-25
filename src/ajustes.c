@@ -758,9 +758,6 @@ typedef enum {
   AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
   AJ_COL_GIF,              // World 21/11: GIF das Collections: 0 Automatico | 1 Ligado | 2 Desligado (local)
   AJ_RAIL_TAMANHO,         // World 22/11: tamanho da barra lateral: 0 Pequeno | 1 Medio (o de sempre) | 2 Grande (local)
-  AJ_SALVOS_ESTILO,        // World 24/11: CH+ toque: 0 Estante (padrao) | 1 Coluna (local)
-  AJ_CH_ORIGEM,            // World 24/11: de onde CH+/CH- nascem: 0 Automatica (menu do topo > relogio > centro) | 1 Relogio | 2 Centro (local)
-  AJ_BUSCA_DA_BARRA,       // World 24/11: V_LIGA: 0 a lupa do menu do topo vira o campo da Busca (local)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -897,11 +894,6 @@ static const char *V_INTERFACE_MODO[] = { "TV", "Mobile", "Automático" };
 static const char *V_MENU_POS[] = { "Na lateral", "No topo" };   // #461
 static const char *V_MENU_TOPO_MODO[] = { "Somente ícones", "Ícones Mistos" };
 static const char *V_MENU_TOPO_TAMANHO[] = { "Pequeno", "Médio", "Grande" };
-static const char *V_SALVOS_ESTILO[] = { "Estante", "Coluna" };            // World 24/11
-static const char *V_CH_ORIGEM[] = { "Automática", "Do relógio", "Do centro" };   // World 24/11
-// O MENU DO CARTAZ (segurar OK): o indice e o do disco (0 era Ligado, 1 Desligado);
-// 2 entrou em 24/11. 0 = Folha (padrao), 1 = Lista simples, 2 = Desdobrar.
-static const char *V_MENU_CARTAZ[] = { "Folha", "Lista simples", "Desdobrar" };
 static const char *V_ABAS_ESTILO[] = { "Chips", "Menu suspenso", "Barra central", "Páginas", "Menu no topo" };   // #205
 // F07: the order is cacheboost_cache_mb's (0, 256, 512, 1024 MB).
 // #338: indice -> MiB em cacheboost_buffer_mb (0 = o de sempre).
@@ -1841,7 +1833,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Áudio do trailer", V_TRAUD, 2),   // n real em nValores
   ESC("Player para anime", V_PLAYER_EXTERNO, 3),        // n real em nValores; local: playerExternoAnimeLocal
   ESC("Estilo da tela de abertura", V_ABERTURA_ESTILO, 2),   // local: aberturaEstiloLocal
-  ESC("Estilo do menu do cartaz", V_MENU_CARTAZ, 3),              // local: menuCartazLocal (0 Folha, 1 Lista simples, 2 Desdobrar)
+  ESC("Menu de contexto enriquecido", V_LIGA, 2),              // local: menuCartazLocal
   ESC("Título das fileiras", V_TITULO_FIL, 4),   // local: rowTitleStyleLocal
   ESC("Qualidade do vidro", V_VIDRO_QUALIDADE, 3),   // local: vidroQualidadeLocal
   ESC("Fundo da Dinâmica", V_FUNDO_DIN, 4),                  // local: fundoDinamicaLocal
@@ -1917,9 +1909,6 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
   ESC("GIF animado nas Collections",     V_COL_GIF, 3),          // colGifLocal (World 21/11)
   ESC("Tamanho do menu lateral",         V_MENU_TOPO_TAMANHO, 3), // railTamanhoLocal (World 22/11)
-  ESC("Estilo dos Salvos (CH+)",         V_SALVOS_ESTILO, 2),     // salvosEstiloLocal (World 24/11)
-  ESC("De onde os painéis nascem",       V_CH_ORIGEM, 3),         // chOrigemLocal (World 24/11)
-  ESC("Busca a partir do menu do topo",  V_LIGA, 2),              // buscaDaBarraLocal (World 24/11)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2263,9 +2252,6 @@ static const char *CHAVE[] = {
   "aberturaVideoLocal",
   "colGifLocal",
   "railTamanhoLocal",
-  "salvosEstiloLocal",
-  "chOrigemLocal",
-  "buscaDaBarraLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3353,10 +3339,6 @@ int ajustes_palco_fundo(void) { return valor[AJ_PALCO_FUNDO]; }
 int ajustes_titulo_fil(void) { int v = valor[AJ_TITULO_FIL]; return v >= 0 && v <= 3 ? v : 0; }
 int ajustes_abertura_estilo(void) { return valor[AJ_ABERTURA_ESTILO] == 1; }   // 0 Centro (A3), 1 Canto (B3)
 int ajustes_menu_cartaz_simples(void) { return valor[AJ_MENU_CARTAZ] == 1; }
-int ajustes_menu_cartaz_estilo(void) { int v = valor[AJ_MENU_CARTAZ]; return v >= 0 && v <= 2 ? v : 0; }
-int ajustes_salvos_estilo(void) { return valor[AJ_SALVOS_ESTILO] == 1 ? 1 : 0; }
-int ajustes_ch_origem(void) { int v = valor[AJ_CH_ORIGEM]; return v >= 0 && v <= 2 ? v : 0; }
-int ajustes_busca_da_barra(void) { return valor[AJ_BUSCA_DA_BARRA] == 0; }
 int ajustes_fundo_din(void) { int v = valor[AJ_FUNDO_DIN]; return v >= 0 && v <= 3 ? v : 0; }
 void ajustes_fundo_din_cor(float rgb[3]) {
   int v = valor[AJ_FUNDO_DIN_COR];
@@ -6235,7 +6217,6 @@ static int somenteDesteAparelho(int op) {
     case AJ_ABERTURA_FUNDO: /* #508: idem */
     case AJ_ABERTURA_ESTILO: /* idem */
     case AJ_MENU_CARTAZ:    /* title menu presentation belongs to this TV */
-    case AJ_SALVOS_ESTILO: case AJ_CH_ORIGEM: case AJ_BUSCA_DA_BARRA: /* World 24/11: apresentacao desta TV */
     case AJ_FUNDO_DIN:     /* #205: o fundo da Dinamica e escolha desta TV */
     case AJ_FUNDO_DIN_COR: /* idem */
     case AJ_EP_TAMANHO:    /* idem */
@@ -8112,10 +8093,7 @@ static const char *ajudaOpcaoBase(int op) {
     case AJ_PALCO_FUNDO: return "Palco na Moderna e na Dinâmica (Apple TV), com artes de fundo, nunca o cartaz. Cortina (padrão): arte à direita com o logo; Aura: arte desfocada; Tríptico: três artes; Monumento: arte no tom do app; Preto: só cartazes e ficha; Como está: destaque completo; Só arte: sem texto no topo. Sem arte de fundo, usa Preto. Só neste aparelho.";
     case AJ_FUNDO_DIN_COR: return "A cor do fundo da Dinâmica, escurecida para o texto continuar legível. Vale só nesta TV.";
     case AJ_ABERTURA_ESTILO: return "Como a tela de abertura se organiza. Centro (padrão): o logo no meio e o anel de progresso embaixo dele. Canto: o logo no canto inferior esquerdo, com o anel pequeno embaixo dele. Vale só nesta TV.";
-    case AJ_MENU_CARTAZ: return "Como o menu de segurar OK aparece. Folha (padrão): um painel ao lado com a arte, as notas e as ações. Desdobrar: o próprio cartaz se abre em painel e os vizinhos abrem espaço. Lista simples: só as ações, sem animação. Vale só nesta TV.";
-    case AJ_SALVOS_ESTILO: return "Como os Salvos (CH+) abrem. Estante (padrão): a arte do título em foco em cima e os cartões numa estante embaixo. Coluna: uma coluna à direita em que a linha em foco se abre. Vale só nesta TV.";
-    case AJ_CH_ORIGEM: return "De onde a Busca, os Salvos e a Central nascem. Automática (padrão): do menu do topo quando ele aparece, senão do relógio, senão do centro. Vale só nesta TV.";
-    case AJ_BUSCA_DA_BARRA: return "Com o menu do topo aparecendo, a lupa dele se estica e vira o campo da Busca. Desligado: a Busca nasce como os outros painéis. Vale só nesta TV.";
+    case AJ_MENU_CARTAZ: return "Ligado (padrão): o menu de contexto traz o cartaz ampliado com logo, notas e sinopse, e a Home continua atrás. Desligado: só a lista de ações ao lado do cartaz, sem ampliar. Vale só nesta TV.";
     case AJ_ABERTURA_FUNDO: return "O fundo da tela Cinema da abertura. Desligado: preto. Arte (padrão): o backdrop do título, nítido, com véu escuro. Arte borrada: o mesmo backdrop, desfocado e escurecido, como sempre. Vale só nesta TV.";
     case AJ_PLR_CLASSIF: return "Ligado (padrão): no começo do filme, a ilha mostra a classificação indicativa e os avisos do guia parental (violência, nudez, palavrões). Desligado: o player não mostra nada disso.";
     case AJ_RELOGIO_12H: return "Como a hora aparece no relógio, na tela de descanso, no fim do filme e no guia de TV: 18:30 ou 6:30 PM.";

@@ -26,17 +26,6 @@ void ctx_abrir(int indice);
 // despachadas continuam nos seus proprios workers, com o dono original.
 void ctx_abrir_sessao(void);
 int  ctx_aberto(void);
-// World 24/11: a Home congelada atras do menu de segurar OK (Folha/Desdobrar).
-// `esc` recuo da copia (1 = sem recuo), `veu` escurecimento na mesma passada,
-// `faixa` (px REAIS) e `dx` a faixa da fileira que desliza (Desdobrar).
-typedef struct { float esc, veu, dx; GfxRect faixa; } CtxFundo;
-int  ctx_fundo(CtxFundo *f);
-// app.c diz, a cada quadro, se desenhou a copia (entao o menu nao pinta o veu).
-void ctx_fundo_pronto(int pronto);
-// A superficie da forma nova no ultimo quadro (tela virtual) e a forma (0 Folha,
-// 2 Desdobrar; -1 nenhuma na tela). Para os testes.
-int  ctx_novo_superficie(GfxRect *r);
-int  ctx_novo_estilo(void);
 void ctx_evento(const SDL_Event *e);
 void ctx_atualizar(float dt, Uint32 agora);
 void ctx_desenhar(Uint32 agora);

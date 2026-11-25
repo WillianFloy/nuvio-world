@@ -204,9 +204,6 @@ static const char *uxSinonimos(int op) {
     case AJ_TEMA_FUNDO: return "tema tom fundo preto puro amoled oled grafite escuro dark black background";
     case AJ_ABERTURA_VIDEO: return "abertura video splash inicio animacao logo world intro boot arranque";
     case AJ_COL_GIF: return "gif animado animacao capa colecao colecoes collection collections pasta foco movimento";
-    case AJ_SALVOS_ESTILO: return "salvos ch+ estante coluna estilo painel biblioteca";
-    case AJ_CH_ORIGEM: return "origem paineis ch busca salvos central relogio centro menu topo";
-    case AJ_BUSCA_DA_BARRA: return "busca ch- lupa menu topo barra campo animacao";
     case AJ_RAIL_TAMANHO: return "tamanho barra lateral menu lateral rail icones maior menor grande pequeno";
     case AJ_ABERTURA: return "abertura splash inicio animacao zoom esmaecer fade direto rapido logo entrada boot arranque";
     case AJ_ESMAECER: return "esmaecer escurecer apagar tela parado ocioso inatividade protecao oled burn-in screensaver descanso tempo minutos dim";

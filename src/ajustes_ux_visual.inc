@@ -244,9 +244,6 @@ static const char *ajVisualIcone(int op) {
     case AJ_BRILHO_PLAYER: case AJ_HDR_UI: return "aj_sun-dim";
     case AJ_MANTER_VIDEO: return "aj_memory-stick";
     case AJ_RELOGIO: case AJ_RELOGIO_12H: return "aj_clock";
-    case AJ_SALVOS_ESTILO: return "aj_library";
-    case AJ_CH_ORIGEM: return "aj_clock";
-    case AJ_BUSCA_DA_BARRA: return "aj_search";
     case AJ_VIDRO_CONTORNO: case AJ_FOCO_ACENTO: return "aj_layers";
     case AJ_VIDRO_OPAC: return "aj_layers";
     case AJ_VIDRO_FOSCO: case AJ_VIDRO_QUALIDADE: return "aj_layers";

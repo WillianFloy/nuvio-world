@@ -98,8 +98,7 @@ static void ajusta(void) {
   a = fopen(cam, "w");
   assert(a);
   fprintf(a, "idioma 0\nhomeLayoutLocal 0\nvidroLocal 1\n"
-             "modernLandscapePostersEnabled 1\nselected_theme 0\n"
-             "menuCartazLocal 1\n");   /* a lista antiga: a fileira muda ao vivo (as formas novas so ao confirmar: ctxnovo_shot) */
+             "modernLandscapePostersEnabled 1\nselected_theme 0\n");
   fclose(a);
   ajustes_dir(dirDados);
   artehero_fundo_addon(ajustes_fundo_addon());

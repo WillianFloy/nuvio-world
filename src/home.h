@@ -56,8 +56,6 @@ int  home_iniciar(const char *dirArte);
 int  home_cartao_foco_por_cima(int indice); // repinta o cartao focado (menu do cartaz)
 int  home_cartao_foco_por_cima_esc(int indice, float esc); // o mesmo, crescido `esc` vezes em torno do centro
 int  home_foco_palco(float *abaixo);   // 1 se o foco e o do Palco; `abaixo` = px (tela real) reservados sob o cartaz para o nome
-// O botao "Ver titulo" do destaque (px reais) no ultimo quadro; 0 sem foco nele.
-int  home_hero_botao(GfxRect *out);
 int  home_item_focado(HomeItem *out);      // 0 se o foco ainda nao foi desenhado
 // Retangulo (tela real) do cartao focado de qualquer fileira, pilha e pasta
 // inclusas. 0 sem cartao focado neste quadro (destaque, fileira vazia).

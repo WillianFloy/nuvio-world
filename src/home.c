@@ -445,8 +445,6 @@ static float okDip = 1.0f;   // escala do card sob o OK apertado (pressdip.h)
 // nada disso — ele tem um item por vez e ocupa a tela. Um bit de estado ao lado
 // do foco descreve melhor o que a tela faz: existe um degrau ACIMA da fileira 0.
 static int focoHero = 1;
-static GfxRect heroBotaoUlt;   // World 24/11: o botao do destaque no ultimo quadro (home_hero_botao)
-static int heroBotaoTem;
 // World 22/11: quanto o botao "Ver titulo" do destaque esta aceso (1 com o foco no destaque, 0 nas fileiras). Nos layouts
 // em que o bloco do destaque fica na tela com o foco nas fileiras (Padrao), o botao so existe para o DESTAQUE: sem
 // isto ele aparecia, apagado, para cada cartaz que ganhava o foco.
@@ -6245,7 +6243,6 @@ static void desenhaHero(Uint32 agora, float saida) {
         float bw = lb.w + 38.0f * 2;   // NV_DETW2_BTN_PADX, igual ao detalhe
         float by = actionY;
         GfxRect bt = { x, by, bw, bh };
-        heroBotaoUlt = bt; heroBotaoTem = focoHero;   // World 24/11: o menu de segurar OK nasce daqui
 #ifdef NV_TOUCH_UI
         // O botao pode ficar abaixo do alvo amplo do destaque. Seu proprio
         // retangulo mantem o toque correto, sem cobrir a primeira fileira.
@@ -9738,14 +9735,6 @@ int home_foco_palco(float *abaixo) {
   if (focoHero || foco.fileira < 0 || foco.fileira >= nFileiras) return 0;
   if (fileiras[foco.fileira].tipo != FILEIRA_PALCO) return 0;
   if (abaixo) *abaixo = 70.0f * homeUnidade();
-  return 1;
-}
-// O BOTAO "VER TITULO" DO DESTAQUE no ultimo quadro (px reais): o menu de
-// segurar OK no destaque nasce dele (World 24/11). 0 sem foco no destaque.
-int home_hero_botao(GfxRect *out) {
-  float u = homeUnidade();
-  if (!heroBotaoTem || !focoHero || heroBotaoUlt.w < 8.0f || !out) return 0;
-  *out = (GfxRect){ heroBotaoUlt.x * u, heroBotaoUlt.y * u, heroBotaoUlt.w * u, heroBotaoUlt.h * u };
   return 1;
 }
 int home_ancora_foco(GfxRect *out) {

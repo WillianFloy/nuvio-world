@@ -4822,31 +4822,6 @@ void gfx_snap_desenhar(void) {
     ESC_REAL_FIM(); }
 }
 
-// A COPIA PARADA ATRAS DO MENU DE SEGURAR OK (World 24/11): a tela inteira
-// recuada (`esc` < 1 encolhe a copia ao redor do centro) e escurecida (`veu`,
-// na mesma passada: GFX_SNAP faz mix(fundo, preto, veu)). Com `faixa` e `dx`,
-// a faixa da fileira (px reais) e redesenhada deslocada `dx` px: e assim que
-// as vizinhas "abrem espaco" no Desdobrar sem a Home ser redesenhada.
-void gfx_snap_desenhar_ex(float esc, float veu, const GfxRect *faixa, float dx) {
-  if (!snapTex) return;
-  if (esc <= 0.0f) esc = 1.0f;
-  gfx_tex_aspect_atual = 0.0f;
-  { ESC_REAL_INI();
-    GfxRect r = { NV_TELA_W * (1.0f - esc) * 0.5f, NV_TELA_H * (1.0f - esc) * 0.5f, NV_TELA_W * esc, NV_TELA_H * esc };
-    gfx_rect(r, snapTex, GFX_SNAP, veu, 0.0f, 1.0f, 0.0f, 0, 0, 0, 1.0f);
-    if (faixa && (dx > 0.5f || dx < -0.5f) && faixa->w > 1.0f && faixa->h > 1.0f) {
-      float x0 = faixa->x + dx, x1 = faixa->x + faixa->w + dx;
-      if (x0 < 0.0f) x0 = 0.0f;
-      if (x1 > NV_TELA_W) x1 = NV_TELA_W;
-      if (x1 > x0) {
-        gfx_recorte(x0, faixa->y, x1 - x0, faixa->h);
-        gfx_rect((GfxRect){ dx, 0, NV_TELA_W, NV_TELA_H }, snapTex, GFX_SNAP, veu, 0.0f, 1.0f, 0.0f, 0, 0, 0, 1.0f);
-        gfx_sem_recorte();
-      }
-    }
-    ESC_REAL_FIM(); }
-}
-
 void gfx_snap_encerrar(void) {
 #ifdef NV_TOUCH_UI
   snapGeracao++;

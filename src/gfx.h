@@ -468,9 +468,6 @@ void gfx_snap_comecar(void);   // redireciona o desenho para o snapshot
 void gfx_snap_terminar(void);   // volta para a tela
 int  gfx_snap_vazio(int *maxCanal);   // 1 = o snapshot (alvo ligado) saiu preto
 void gfx_snap_desenhar(void);  // pinta o snapshot ocupando a tela toda
-// World 24/11: a copia recuada (esc), escurecida (veu) e, opcional, a faixa
-// `faixa` (px reais) redesenhada deslocada `dx` px (o Desdobrar abre espaco).
-void gfx_snap_desenhar_ex(float esc, float veu, const GfxRect *faixa, float dx);
 void gfx_snap_encerrar(void);
 int  gfx_snap_ativo(void);     // 1 enquanto o desenho vai para o snapshot
 // Cresce a cada gfx_snap_comecar: quem guardou algo no FBO sabe se outro
