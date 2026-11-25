@@ -2013,7 +2013,6 @@ static void ctx_desenharCorpo_(Uint32 agora) {
   const char *mensagem = NULL;
   float a = anim, alt, x, y, cab, grupoH;
   int i, comLogo, infoOn, morph = 0, grande = 0;
-  float aSup = -1.0f;   // alfa da SUPERFICIE do menu quando difere de `a` (morph: o do cartao)
   CtxInfoGeo geo;
   CtxCartaoGeo cg;
   CtxInfoEstado est;
@@ -2183,11 +2182,6 @@ static void ctx_desenharCorpo_(Uint32 agora) {
     // O menu sai da borda do cartao, acendendo depois dele.
     x -= (float)cg.lado * (1.0f - e) * 40.0f;
     a = anim_clamp((e - 0.35f) / 0.65f, 0.0f, 1.0f);
-    // A SUPERFICIE DO MENU ANDA COM A DO CARTAO (dono, 24/11: "um elemento preto
-    // e outro transparente" ao abrir/fechar): o cartao ficava preto cheio em
-    // e = 0,33 e o menu so chegava la em e = 1. O fundo dos dois usa a mesma
-    // curva; so o CONTEUDO do menu (texto, linhas) segue a curva mais tardia.
-    aSup = sa;
   } else
   if (temCartaz && !doPainel && !cartazFixo && cartaoDaHome()) {
     /* feito */
@@ -2220,7 +2214,7 @@ static void ctx_desenharCorpo_(Uint32 agora) {
 
   // Entra deslizando 16 px a partir do lado do poster, como as folhas do app.
   if (!morph) x += (1.0f - a) * (temCartaz && !doPainel && x < cartazRect.x ? 16.0f : -16.0f);
-  ilhaCtx((GfxRect){ x, y, CTX_W, alt }, CTX_ILHA_RAIO, aSup >= 0.0f ? aSup : a);
+  ilhaCtx((GfxRect){ x, y, CTX_W, alt }, CTX_ILHA_RAIO, a);
 
   // CABECALHO: o nome e, embaixo, o que o titulo e ("Serie · 2024 · ...") —
   // ou, enquanto ha uma escrita, o estado dela. Com a extensao ao lado, uma
