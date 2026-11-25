@@ -1,5 +1,4 @@
 #include "ctxmenu.h"
-#include "facetas.h"
 #include "perfisessao.h"
 #include "catalogo.h"
 #include "logotitulo.h"
@@ -185,15 +184,6 @@ static char    cartazArte[NV_TEX_URL_MAX];
 static float   infoT, infoH;
 static int     infoDesenhada, infoLadoUlt;
 static GfxRect infoCaixa, menuCaixa;
-// FACETAS (proposta B, aprovada 24/11): UM relogio abre e fecha o menu inteiro —
-// fichas, orbita, veu e o cartaz crescido andam juntos nele, e fechar e andar
-// para tras no mesmo caminho (nada aparece ou some de repente).
-static float   fct;                   // 0 fechado .. 1 aberto
-static int     fctAtivo;              // o menu aberto por ultimo era em facetas (fechar continua o mesmo desenho)
-static float   confT;                 // 0..1: a pagina de confirmacao (cruza com as fichas)
-static float   facPulso;              // 1 -> 0: o aperto de OK na ficha em foco
-static Uint32  facFlashAte, facFalhaEm;   // icone de "feito" (900 ms) e o tremor de falha
-static GLuint  facCapL, facCapR, facLosango;   // formas de canto cortado (alpha) geradas uma vez
 
 static int teclaOk(SDL_Keycode k) {
   return k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE;
@@ -587,12 +577,6 @@ static void montar(void) {
 static void abrirComum(int indice);
 static int inlineOn, inlinePend;
 static int modoInline(void);
-// O MENU EM FACETAS vale para o cartaz da home e da biblioteca: tem cartaz de
-// origem e nao e painel, lista nem so a fileira. O resto (painel de Salvos,
-// social, lista) segue a ilha de sempre.
-static int modoFacetas(void) {
-  return !ajustes_menu_cartaz_simples() && temCartaz && !doPainel && !doLista && !soFileira && !modoInline();
-}
 // O cartaz vem da HOME, em pixels da tela real; o menu e camada ampliada e
 // mede pela tela virtual (escala.h). Desenhado na virtual ele cai no mesmo
 // lugar e no mesmo tamanho da tela.
@@ -960,7 +944,6 @@ static void aplicar(void) {
   int acao;
   if (foco < 0 || foco >= nOps) return;
   acao = ops[foco].acao;
-  facPulso = 1.0f;   // a ficha afunda um instante (feedback do OK)
   if (doLista) {
     if (acao == OP_L_ABRIR) { listaPedida = 1; aberto = 0; }
     else if (acao == OP_L_FIXAR) { lst_alternar_fixada(&lista); listaAlterou = 1; montar(); }
@@ -1226,10 +1209,8 @@ void ctx_evento(const SDL_Event *e) {
   if (operacao != CTX_OP_NENHUMA && estadoOperacao == CTX_PENDENTE) return;
   if (modoInline() && k == SDLK_LEFT)  { if (foco > 0) foco--; return; }
   if (modoInline() && k == SDLK_RIGHT) { if (foco + 1 < nOps) foco++; return; }
-  // Em facetas as fichas podem estar em coluna (arco vertical) ou em linha (arco
-  // horizontal, dock): as quatro setas andam pela orbita, para a frente e para tras.
-  if (k == SDLK_UP   || (modoFacetas() && k == SDLK_LEFT))  { if (foco > 0) foco--; return; }
-  if (k == SDLK_DOWN || (modoFacetas() && k == SDLK_RIGHT)) { if (foco + 1 < nOps) foco++; return; }
+  if (k == SDLK_UP)   { if (foco > 0) foco--; return; }
+  if (k == SDLK_DOWN) { if (foco + 1 < nOps) foco++; return; }
   if (k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE) { aplicar(); return; }
 }
 
@@ -1255,16 +1236,6 @@ void ctx_atualizar(float dt, Uint32 agora) {
   { float alvo = (aberto && pagina == 0 && infoPossivel(itemAtual()) && anim > 0.5f) ? 1.0f : 0.0f;
     if (!aberto) alvo = 0.0f;
     infoT = ajustes_animacoes_reduzidas() ? alvo : anim_mola(infoT, alvo, dt, NV_MOLA_TELA); }
-  // O relogio unico das facetas: 340 ms abrindo, 200 ms fechando (mesmo caminho);
-  // com "Reduzir animacoes" so a opacidade, em 120 ms.
-  if (aberto) fctAtivo = modoFacetas();
-  { int red = ajustes_animacoes_reduzidas();
-    float alvo = (aberto && fctAtivo) ? 1.0f : 0.0f, ms = red ? 120.0f : (alvo > fct ? 340.0f : 200.0f);
-    float passo = dt * 1000.0f / ms;
-    fct = alvo > fct ? (fct + passo > alvo ? alvo : fct + passo) : (fct - passo < alvo ? alvo : fct - passo);
-    alvo = (aberto && pagina == 2) ? 1.0f : 0.0f; ms = red ? 120.0f : 220.0f; passo = dt * 1000.0f / ms;
-    confT = alvo > confT ? (confT + passo > alvo ? alvo : confT + passo) : (confT - passo < alvo ? alvo : confT - passo);
-    facPulso = facPulso - dt * 1000.0f / 160.0f < 0.0f ? 0.0f : facPulso - dt * 1000.0f / 160.0f; }
   for (i = 0; i < CTX_MAX; i++)
     focoAnim[i] = ajustes_animacoes_reduzidas()
       ? (aberto && foco == i ? 1.0f : 0.0f)
@@ -1302,8 +1273,6 @@ void ctx_atualizar(float dt, Uint32 agora) {
     int novo = opSimkl ? simkl_lista_estado() : trakt_operacao_estado(operacao);
     if (novo == CTX_CONFIRMADA || novo == CTX_FALHA) {
       estadoOperacao = novo;
-      if (novo == CTX_CONFIRMADA) facFlashAte = SDL_GetTicks() + 900u;   // o icone vira "feito"
-      else facFalhaEm = SDL_GetTicks();                                 // a ficha treme
       if (pendExtra >= 0) {
         if (novo == CTX_CONFIRMADA) { extraPedido = pendExtra; aberto = 0; pagina = 0; }
         pendExtra = -1;
@@ -2032,289 +2001,6 @@ void ctx_desenhar(Uint32 agora) {
   ESCALA_FIM();
 }
 // O cartao da home e em pixels reais; o menu desenha na tela virtual.
-
-// O ICONE DIZ O QUE A OPCAO FAZ antes de a pessoa ler — o traco fino do
-// Lucide (aj_*, tools/icones-lucide.sh), o mesmo do mockup: info = detalhes, a
-// estante = salvar/remover dos Salvos, olho (riscado) = historico, X = tirar da
-// fileira, duas pessoas = recomendar.
-static const char *iconeOp(int i, const CatItem *ci) {
-  const char *icone = "aj_info";
-  switch (ops[i].acao) {
-    case OP_LISTA:     icone = "aj_library"; break;
-    case OP_ASSISTIDO: icone = historicoDe(ci) == 1 ? "aj_eye-off" : "aj_eye"; break;
-    case OP_TIRAR_CONTINUAR: icone = "aj_x"; break;
-    case OP_DISPENSAR:  icone = "aj_x"; break;
-    case OP_RECOMENDAR: icone = "aj_users"; break;
-    case OP_DETALHES:   icone = "aj_info"; break;
-    case OP_ESTILO:     icone = "aj_rows-3"; break;
-    case OP_CATEGORIA:  icone = "aj_folders"; break;
-    default:
-      if (ops[i].acao >= OP_EXTRA && ops[i].acao < OP_EXTRA + nExtras &&
-          extras[ops[i].acao - OP_EXTRA].icone)
-        icone = extras[ops[i].acao - OP_EXTRA].icone;
-      break;
-  }
-  return icone;
-}
-
-// ============================================================================
-// FACETAS — o menu de segurar OK da proposta B (aprovada em 24/11/2026)
-//
-// Uma ficha de canto cortado por acao, em orbita ao redor do cartaz de origem.
-// A conta (onde ficam, de que lado, quanto o cartaz cresce, as curvas) esta em
-// facetas.c e e testada la; aqui so se desenha e se liga a entrada.
-//
-// CONTINUIDADE (pedido do dono): um relogio so (`fct`) conduz tudo. Abrir: o
-// veu leve entra, o cartaz cresce uns 6 %, e as fichas saem do ponto da borda do
-// cartaz em cascata, correndo a orbita; o rotulo do foco abre por ultimo. Fechar
-// e andar para tras no mesmo caminho. O cartaz e o PROPRIO cartao da home
-// repintado maior (home_cartao_foco_por_cima_esc): nunca a arte de outro titulo.
-// ============================================================================
-static void facTexGerar(void) {
-  enum { TW = 64, TH = 128, LS = 32 };
-  static unsigned char px[TH * TW * 4];
-  const float corte = FACETA_CORTE * (float)TH / FACETA_T;   // o corte, em texels
-  int k, x, y;
-  for (k = 0; k < 3; k++) {
-    int w = k < 2 ? TW : LS, h = k < 2 ? TH : LS;
-    GLuint *dst = k == 0 ? &facCapL : k == 1 ? &facCapR : &facLosango;
-    for (y = 0; y < h; y++)
-      for (x = 0; x < w; x++) {
-        float cov;
-        unsigned char *q = &px[((size_t)y * w + x) * 4];
-        if (k == 0)      cov = (((float)x + 0.5f) + ((float)y + 0.5f) - corte) * 0.7071f + 0.5f;
-        else if (k == 1) cov = (((float)(w - x) - 0.5f) + ((float)(h - y) - 0.5f) - corte) * 0.7071f + 0.5f;
-        else             cov = (15.0f - (fabsf((float)x - 15.5f) + fabsf((float)y - 15.5f))) * 0.7071f + 0.5f;
-        cov = cov < 0.0f ? 0.0f : cov > 1.0f ? 1.0f : cov;
-        q[0] = q[1] = q[2] = 255; q[3] = (unsigned char)(cov * 255.0f + 0.5f);
-      }
-    glGenTextures(1, dst);
-    glBindTexture(GL_TEXTURE_2D, *dst);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  }
-  gfx_tex_esquecer(0);
-}
-
-// A ficha: meia forma da esquerda (corte em cima), miolo liso e meia forma da
-// direita (corte embaixo). Os cantos retos caem no pixel; so a diagonal tem AA.
-static void facForma(GfxRect r, float cr, float cg, float cb, float ca) {
-  float mw = (r.w < r.h ? r.w : r.h) * 0.5f;
-  if (ca <= 0.004f || r.w < 2.0f) return;
-  if (!facCapL) facTexGerar();
-  gfx_tex_aspect_atual = 0.0f;
-  gfx_rect((GfxRect){ r.x, r.y, mw, r.h }, facCapL, GFX_MARCA, 0, 0, 0, 0.0f, cr, cg, cb, ca);
-  if (r.w - 2.0f * mw > 0.5f)
-    gfx_cor((GfxRect){ r.x + mw, r.y, r.w - 2.0f * mw, r.h }, 0.0f, cr, cg, cb, ca);
-  gfx_rect((GfxRect){ r.x + r.w - mw, r.y, mw, r.h }, facCapR, GFX_MARCA, 0, 0, 0, 0.0f, cr, cg, cb, ca);
-}
-
-static float facMix(float a, float b, float t) { return a + (b - a) * t; }
-
-// Uma ficha em `r`. k = foco (0..1), a = alfa, st = 0..1 do icone de estado
-// (carregando/feito), `quente` = tom de falha, `iconeFim` = icone no fim (arco
-// a esquerda, onde o rotulo abre para a esquerda).
-static void facFicha(GfxRect r, float k, float a, const char *icone, const char *estIcone, float st,
-                     const char *rot, float rotA, float flash, float quente, float pulsa, int iconeFim) {
-  float ar, ag, ab, rc, gc, bc, ringA, fr, fg, fb;
-  GfxRect in = { r.x + 2.0f, r.y + 2.0f, r.w - 4.0f, r.h - 4.0f };
-  float is = r.h * (32.0f / FACETA_T), sx = iconeFim ? r.x + r.w - r.h : r.x;
-  ajustes_acento(&ar, &ag, &ab);
-  rc = facMix(1.0f, ar, k); gc = facMix(1.0f, ag, k); bc = facMix(1.0f, ab, k);
-  rc = facMix(rc, 1.0f, flash); gc = facMix(gc, 1.0f, flash); bc = facMix(bc, 1.0f, flash);
-  rc = facMix(rc, 0.94f, quente); gc = facMix(gc, 0.55f, quente); bc = facMix(bc, 0.40f, quente);
-  ringA = (0.20f + 0.80f * k) * a;
-  fr = facMix(0.043f, 0.090f, k); fg = facMix(0.047f, 0.090f, k); fb = facMix(0.050f, 0.098f, k);
-  if (k > 0.02f)   // brilho curto na cor do realce, so no foco
-    gfx_sombra_sob((GfxRect){ r.x - 26.0f, r.y - 20.0f, r.w + 52.0f, r.h + 52.0f }, 1.0f, 0, 0.5f,
-                   ar, ag, ab, 0.30f * k * a * (0.75f + 0.25f * pulsa), r, 0.0f, 0.0f);
-  else
-    gfx_sombra_sob((GfxRect){ r.x - 16.0f, r.y - 8.0f, r.w + 32.0f, r.h + 32.0f }, 1.0f, 0, 0.5f,
-                   0, 0, 0, 0.34f * a, r, 0.0f, 0.0f);
-  facForma(r, rc, gc, bc, ringA);
-  facForma(in, fr, fg, fb, 0.98f * a);
-  { float ic = facMix(0.82f, 1.0f, k), lr = facMix(ic, ar, k), lg = facMix(ic, ag, k), lb = facMix(ic, ab, k);
-    GfxRect ir = { sx + (r.h - is) * 0.5f, r.y + (r.h - is) * 0.5f, is, is };
-    if (flash > 0.0f) { lr = facMix(lr, 1, flash); lg = facMix(lg, 1, flash); lb = facMix(lb, 1, flash); }
-    gfx_icone(ir, icone, lr, lg, lb, (1.0f - st) * a);
-    if (estIcone && st > 0.01f) gfx_icone(ir, estIcone, facMix(lr, 1, 0.5f), facMix(lg, 1, 0.5f), facMix(lb, 1, 0.5f), st * a * (0.7f + 0.3f * pulsa)); }
-  if (rot && rotA > 0.02f) {
-    TxtLinha t = txt_linha_corta(TXT_PG_ROTULO, rot, 243, 242, 239, 255, r.w - r.h - 14.0f - 14.0f);
-    float tx = iconeFim ? r.x + 22.0f : r.x + r.h + 4.0f;
-    txt_desenhar_alpha(t, tx, r.y + (r.h - t.h) * 0.5f, rotA * a);
-  }
-}
-
-// O quadro do menu em facetas. `mensagem` = o estado da escrita em curso (ou NULL).
-static void facetasDesenhar(const CatItem *ci, const char *mensagem, float ag) {
-  const int red = ajustes_animacoes_reduzidas();
-  const float T = FACETA_T, pg = red ? 1.0f : fct, al = (red ? fct : 1.0f) * ag;
-  const Uint32 agora = SDL_GetTicks();
-  const float esc = faceta_p_cartaz(pg), rotP = faceta_p_rotulo(pg), cf = 1.0f - confT;
-  const int n = nOps;
-  float abaixo = 0.0f, larg[FACETA_MAX], pulsa = 0.5f + 0.5f * sinf((float)agora * 0.008f), ar, ag2, ab;
-  const char *rotulo[FACETA_MAX];
-  GfxRect fin, base = cartazRect, tela = { 0, 0, NV_TELA_W, NV_TELA_H };
-  FacetaGeo g;
-  int i, palco = 0, ok = 0, mostraMsg;
-  float flash = 0.0f, quente = 0.0f;
-  if (al < 0.003f || n < 1) return;
-  ajustes_acento(&ar, &ag2, &ab);
-  if (!cartazFixo && home_foco_palco(&abaixo)) { palco = 1; abaixo /= gfx_escala_ui(); }
-  fin = (GfxRect){ base.x - base.w * (FACETA_ESCALA_CARTAZ - 1.0f) * 0.5f, base.y - base.h * (FACETA_ESCALA_CARTAZ - 1.0f) * 0.5f,
-                   base.w * FACETA_ESCALA_CARTAZ, base.h * FACETA_ESCALA_CARTAZ };
-
-  // 1) o ESCURECIMENTO LEVE da home e o cartaz de origem, crescendo
-  gfx_cor(tela, 0.0f, 0, 0, 0, faceta_p_veu(pg) * al);
-  if (!cartazFixo) { ESCALA_REAL_INI(); ok = home_cartao_foco_por_cima_esc(idx, esc); ESCALA_REAL_FIM(); }
-  if (!ok && cartazArte[0]) {
-    GLuint t = tex_obter_larg(cartazArte, base.w);
-    if (t) {
-      GfxRect q = { base.x - base.w * (esc - 1.0f) * 0.5f, base.y - base.h * (esc - 1.0f) * 0.5f, base.w * esc, base.h * esc };
-      float raio = ajustes_raio_poster_px() / gfx_escala_ui() / q.h, teto = 0.5f * q.w / q.h;
-      if (raio > teto) raio = teto;
-      gfx_tex_aspect_atual = tex_aspecto(cartazArte);
-      gfx_rect(q, t, GFX_CARD, 0, 0, 0, raio, 0, 0, 0, al);
-      gfx_tex_aspect_atual = 0.0f;
-    }
-  }
-
-  // 2) os rotulos (o do foco vira o estado da escrita enquanto ela dura) e a geometria
-  mostraMsg = mensagem && (estadoOperacao == CTX_PENDENTE || (estadoOperacao == CTX_CONFIRMADA && agora < facFlashAte) ||
-                           (estadoOperacao == CTX_FALHA && agora - facFalhaEm < 3200u));
-  for (i = 0; i < n; i++) {
-    rotulo[i] = (i == foco && mostraMsg) ? i18n(mensagem) : ops[i].rot;
-    larg[i] = T + 14.0f + (float)txt_largura(TXT_PG_ROTULO, rotulo[i]) + 26.0f;
-    if (larg[i] > 560.0f) larg[i] = 560.0f;
-  }
-  faceta_geometria(fin, n, larg, palco, abaixo, NV_TELA_W, NV_TELA_H, &g);
-  if (agora < facFlashAte) flash = (float)(facFlashAte - agora) / 900.0f > 0.66f ? ((float)(facFlashAte - agora) / 900.0f - 0.66f) / 0.34f : 0.0f;
-  if (estadoOperacao == CTX_FALHA && agora - facFalhaEm < 600u) quente = 1.0f - (float)(agora - facFalhaEm) / 600.0f;
-
-  if (cf > 0.003f) {
-    FacetaPonto pts[160]; int np = faceta_orbita(&g, faceta_p_orbita(pg), pts, 160);
-    // 3) a ORBITA: pontos que se traçam a partir do cartaz, e o losango onde as fichas nascem
-    for (i = 0; i < np; i++)
-      gfx_cor((GfxRect){ pts[i].x - 1.5f, pts[i].y - 1.5f, 3.0f, 3.0f }, 0.5f, 1, 1, 1, 0.30f * al * cf);
-    if (!facLosango) facTexGerar();
-    gfx_tex_aspect_atual = 0.0f;
-    gfx_rect((GfxRect){ g.ancX - 7.0f, g.ancY - 7.0f, 14.0f, 14.0f }, facLosango, GFX_MARCA, 0, 0, 0, 0.0f,
-             ar, ag2, ab, anim_clamp(pg * 3.0f, 0.0f, 1.0f) * al * cf);
-    if (aberto && pg > 0.5f && ponteiro_ativo() && pagina == 0)
-      ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroCtxFora, 0, 0);
-    // 4) as fichas (a do foco por ultimo, por cima)
-    for (int passo = 0; passo < 2; passo++)
-      for (i = 0; i < n; i++) {
-        float pe = faceta_p_ficha(pg, i, n), kf = focoAnim[i] > 1.0f ? 1.0f : focoAnim[i];
-        float w = T, sc, a = al * cf * pe, st = 0.0f, fl = 0.0f, qt = 0.0f, shake = 0.0f;
-        GfxRect fr, ff;
-        const char *est = NULL;
-        int fim = 0;
-        if ((i == foco) != (passo == 1)) continue;
-        if (g.modo == FACETA_V) {
-          w = T + (larg[i] - T) * kf * rotP;
-          fim = g.lado < 0 && w > T + 1.0f;
-        }
-        ff = (GfxRect){ g.x[i], g.y[i], w, T };
-        if (g.modo == FACETA_V && g.lado < 0) ff.x = g.x[i] + T - w;
-        sc = (0.55f + 0.45f * pe) * (g.modo == FACETA_V ? 1.0f : 1.0f + 0.08f * kf);
-        if (i == foco) {
-          sc *= 1.0f - 0.06f * facPulso;
-          fl = flash; qt = quente;
-          if (estadoOperacao == CTX_PENDENTE) { est = "aj_loader"; st = 1.0f; }
-          else if (agora < facFlashAte) { est = "aj_check"; st = 1.0f; }
-          if (quente > 0.0f) shake = 7.0f * sinf((float)(agora - facFalhaEm) * 0.05f) * quente;
-        }
-        { float cx0 = facMix(g.ancX, ff.x + ff.w * 0.5f, pe), cy0 = facMix(g.ancY, ff.y + ff.h * 0.5f, pe);
-          fr = (GfxRect){ cx0 - ff.w * sc * 0.5f + shake, cy0 - ff.h * sc * 0.5f, ff.w * sc, ff.h * sc };
-          fr.x = floorf(fr.x + 0.5f); fr.y = floorf(fr.y + 0.5f); }
-        facFicha(fr, kf, a, iconeOp(i, ci), est, st * (i == foco ? 1.0f : 0.0f), g.modo == FACETA_V ? rotulo[i] : NULL,
-                 g.modo == FACETA_V ? anim_clamp((kf - 0.55f) / 0.45f, 0.0f, 1.0f) * rotP : 0.0f, fl, qt, pulsa, fim);
-        if (aberto && pg > 0.5f && ponteiro_ativo() && pagina == 0)
-          ponteiro_alvo(ff.x, ff.y, ff.w, ff.h, ponteiroCtxOpcao, NULL, i, 0);
-      }
-    // 5) a legenda (arco horizontal e dock): o rotulo do foco no eixo, cruzando com o anterior
-    if (g.modo != FACETA_V)
-      for (i = 0; i < n; i++) {
-        float ca = (focoAnim[i] > 1.0f ? 1.0f : focoAnim[i]) * rotP * al * cf;
-        TxtLinha t, u;
-        float x, y;
-        if (ca < 0.01f) continue;
-        t = txt_linha_corta(TXT_ILHA_NOME_L, rotulo[i], 243, 242, 239, 255, 720.0f);
-        u = txt_linha_corta(TXT_ILHA_APOIO, ci->titulo, 243, 242, 239, 255, 720.0f);
-        x = g.legX - (t.w > u.w ? t.w : u.w) * 0.5f;
-        if (x < 48.0f) x = 48.0f;
-        if (x + (t.w > u.w ? t.w : u.w) > NV_TELA_W - 48.0f) x = NV_TELA_W - 48.0f - (t.w > u.w ? t.w : u.w);
-        y = g.legY;
-        gfx_cor((GfxRect){ x - 18.0f, y - 8.0f, (t.w > u.w ? t.w : u.w) + 36.0f, t.h + u.h + 20.0f }, 8.0f / (t.h + u.h + 20.0f),
-                0.043f, 0.047f, 0.050f, 0.88f * ca);
-        txt_desenhar_alpha(t, x, y, ca);
-        txt_desenhar_alpha(u, x, y + t.h + 4.0f, 0.62f * ca);
-      }
-  }
-
-  // 6) a CONFIRMACAO (Tirar de Continuar...): cruza com as fichas, no mesmo lado do cartaz
-  if (confT > 0.003f) {
-    char pergunta[240];
-    const char *texto = itemASeguir(ci)
-      ? i18n("A série sai da fileira. Ela volta quando você assistir um episódio novo.")
-      : i18n("O ponto onde você parou é apagado. O título volta para a fileira se você assistir de novo.");
-    const char *kicker = "Continuar assistindo", *botao = "Tirar da fileira";
-    const float pad = 28.0f;
-    float tw0 = 560.0f - 2.0f * pad, hTit, hTxt, wb[2], rowW, pw, ph, ca = confT * al;
-    GfxRect pr, ff;
-    int lado = 0;
-    const char *rb[2];
-    snprintf(pergunta, sizeof pergunta, i18n("Tirar %s da fileira?"), ci->titulo);
-    if (confExtra >= 0 && confExtra < nExtras) {
-      const CtxExtra *x0 = &extras[confExtra];
-      snprintf(pergunta, sizeof pergunta, i18n(x0->pergunta ? x0->pergunta : "%s"), ci->titulo);
-      texto = i18n(x0->texto ? x0->texto : "");
-      kicker = x0->kicker ? x0->kicker : "";
-      botao = x0->rot;
-    }
-    rb[0] = i18n(botao); rb[1] = i18n("Cancelar");
-    for (i = 0; i < 2; i++) wb[i] = T + 14.0f + (float)txt_largura(TXT_PG_ROTULO, rb[i]) + 26.0f;
-    rowW = wb[0] + 14.0f + wb[1];
-    pw = rowW + 2.0f * pad > 560.0f ? rowW + 2.0f * pad : 560.0f;
-    if (pw > 900.0f) pw = 900.0f;
-    tw0 = pw - 2.0f * pad;
-    hTit = txt_bloco_corta(TXT_ILHA_PERGUNTA, pergunta, 243, 242, 239, 0, 0, tw0, 44.0f, 0.0f, 2);
-    hTxt = txt_bloco_corta(TXT_ILHA_TEXTO, texto, 243, 242, 239, 0, 0, tw0, 30.0f, 0.0f, 4);
-    ph = pad + 18.0f + 8.0f + hTit + 12.0f + hTxt + 24.0f + T + pad;
-    pr = faceta_confirmacao(fin, pw, ph, palco, abaixo, NV_TELA_W, NV_TELA_H, &lado);
-    pr.y += (1.0f - confT) * 14.0f * (lado == 2 ? -1.0f : 1.0f);
-    gfx_sombra_sob((GfxRect){ pr.x - 18.0f, pr.y - 8.0f, pr.w + 36.0f, pr.h + 40.0f }, 1.0f, 0, 0.5f, 0, 0, 0, 0.42f * ca, pr, 8.0f, 0.98f * ca);
-    gfx_cor(pr, 8.0f / pr.h, 0.043f, 0.047f, 0.050f, 0.98f * ca);
-    gfx_anel(pr, 8.0f / pr.h, 1.5f, 1, 1, 1, 0.08f * ca);
-    { float y = pr.y + pad, x = pr.x + pad;
-      kickerCtx(kicker, x, y, ca);
-      y += 18.0f + 8.0f;
-      txt_bloco_corta(TXT_ILHA_PERGUNTA, pergunta, 243, 242, 239, x, y, tw0, 44.0f, ca, 2);
-      y += hTit + 12.0f;
-      txt_bloco_corta(TXT_ILHA_TEXTO, texto, 243, 242, 239, x, y, tw0, 30.0f, 0.62f * ca, 4);
-      y += hTxt + 24.0f;
-      if (aberto && confT > 0.5f && ponteiro_ativo()) {
-        ponteiro_alvo(0, 0, NV_TELA_W, NV_TELA_H, NULL, ponteiroCtxFora, 0, 0);
-        ponteiro_alvo(pr.x, pr.y, pr.w, pr.h, NULL, NULL, 0, 0);
-      }
-      for (i = 0; i < 2; i++) {
-        float kf = confAnim[i] > 1.0f ? 1.0f : confAnim[i];
-        ff = (GfxRect){ x, y, wb[i], T };
-        facFicha(ff, kf, ca, i == 0 ? "aj_check" : "aj_x", NULL, 0.0f, rb[i], 1.0f, 0.0f, 0.0f, pulsa, 0);
-        if (aberto && confT > 0.5f && ponteiro_ativo())
-          ponteiro_alvo(ff.x, ff.y, ff.w, ff.h, ponteiroConfFoco, ponteiroConfOk, i, 0);
-        x += wb[i] + 14.0f;
-      }
-    }
-  }
-  infoDesenhada = 0;
-}
-
 static int cartaoDaHome(void) {
   int ok;
   ESCALA_REAL_INI();
@@ -2322,23 +2008,6 @@ static int cartaoDaHome(void) {
   ESCALA_REAL_FIM();
   return ok;
 }
-static const char *mensagemOp(void) {
-  const char *mensagem = NULL;
-  if (estadoOperacao == CTX_PENDENTE)
-    mensagem = operacao == CTX_OP_LISTA ? "Atualizando biblioteca..."
-                                        : (intencao ? "Marcando como assistido..."
-                                                    : "Desmarcando como assistido...");
-  else if (estadoOperacao == CTX_CONFIRMADA)
-    mensagem = operacao == CTX_OP_LISTA ? "Biblioteca atualizada"
-                                        : (intencao ? "Marcado como assistido"
-                                                    : "Desmarcado como assistido");
-  else if (estadoOperacao == CTX_FALHA)
-    mensagem = "Não foi possível atualizar. Tente novamente.";
-  if (estadoOperacao == CTX_CONFIRMADA && operacao == CTX_OP_LISTA && avisoOp)
-    mensagem = avisoOp;
-  return mensagem;
-}
-
 static void ctx_desenharCorpo_(Uint32 agora) {
   const CatItem *ci;
   const char *mensagem = NULL;
@@ -2375,32 +2044,25 @@ static void ctx_desenharCorpo_(Uint32 agora) {
     gfx_cor((GfxRect){ cx - 210.0f, NV_TELA_H - 82.0f,
                        420.0f * p, 8.0f }, 4.0f, 0.78f, 0.84f, 0.96f, 0.98f);
   }
-  // FACETAS: quem manda no quadro e o relogio `fct` (ele ainda corre depois que
-  // `aberto` cai: fechar e o mesmo desenho andando para tras). A pagina de
-  // estilos entra por cima e as fichas cedem na mesma curva dela.
-  if (fctAtivo && !doLista && !doPainel && fct >= 0.003f) {
-    const CatItem *cf = itemAtual();
-    if (cf) {
-      if (temCartaz && !cartazFixo) {
-        HomeItem hi;
-        if (home_item_focado(&hi) && hi.indice == idx && hi.rect.w > 8.0f && hi.rect.h > 8.0f)
-          cartazRect = ctxDaHome(hi.rect);
-      }
-      facetasDesenhar(cf, mensagemOp(), pagina == 1 ? 1.0f - estPag : 1.0f);
-    }
-    if (pagina == 1 && a >= 0.01f) { desenhaEstilos(a); }
-    return;
-  }
   if (a < 0.01f) return;
   if (modoInline() && pagina == 0) return;   // a linha do painel se abre sozinha (salvospainel.c)
-  if (pagina == 1) {
-    desenhaEstilos(a); return;
-  }
+  if (pagina == 1) { desenhaEstilos(a); return; }
   if (doLista) { desenhaLista(a); return; }
   ci = itemAtual();
   if (!ci) return;
   if (pagina == 2) { desenhaConfirmar(ci, a); return; }
-  mensagem = mensagemOp();
+  if (estadoOperacao == CTX_PENDENTE)
+    mensagem = operacao == CTX_OP_LISTA ? "Atualizando biblioteca..."
+                                        : (intencao ? "Marcando como assistido..."
+                                                    : "Desmarcando como assistido...");
+  else if (estadoOperacao == CTX_CONFIRMADA)
+    mensagem = operacao == CTX_OP_LISTA ? "Biblioteca atualizada"
+                                        : (intencao ? "Marcado como assistido"
+                                                    : "Desmarcado como assistido");
+  else if (estadoOperacao == CTX_FALHA)
+    mensagem = "Não foi possível atualizar. Tente novamente.";
+  if (estadoOperacao == CTX_CONFIRMADA && operacao == CTX_OP_LISTA && avisoOp)
+    mensagem = avisoOp;
 
   // O poster acompanha o cartao na home (a mola de foco ainda pode estar
   // andando quando o menu abre): o retangulo e o deste quadro.
@@ -2593,7 +2255,27 @@ static void ctx_desenharCorpo_(Uint32 agora) {
     float f = focoAnim[i];
     if (aberto && a > 0.5f)
       ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroCtxOpcao, NULL, i, 0);
-    const char *icone = iconeOp(i, ci);
+    // O ICONE DIZ O QUE A OPCAO FAZ antes de a pessoa ler — o traco fino do
+    // Lucide (aj_*, tools/icones-lucide.sh), o mesmo do mockup: info =
+    // detalhes, a estante = salvar/remover dos Salvos, olho (riscado) =
+    // historico, X = tirar da fileira, duas pessoas = recomendar.
+    const char *icone = "aj_info";
+    switch (ops[i].acao) {
+      case OP_LISTA:     icone = "aj_library"; break;
+      case OP_ASSISTIDO: icone = historicoDe(ci) == 1
+                                 ? "aj_eye-off" : "aj_eye"; break;
+      case OP_TIRAR_CONTINUAR: icone = "aj_x"; break;
+      case OP_DISPENSAR:  icone = "aj_x"; break;
+      case OP_RECOMENDAR: icone = "aj_users"; break;
+      case OP_DETALHES:   icone = "aj_info"; break;
+      case OP_ESTILO:     icone = "aj_rows-3"; break;
+      case OP_CATEGORIA:  icone = "aj_folders"; break;
+      default:
+        if (ops[i].acao >= OP_EXTRA && ops[i].acao < OP_EXTRA + nExtras &&
+            extras[ops[i].acao - OP_EXTRA].icone)
+          icone = extras[ops[i].acao - OP_EXTRA].icone;
+        break;
+    }
     if (secoesAtivas() && abreSecao(i))
       kickerCtx(SEC_ROT[secaoDaOp(ops[i].acao)], r.x + 20.0f, r.y - CTX_SEC_H + 8.0f, a);
     linhaCtx(r, ops[i].rot, icone, f, a);
@@ -2601,7 +2283,6 @@ static void ctx_desenharCorpo_(Uint32 agora) {
 }
 
 void ctx_abrir_sessao(void) {
-  fct = confT = facPulso = 0.0f; fctAtivo = 0; facFlashAte = facFalhaEm = 0;
   // Sem animacao de saida: uma linha inline pode perder o painel que a
   // desenhava e continuar aberta como uma camada invisivel sobre a Home.
   aberto = 0;
