@@ -7042,8 +7042,8 @@ static void desenharAtrasDoPainel(void *ctx) {
 // esta atras do menu e pintado UMA vez no FBO do snapshot e os quadros seguintes
 // so copiam, recuado e escurecido numa passada (gfx_snap_desenhar_xf) — e o
 // "fundo congela e recua" das pranchas, sem uma camada de veu de tela cheia a
-// mais. Repinta como a do painel de Salvos (republicacao do catalogo, arte
-// faltando, 0,4 / 1,5 / 4 s) e quando o estilo da fileira muda (`versao`).
+// mais. QUANDO repintar mora em r8fundo.h: so quando algo mudou de fato e a
+// Home assentou (sem relogio; ver la o porque).
 // Sem FBO, com video no ar ou com a copia preta, a Home e desenhada viva e o
 // menu poe o proprio veu.
 // O RASTRO DA COPIA (TCL, 26/11): o [qd-lento] da lista de estilos tinha
@@ -7062,8 +7062,10 @@ static Uint32 ctxRelogio(void) { return SDL_GetTicks(); }
 static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float veu, unsigned versao) {
   static R8Fundo rf;
   int parar = gfx_snap_ok() && !player_mini_ativo() && !player_aberto() && !spainel_visivel();
-  if (r8fundo_quadro(&rf, parar, esc, ox, oy, veu, versao, ctx_r8_sessao(), ctxRelogio,
-                     ctxAtras, &agora, fundoRastro, sizeof fundoRastro)) {
+  int q = r8fundo_quadro(&rf, parar, esc, ox, oy, veu, versao, ctx_r8_sessao(), ctxRelogio,
+                         ctxAtras, &agora, fundoRastro, sizeof fundoRastro);
+  ctx_r8_fundo_estado(q);   // o menu so comeca a abrir depois que a pintura passou
+  if (q == R8F_Q_PINTOU || q == R8F_Q_COPIOU) {
     ctx_r8_fundo_pronto(1);
     CAMADA_SE(ctx_aberto());
     ctx_desenhar(agora);

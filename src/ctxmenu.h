@@ -162,6 +162,9 @@ unsigned ctx_r8_sessao(void);   // muda a cada abertura do zero: a copia parada 
 // proprio veu sobre a Home viva).
 int  ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao);
 void ctx_r8_fundo_pronto(int ok);
+void ctx_r8_fundo_estado(int q);   // R8F_Q_* (r8fundo.h): o que o quadro do fundo fez
+int  ctx_r8_inicio(Uint32 *ms);    // 1 = a curva de abertura ja comecou (e quando)
+float ctx_r8_gaveta(void);         // 0..1: a Folha na tela (o relogio sai com ela)
 // O que o menu R8 desenhou no ultimo quadro, em pixels da tela (testes contra a
 // especificacao das pranchas). 0 = nao estava na tela.
 typedef struct {

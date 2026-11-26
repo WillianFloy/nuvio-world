@@ -3858,6 +3858,53 @@ static void pastaPrever(Uint32 agora) {
   feito = 1;
   vertudo_prever(col_folder(atual));
 }
+// A HOME ASSENTADA (26/11, fundo congelado do menu de segurar OK).
+//
+// A copia parada da Home (r8fundo.c) so pode ser tirada com a Home PARADA: no
+// meio da troca do destaque ela guardava os dois titulos sobrepostos (TCL,
+// 26/11, "A Odisseia" sobre "Homem de Ferro"). Medido aqui, no fim do passo,
+// sem desenhar: as molas que andam (rolagem vertical, rolagem da fileira em
+// foco, foco do cartaz e da fileira, botao do destaque, abertura do cartaz), a
+// troca do destaque em qualquer fase (candidato em repouso, arte esperada,
+// esvanecimento, deslize, texto escalonado) e a cascata de entrada das
+// fileiras. Assentada = dois passos seguidos sem nada disso.
+//
+// HOME_ASSENTAR: atras do menu a Home esta congelada, entao ninguem ve as molas
+// andarem. Quando o menu precisa de uma copia nova (abertura, estilo trocado ao
+// vivo, catalogo republicado), o passo seguinte da Home roda pelo caminho das
+// animacoes reduzidas (motionReduzido: molas, destaque e bordas vao direto ao
+// alvo — o mesmo caminho de quem desliga as animacoes) e a cascata de entrada
+// termina. A copia sai do estado FINAL, numa pintura so. A troca de destaque
+// que ainda espera a arte nao e forcada: quando ela acontecer a Home deixa de
+// estar assentada e a copia e refeita depois.
+static int homeQuietos;
+static int homeAssentarPedido;
+void home_assentar(void) { homeAssentarPedido = 1; }
+static void homeMedirMovimento(Uint32 agora, int assentou) {
+  static float ant[7];
+  float v[7];
+  int r = foco.fileira, c = foco.coluna, mexe = 0, k;
+  int filOk = r >= 0 && r < nFileiras && r < MAX_FIL, colOk = filOk && c >= 0 && c < MAX_CARDS;
+  v[0] = scrollY; v[1] = filOk ? scrollX[r] : 0.0f;
+  v[2] = colOk ? animFoco[r][c] : 0.0f; v[3] = expAbre; v[4] = filOk ? animFocoFil[r] : 0.0f;
+  v[5] = animBotaoHero; v[6] = palcoItemA;
+  for (k = 0; k < 7; k++) {
+    // px nas rolagens (0,25 px), fracao nas molas de 0..1. No passo assentado
+    // o salto ate o alvo e o proprio assentar, nao movimento.
+    if (!assentou && fabsf(v[k] - ant[k]) > (k < 2 ? 0.25f : 0.002f)) mexe = 1;
+    ant[k] = v[k];
+  }
+  if (heroSai > 0.0f || heroDesliza < 1.0f || heroTextoAtivo ||
+      (heroDesejado >= 0 && heroDesejado != heroAtual) ||
+      (!focoHero && heroPendente != heroAtual))
+    mexe = 1;
+  for (k = 0; k < nFileiras && k < MAX_FIL; k++)
+    if (filEntraEm[k] && (Sint32)(agora - filEntraEm[k]) <=
+        (Sint32)(NV_ENTRA_MS + NV_ENTRA_PASSO_MS * NV_ENTRA_MAX_COL + 40)) mexe = 1;
+  homeQuietos = mexe ? 0 : assentou ? 2 : homeQuietos + 1;
+}
+int home_assentada(void) { return homeQuietos >= 2; }
+
 static void home_atualizar_(float dt, Uint32 agora) {
   pastaPrever(agora);
   curadoria_passo();   // a curadoria da fileira Herói, no seu tempo (curadoria.h)
@@ -3927,7 +3974,16 @@ static void home_atualizar_(float dt, Uint32 agora) {
     homePainelFoi = 0;
   }
 
-  const int motionReduzido = ajustes_animacoes_reduzidas();
+  // home_assentar: este passo vai direto ao alvo (ver homeMedirMovimento).
+  const int assentarJa = homeAssentarPedido;
+  const int motionReduzido = ajustes_animacoes_reduzidas() || assentarJa;
+  homeAssentarPedido = 0;
+  if (assentarJa) {
+    // O esvanecimento do destaque ja em curso termina agora (a arte nova ja
+    // esta no ar) e a cascata de entrada das fileiras tambem.
+    heroSai = 0.0f; heroEntra = 1.0f; heroDesliza = 1.0f; heroTextoAtivo = 0;
+    for (int r = 0; r < MAX_FIL; r++) filEntraEm[r] = 0;
+  }
 #ifdef NV_TOUCH_UI
   toqueHeroAtualizar(dt, agora, heroOculto, motionReduzido);
 #endif
@@ -4258,6 +4314,8 @@ static void home_atualizar_(float dt, Uint32 agora) {
   for (int r = 0; r < nFileiras && r < MAX_FIL; r++)
     (void)anim_borda_passo(&bordaFil[r], dt, motionReduzido);
   (void)anim_borda_passo(&bordaPag, dt, motionReduzido);
+
+  homeMedirMovimento(agora, assentarJa);
 
   // Mantem um snapshot vivo para a proxima publicacao incremental. O
   // sincronizador ainda usa posCapturar como fallback nos testes/caminhos que

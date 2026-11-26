@@ -177,3 +177,18 @@ int home_colcam_compostos(void);
 int  home_fileira_titulos(int *out, int max, int *pos);
 // Poe o foco da fileira atual no titulo `indice` (a volta do carrossel).
 void home_focar_titulo(int indice);
+// Prende o foco ao titulo `indice` a cada remontagem das fileiras (o menu de
+// segurar OK, enquanto esta na tela); -1 solta.
+void home_prender_foco(int indice);
+// 1 = o titulo `indice` esta na fileira em foco (um estilo de um cartao so,
+// como o Heroi, pode nao mostra-lo).
+int home_titulo_na_fileira(int indice);
+// 1 = a Home esta parada ha dois passos (molas, troca do destaque, cascata das
+// fileiras): a copia parada do menu de segurar OK pode ser tirada.
+int home_assentada(void);
+// O proximo passo da Home vai direto ao estado final (molas, troca do destaque
+// ja em curso, cascata de entrada): a copia parada do menu sai de uma pintura.
+void home_assentar(void);
+// 1 durante a pintura da copia parada do menu (r8fundo.c): as entradas por
+// relogio do desenho (numerais, Linha do tempo, cascata) saem no estado final.
+void home_pintura_parada(int on);

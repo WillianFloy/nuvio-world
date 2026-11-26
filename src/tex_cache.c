@@ -4656,6 +4656,7 @@ int tex_marca_escura(const char *caminho) {
 }
 
 int    tex_upl_n;
+unsigned long tex_upl_total;
 long   tex_upl_bytes;
 
 // ENVIO EM FAIXAS (05/10/2026, B3). Textura acima de NV_TEX_FAIXA_BYTES sobe
@@ -4889,7 +4890,7 @@ int tex_bombear(int max_por_quadro) {
           itens[alvo].sup = NULL;
           SDL_UnlockMutex(mtx);
           uplTex = 0; uplIdx = -1; uplSup = NULL; uplY = 0; uplNiveis = 0;
-          tex_upl_n++;
+          tex_upl_n++; tex_upl_total++;
           subiu += publicarEnvio(alvo, t, sup, uplEm, uplGlMs, uplFila, uplPath); }
       }
       medirEnvio(2, passoEm);
@@ -4966,7 +4967,7 @@ int tex_bombear(int max_por_quadro) {
       if ((SDL_GetPerformanceCounter() - inicio) * 1000.0 / freq >= 8.0) break;
       continue;
     }
-    tex_upl_n++;
+    tex_upl_n++; tex_upl_total++;
     tex_upl_bytes += (long)sup->w * sup->h * 4;
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sup->w, sup->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, sup->pixels);
     if (sup->userdata) tex_upl_bytes += subirNiveis(sup);

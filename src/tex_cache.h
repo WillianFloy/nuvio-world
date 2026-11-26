@@ -216,6 +216,9 @@ extern int tex_n_recusa;
 // grande ou trinta pequenas leva a consertos diferentes. Zerados por quadro
 // por quem mede (main.c).
 extern int    tex_upl_n;
+// Texturas que chegaram a GPU desde o inicio (nunca zera): quem precisa saber
+// se "alguma arte chegou desde X" (a copia parada do menu, r8fundo.c).
+extern unsigned long tex_upl_total;
 extern long   tex_upl_bytes;
 // Pedidos que foram do indice do cache de disco direto ao decode, sem esperar
 // a fila de rede (discoDireto), e downloads poupados pela memoria de arte

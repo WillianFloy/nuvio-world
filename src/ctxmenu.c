@@ -35,6 +35,7 @@
 #include "listas.h"
 #include "home.h"
 #include "ctxinfo.h"
+#include "r8fundo.h"
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>

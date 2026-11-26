@@ -42,6 +42,8 @@ jobs:
         run: bash tests/r8_tempo.sh
       - name: Fundo congelado (fundoparado)
         run: bash tests/fundoparado.sh
+      - name: Quando repintar a copia do menu (r8fundo)
+        run: bash tests/r8fundo.sh
       - name: Menu de segurar OK contra as pranchas e comportamento (r8_menu_espec)
         run: bash tests/r8_menu_espec.sh
 

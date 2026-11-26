@@ -43,6 +43,19 @@ static double     r8Aperto = -1e9, r8Confirmou = -1e9, r8Pendente = -1e9;
 static int        r8FundoOk;        // app pintou/copiou a Home parada neste quadro
 static unsigned   r8FundoVer;       // muda quando o estilo da fileira muda (repintar a copia)
 static int        r8Reduzido;
+static int        r8Prendeu;        // home_prender_foco ligado por este menu
+// A ABERTURA SO COMECA COM O FUNDO PRONTO (26/11, TCL: a gaveta aparecia ja a
+// 1/3 do caminho e a Home escurecia depois). O relogio da curva comecava no
+// OK, mas o quadro da pintura da copia e o seguinte (que paga o custo dela na
+// GPU, 45-60 ms) passavam antes de algo aparecer. Agora a sessao nova espera:
+// a Home assenta, a copia e pintada, um quadro so de copia passa (o custo da
+// pintura fica nele) e so entao a curva comeca, do zero. Gaveta, veu e recuo
+// saem do mesmo valor. Teto de R8M_ESPERA_MAX ms para nunca prender o menu.
+#define R8M_ESPERA_MAX 400u
+static int        r8Espera;         // sessao aberta, curva ainda nao comecou
+static Uint32     r8EsperaDesde;
+static int        r8FundoEst = -1;  // o que o quadro anterior fez (R8F_Q_*)
+static Uint32     r8InicioMs;       // quando a curva comecou (testes)
 static CtxR8Geo   r8Geo;            // o que o ultimo quadro desenhou (testes)
 int ctx_r8_geo(CtxR8Geo *g) { if (g) *g = r8Geo; return r8Geo.visivel; }
 
@@ -251,6 +264,17 @@ int ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao)
   return 1;
 }
 void ctx_r8_fundo_pronto(int ok) { r8FundoOk = ok; }
+void ctx_r8_fundo_estado(int q) { r8FundoEst = q; }
+int  ctx_r8_inicio(Uint32 *ms) { if (r8On && !r8Espera && r8Ab.estado != 0) { if (ms) *ms = r8InicioMs; return 1; } return 0; }
+// O QUANTO A GAVETA (Folha) ESTA NA TELA, 0..1 (o relogio sai com ela: dono,
+// 26/11, opcao A). Mesmo valor da superficie (com a curva; nas reduzidas, a
+// opacidade). O Desdobrar nao entra (Grupo C).
+float ctx_r8_gaveta(void) {
+  Uint32 agora = r8Agora();
+  double t = r8Seg(agora);
+  if (!r8On || r8Forma || r8Espera || !r8Visivel(agora)) return 0.0f;
+  return r8Reduzido ? r8ab_linear(&r8Ab, t) : r8ab_valor(&r8Ab, t);
+}
 unsigned ctx_r8_sessao(void) { return r8Sessao; }
 
 // O retangulo do cartaz neste quadro (a mola de foco da Home pode andar), EM
