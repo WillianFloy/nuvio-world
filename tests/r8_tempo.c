@@ -70,14 +70,17 @@ static float c2(const char *el, const char *campo, double t) {
 }
 
 // Menu C (Folha): segurar OK ate 1,3; abre; fecha com a superficie em 5,3.
-static float mc(const char *el, const char *campo, double t, float x0) {
+// A FOLHA E UMA GAVETA (26/11, tools/r8/menus.py build_C): encostada na borda
+// direita da tela de 1920 (x final 1280, 640 de largura), entra de fora da tela
+// pela direita e e opaca enquanto esta na tela (sem esmaecer).
+static float mc(const char *el, const char *campo, double t) {
   R8Abertura a; r8ab_iniciar(&a, R8_MENU_ABRIR, R8_MENU_FECHAR);
   if (t >= 1.3) r8ab_abrir(&a, 1.3);
   if (t >= 5.28) r8ab_fechar(&a, 5.28);
   float m = r8ab_valor(&a, t);
   if (!strcmp(el, "veil")) return 0.5f * m;
-  if (!strcmp(campo, "x")) return x0 + 70 * (1 - m);
-  return r8_seg(m, 0, 0.45f);
+  if (!strcmp(campo, "x")) return 1280.0f + 640.0f * (1.0f - m);
+  return m > 0.001f ? 1.0f : 0.0f;
 }
 
 // Segurar CH+: toque curto de 0,6 a 1,0 (cancela); segurar valido em 2,2.
@@ -184,13 +187,13 @@ static void comportamento(void) {
 int main(int argc, char **argv) {
   const char *ref = argc > 1 ? argv[1] : "/tmp/r8_ref.txt";
   FILE *f = fopen(ref, "r");
-  char peca[16], el[32], campo[8]; double t; float v, mcx0 = NAN;
+  char peca[16], el[32], campo[8]; double t; float v;
   if (!f) { printf("sem referencia %s (rode tests/r8_tempo_ref.py)\n", ref); return 2; }
   while (fscanf(f, "%15s %31s %7s %lf %f", peca, el, campo, &t, &v) == 5) {
     float c, tol = (!strcmp(campo, "o") || !strcmp(campo, "s")) ? 0.01f : 1.0f;
     if (!strcmp(peca, "S1")) c = s1(el, campo, t);
     else if (!strcmp(peca, "C2")) c = c2(el, campo, t);
-    else if (!strcmp(peca, "MC")) { if (!strcmp(el, "sheet") && !strcmp(campo, "x") && isnan(mcx0)) mcx0 = v - 70; c = mc(el, campo, t, mcx0); }
+    else if (!strcmp(peca, "MC")) c = mc(el, campo, t);
     else if (!strcmp(peca, "HR")) {
       // A prancha esvazia o toque curto a partir do valor de 0,98 s (um quadro
       // antes de soltar); o app parte do valor no instante de soltar. So a

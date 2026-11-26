@@ -18,6 +18,7 @@
 #include "teclado.h"
 #include "ponteiro.h"
 #include "app.h"
+#include "r8fundo.h"
 #include "teclavoltar.h"
 #include "deeplink.h"
 #include "telefoneui.h"
@@ -910,6 +911,18 @@ static int saiuPorEsquerda, saiuPorCima;   // a ultima tecla foi ESQUERDA ou CIM
 static int sidebar_permitida(void) {
   return tela != TELA_GUIA && !player_mini_ativo();
 }
+// ONDE O RITMO DAS SETAS VALE (navritmo.h, "Navegação geral rápida" desligada):
+// so na navegacao entre cartazes — fileiras da Home e Collections —, onde a
+// fileira desliza e a arte carrega. Menus, painel, Ajustes, teclados, guia,
+// detalhe e player continuam respondendo a cada tecla como sempre.
+// Fora do NV_TOUCH_UI (26/11): main.c chama em toda plataforma; dentro do
+// #ifdef o build Linux (tools/linux.sh) nao ligava desde 15/11. No Android
+// (NV_TOUCH_UI definido) o codigo e o mesmo.
+int app_navegacao_cartazes(void) {
+  if (menu_aberto() || spainel_aberto() || ctx_aberto() || spot_aberto() || sintro_aberto()) return 0;
+  if (vertudo_aberta()) return 1;
+  return tela == TELA_HOME && !detail_aberto();
+}
 #ifdef NV_TOUCH_UI
 static int sidebarToquePode(void) {
   return layout_modo_mobile() && sidebar_permitida() && !menu_aberto() && !player_aberto() &&
@@ -922,15 +935,6 @@ static void sidebarToqueAbrirTela(Tela origem) {
   menu_abrir();
 }
 #define SIDEBAR_TOQUE_TELA(nome, origem) static void nome(void) { sidebarToqueAbrirTela(origem); }
-// ONDE O RITMO DAS SETAS VALE (navritmo.h, "Navegação geral rápida" desligada):
-// so na navegacao entre cartazes — fileiras da Home e Collections —, onde a
-// fileira desliza e a arte carrega. Menus, painel, Ajustes, teclados, guia,
-// detalhe e player continuam respondendo a cada tecla como sempre.
-int app_navegacao_cartazes(void) {
-  if (menu_aberto() || spainel_aberto() || ctx_aberto() || spot_aberto() || sintro_aberto()) return 0;
-  if (vertudo_aberta()) return 1;
-  return tela == TELA_HOME && !detail_aberto();
-}
 SIDEBAR_TOQUE_TELA(sidebarToqueHome, TELA_HOME)
 SIDEBAR_TOQUE_TELA(sidebarToqueExplorar, TELA_EXPLORAR)
 SIDEBAR_TOQUE_TELA(sidebarToqueBusca, TELA_BUSCA)
@@ -7049,58 +7053,22 @@ static void desenharAtrasDoPainel(void *ctx) {
 // (com a leitura de conferencia) e cada pintura sai no log com o motivo.
 static char fundoRastro[80];
 const char *app_fundo_rastro(void) { return fundoRastro; }
+static void ctxAtras(void *ctx) {
+  ctxForaDoFundo = 1;
+  desenharAtrasDoPainel(ctx);
+  ctxForaDoFundo = 0;
+}
+static Uint32 ctxRelogio(void) { return SDL_GetTicks(); }
 static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float veu, unsigned versao) {
-  static FundoParado fp;
-  static unsigned verAnt, catAnt, sesAnt;
-  static const Uint32 REFAZ[] = { 400, 1500, 4000 };
+  static R8Fundo rf;
   int parar = gfx_snap_ok() && !player_mini_ativo() && !player_aberto() && !spainel_visivel();
-  FpAcao acao;
-  fundoparado_sessao(&fp, ctx_r8_sessao());
-  acao = fundoparado_passo(&fp, parar, cat_revisao() + versao * 7919u, SDL_GetTicks(), REFAZ, 3);
-  if (acao == FP_PINTAR) {
-    unsigned faltas0 = tex_n_falta;
-    int mx = 0, preta, fw = 0, fh = 0;
-    Uint64 c0 = SDL_GetPerformanceCounter(), c1;
-    double ms, lerMs;
-    const char *motivo = ctx_r8_sessao() != sesAnt ? "abertura" : versao != verAnt ? "estilo"
-                       : cat_revisao() != catAnt ? "catalogo" : fp.faltou ? "arte" : "tempo";
-    gfx_snap_comecar();
-    gfx_sem_recorte();
-    glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    ctxForaDoFundo = 1;
-    desenharAtrasDoPainel(&agora);
-    ctxForaDoFundo = 0;
-    gfx_sem_recorte();
-    c1 = SDL_GetPerformanceCounter();
-    preta = gfx_snap_vazio(&mx);
-    gfx_snap_terminar();
-    lerMs = (double)(SDL_GetPerformanceCounter() - c1) * 1000.0 / (double)SDL_GetPerformanceFrequency();
-    ms = (double)(SDL_GetPerformanceCounter() - c0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
-    gfx_snap_tamanho(&fw, &fh);
-    snprintf(fundoRastro, sizeof fundoRastro, " fundo=P %.1fms(ler %.1f)", ms, lerMs);
-    printf("[ctx-r8] copia da Home pintada: motivo=%s %.1f ms (leitura %.1f ms) fbo=%dx%d\n", motivo, ms, lerMs, fw, fh);
-    sesAnt = ctx_r8_sessao(); verAnt = versao; catAnt = cat_revisao();
-    fundoparado_pintado(&fp, tex_n_falta != faltas0, preta, cat_revisao() + versao * 7919u, SDL_GetTicks());
-    if (preta) {
-      printf("[ctx-r8] copia parada saiu PRETA (max=%d): desenhando a home direto\n", mx);
-      fflush(stdout);
-      acao = FP_DIRETO;
-    } else acao = FP_COPIAR;
-  }
-  if (acao == FP_COPIAR) {
-    if (!fundoRastro[0]) snprintf(fundoRastro, sizeof fundoRastro, " fundo=C");
-    home_fileiras_vistas(SDL_GetTicks());
-    gfx_sem_recorte();
-    glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    gfx_snap_desenhar_xf(esc, ox, oy, 0.0f, 0.0f, veu);
+  if (r8fundo_quadro(&rf, parar, esc, ox, oy, veu, versao, ctx_r8_sessao(), ctxRelogio,
+                     ctxAtras, &agora, fundoRastro, sizeof fundoRastro)) {
     ctx_r8_fundo_pronto(1);
     CAMADA_SE(ctx_aberto());
     ctx_desenhar(agora);
     return;
   }
-  snprintf(fundoRastro, sizeof fundoRastro, " fundo=D");
   ctx_r8_fundo_pronto(0);
   desenharAtrasDoPainel(&agora);
 }
@@ -7292,6 +7260,14 @@ static int miniToquePermitido(void) {
   return tela != TELA_GUIA;
 }
 #endif
+
+// A ILHA DO RELOGIO SOBRE AS CAMADAS: quando ela fica coberta e com que
+// opacidade. Funcao publica para o harness do menu (tests/r8_menu_quadros_shot.c)
+// desenhar a ilha pela MESMA regra do app.
+int app_ilha_coberta(void) {
+  return spainel_da_ilha() || atualizacao_cobre_ilha() || spot_progresso() > 0.995f;
+}
+float app_ilha_opacidade(void) { return 1.0f - spot_progresso(); }
 
 void app_desenhar(Uint32 agora) {
   relogioFocoValidar();
@@ -7545,12 +7521,12 @@ void app_desenhar(Uint32 agora) {
     // O CARTAO DA ATUALIZACAO e a pilula crescida (atualizacao.c): enquanto
     // ele esta na tela, ela fica por baixo, medindo, sem se desenhar.
     // O relogio sai em fade junto com a ilha de busca (e nao desenha com ela inteira).
-    ilha_coberta(spainel_da_ilha() || atualizacao_cobre_ilha() || spot_progresso() > 0.995f);
+    ilha_coberta(app_ilha_coberta());
 #ifdef NV_TOUCH_UI
     if (layout_modo_mobile()) CAMADA_SE(central_aberta() || ilha_modal_aberto());
 #endif
     { float gaIlha = gfx_opacidade_grupo;
-      gfx_opacidade_grupo = gaIlha * (1.0f - spot_progresso());
+      gfx_opacidade_grupo = gaIlha * app_ilha_opacidade();
       ilha_desenhar(agora);
       gfx_opacidade_grupo = gaIlha; }
   }

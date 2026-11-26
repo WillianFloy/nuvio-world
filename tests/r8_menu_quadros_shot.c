@@ -11,7 +11,10 @@
 #include "ajustes.h"
 #include "catalogo.h"
 #include "ctxmenu.h"
-#include "fundoparado.h"
+#include "r8fundo.h"
+#include "app.h"
+#include "corviva.h"
+#include "ilha.h"
 #include "dados.h"
 #include "gfx.h"
 #include "home.h"
@@ -32,17 +35,20 @@
 
 static SDL_Window *janela;
 static Uint32 relogio = 1000;
+// O TAMANHO DA TELA: 1920 x 1080 (as pranchas) ou, com NV_720=1, o drawable
+// real da TCL (1280 x 720), com a interface de 1920 escalada como no app.
+static int janW = 1920, janH = 1080;
 static const char *NOMES[] = { "Duna: Parte Dois", "Moana 2", "Severance", "Fallout", "Andor", "O Urso",
                                "Slow Horses", "Shōgun", "The Last of Us", "Ruptura", "Arcane", "Pinguim",
                                "Bebê Rena", "Fargo", "True Detective", "Silo", "Reacher", "Invencível",
                                "Gen V", "Blue Eye Samurai" };
 
 static void gravarPng(const char *png) {
-  unsigned char *pix = malloc(1920 * 1080 * 4);
-  SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, 1920, 1080, 32, SDL_PIXELFORMAT_RGBA32);
+  unsigned char *pix = malloc((size_t)janW * janH * 4);
+  SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, janW, janH, 32, SDL_PIXELFORMAT_RGBA32);
   int y;
-  glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, pix);
-  for (y = 0; y < 1080; y++) memcpy((char *)s->pixels + y * s->pitch, pix + (1079 - y) * 1920 * 4, 1920 * 4);
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+  for (y = 0; y < janH; y++) memcpy((char *)s->pixels + y * s->pitch, pix + (size_t)(janH - 1 - y) * janW * 4, (size_t)janW * 4);
   IMG_SavePNG(s, png);
   SDL_FreeSurface(s);
   free(pix);
@@ -57,13 +63,15 @@ static float difCopiaViva(void) {
   glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   home_desenhar(relogio); menu_desenhar(relogio);
-  glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, a);
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, a);
   glClear(GL_COLOR_BUFFER_BIT);
   gfx_snap_desenhar_xf(1.0f, 960.0f, 540.0f, 0.0f, 0.0f, 0.0f);
-  glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, b);
-  for (long i = 0; i < 1920L * 1080 * 4; i += 4 * 7) { for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]); n += 3; }
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, b);
+  for (long i = 0; i < (long)janW * janH * 4; i += 4 * 7) { for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]); n += 3; }
   return (float)(soma / n);
 }
+static Uint32 relogioFalso(void) { return relogio; }
+static void atrasHome(void *ctx) { (void)ctx; home_desenhar(relogio); menu_desenhar(relogio); }
 static void quadro(const char *png) {
   relogio += passoMs;
   SDL_PumpEvents();
@@ -72,37 +80,36 @@ static void quadro(const char *png) {
   spainel_atualizar(0.016f, relogio);
   spot_atualizar(0.016f, relogio);
   ctx_atualizar(0.016f, relogio);
+  // Como main.c, antes do clear: o tom da interface (Preto puro) e a cor viva
+  // assentam aqui a cada quadro. Sem isto o NV_PRETO nao valia (26/11).
+  corviva_quadro(0.016f, ajustes_cor_viva(), ajustes_cor_logo(), ajustes_animacoes_reduzidas());
   txt_novo_quadro(); tex_novo_quadro(); gfx_novo_quadro();
   glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   { float esc, ox, oy, veu; unsigned ver;
-    static FundoParado fp;
-    static const Uint32 REFAZ[] = { 400, 1500, 4000 };
-    if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver)) {
-      // o mesmo caminho de ctxFundoParado (app.c)
-      fundoparado_sessao(&fp, ctx_r8_sessao());
-      if (fundoparado_passo(&fp, 1, cat_revisao() + ver * 7919u, relogio, REFAZ, 3) == FP_PINTAR) {
-        gfx_snap_comecar();
-        glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        home_desenhar(relogio);
-        menu_desenhar(relogio);
-        gfx_snap_terminar();
-        glViewport(0, 0, 1920, 1080);
-        fundoparado_pintado(&fp, 0, 0, cat_revisao() + ver * 7919u, relogio);
-      }
-      home_fileiras_vistas(relogio);   // como app.c: a copia nao recomeca a entrada das fileiras
-      glClear(GL_COLOR_BUFFER_BIT);
-      gfx_snap_desenhar_xf(esc, ox, oy, 0.0f, 0.0f, veu);
+    static R8Fundo rf;
+    // O MESMO QUADRO DO APP (r8fundo_quadro, chamado por ctxFundoParado em
+    // app.c): decidir, pintar, conferir e copiar sao o codigo do app; so o
+    // que fica atras do menu (`atrasHome`) e deste harness.
+    if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) &&
+        r8fundo_quadro(&rf, 1, esc, ox, oy, veu, ver, ctx_r8_sessao(), relogioFalso, atrasHome, NULL, NULL, 0)) {
       ctx_r8_fundo_pronto(1);
     } else {
-      // Como em app.c: com o menu fechado ninguem mexe em `fp` (a copia de
-      // uma abertura nao pode valer para a seguinte: fundoparado_sessao).
+      // Como em app.c: com o menu fechado ninguem mexe na copia (ela e por
+      // abertura: fundoparado_sessao), e sem copia a Home e desenhada viva.
       ctx_r8_fundo_pronto(0);
-      home_desenhar(relogio);
-      menu_desenhar(relogio);
+      atrasHome(NULL);
     } }
   ctx_desenhar(relogio);
+  // A ILHA DO RELOGIO por cima, como em app_desenhar (app_ilha_coberta e
+  // app_ilha_opacidade sao a regra do app). NV_SEM_RELOGIO = relogio desligado.
+  if (!getenv("NV_SEM_RELOGIO")) {
+    float ga = gfx_opacidade_grupo;
+    ilha_relogio_visivel(1); ilha_posicionar(1); ilha_coberta(app_ilha_coberta());
+    gfx_opacidade_grupo = ga * app_ilha_opacidade();
+    ilha_desenhar(relogio);
+    gfx_opacidade_grupo = ga;
+  }
   if (spainel_visivel()) spainel_desenhar(relogio);
   if (spot_progresso() > 0.0f) { spot_veu(); spot_desenhar(relogio, 1); }
   if (png) gravarPng(png);
@@ -130,11 +137,12 @@ int main(int argc, char **argv) {
 #ifndef __APPLE__
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
-  janela = SDL_CreateWindow("Nuvio: r8 quadros", 0, 0, 1920, 1080, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+  if (getenv("NV_720")) { janW = 1280; janH = 720; }
+  janela = SDL_CreateWindow("Nuvio: r8 quadros", 0, 0, janW, janH, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
   if (!janela || !SDL_GL_CreateContext(janela)) return 1;
   SDL_GL_SetSwapInterval(0);
-  glViewport(0, 0, 1920, 1080);
-  gfx_tamanho_alvo(1920, 1080);
+  glViewport(0, 0, janW, janH);
+  gfx_tamanho_alvo(janW, janH);
   if (!gfx_iniciar() || !txt_iniciar("deploy/app", 1)) return 1;
   gfx_snap_iniciar(1920, 1080);
   tex_iniciar(192);
@@ -168,6 +176,10 @@ int main(int argc, char **argv) {
     snprintf(c->titulo, sizeof c->titulo, "%s", NOMES[i]);
     snprintf(c->backdrop, sizeof c->backdrop, "deploy/app/art/%02d.jpg", i);
     snprintf(c->poster, sizeof c->poster, "deploy/app/art/poster/%02d.jpg", i);
+    // Logo LOCAL: sem ele o destaque pede o logo na rede (endereco invalido do
+    // fixture), a arte "falta" para sempre e a copia parada se repinta a cada
+    // 150 ms (fundoparado.h) — o que esconderia um fundo velho na reabertura.
+    snprintf(c->logo, sizeof c->logo, "deploy/app/art/logo/%02d.png", i % 10);
     if (i < 6) { c->progresso = 30 + i * 8; c->restanteMin = 40; }
   }
   snprintf(fils[0].chave, sizeof fils[0].chave, "pop_movie");
@@ -245,9 +257,14 @@ int main(int argc, char **argv) {
     // A COPIA E DA ABERTURA NOVA (TCL, 26/11: o menu de "A Odisseia" abria
     // sobre a Home de "Homem de Ferro"). Fecha, anda o foco na Home (muda o
     // destaque e a fileira) e reabre: a copia tem de ser a Home de agora.
-    { float d0, d1;
+    // A medida vale no 2o QUADRO da reabertura: depois de 400/1500 ms a
+    // repintura por tempo (fundoparado.h) troca a copia velha sozinha e o
+    // defeito some — medir no 40o quadro deixava a mutacao passar (26/11).
+    // A 1a abertura fica 4,8 s (300 quadros): as tres repinturas por tempo
+    // (0,4/1,5/4 s) se esgotam, como na TCL, e nada mais repinta sozinho.
+    { float d0, d1, d2;
       ctx_abrir(hi.indice);
-      for (i = 0; i < 40; i++) quadro(NULL);
+      for (i = 0; i < 300; i++) quadro(NULL);
       d0 = difCopiaViva();
       e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
       for (i = 0; i < 30; i++) quadro(NULL);
@@ -256,9 +273,12 @@ int main(int argc, char **argv) {
       for (i = 0; i < 60; i++) quadro(NULL);
       if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois da seta\n"); return 1; }
       ctx_abrir(hi.indice);
-      for (i = 0; i < 40; i++) quadro(NULL);
+      for (i = 0; i < 2; i++) quadro(NULL);
       d1 = difCopiaViva();
-      OKC(d0 < 4.0f && d1 < 4.0f, "a copia parada e a Home desta abertura (dif %.2f na 1a, %.2f depois de mudar a Home)", d0, d1);
+      for (i = 0; i < 38; i++) quadro(NULL);
+      d2 = difCopiaViva();
+      OKC(d0 < 4.0f && d1 < 4.0f && d2 < 4.0f,
+          "a copia parada e a Home desta abertura desde o 2o quadro (dif %.2f na 1a; %.2f e %.2f depois de mudar a Home)", d0, d1, d2);
       memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
       for (i = 0; i < 30; i++) quadro(NULL); }
     // Reabrir no meio do fechar continua do ponto em que estava.

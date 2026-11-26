@@ -18,6 +18,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # OS TESTES DAS PECAS R8 (menu de segurar OK, tempo das pranchas, fundo
+  # congelado). Job proprio, EM PARALELO ao build: precisa de SDL2_image,
+  # SDL2_ttf e GLES por software (o build nao instala; foi por isso que os
+  # testes com GL sairam do workflow em 22/11). Uma falha aqui deixa a
+  # execucao vermelha e visivel, sem impedir o APK de teste de sair.
+  testes-r8:
+    name: Testes R8 (pranchas x app, comportamento, tempo)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Nuvio World
+        uses: actions/checkout@v4
+      - name: Install SDL2, SDL2_image, SDL2_ttf and software GLES
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential python3 libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
+            libgles-dev libegl-dev libegl-mesa0 libgl1-mesa-dri zlib1g-dev
+      - name: Pranchas aprovadas inalteradas (r8_espec)
+        run: bash tests/r8_espec.sh
+      - name: Tempo das pecas R8 contra as pranchas (r8_tempo)
+        run: bash tests/r8_tempo.sh
+      - name: Fundo congelado (fundoparado)
+        run: bash tests/fundoparado.sh
+      - name: Menu de segurar OK contra as pranchas e comportamento (r8_menu_espec)
+        run: bash tests/r8_menu_espec.sh
+
   build:
     name: Build signed Android TV ARMv7 APK (artifact)
     runs-on: ubuntu-24.04
