@@ -2428,6 +2428,7 @@ typedef struct { char chave[192]; char itemId[64]; char itemTipo[8]; int coluna;
 // `arranjo` la embaixo: sao ~6,5 KB e a funcao ja carrega dois vetores desse
 // porte. So o fio do desenho toca nisto.
 static HomePos posViva[MAX_FIL];
+static int focoPreso = -1;   // home_prender_foco
 static int     nPosViva;
 static char    posVivaFoco[192];
 static int     posVivaCol;
@@ -3743,6 +3744,10 @@ static void sincronizarFileiras(void) {
       cols[k] = fileiras[k].n + (fileiras[k].verTudo ? 1 : 0);
     focus_iniciar(&foco, nFileiras, cols);
     posAplicarTabela(posViva, nPosViva, posVivaFoco, posVivaCol);
+    // Com o menu do cartaz aberto o foco fica preso ao titulo dele (ver
+    // home_prender_foco): o estilo da fileira trocado ao vivo remonta a
+    // fileira, e um estilo de um cartao so (Heroi) zerava a coluna.
+    if (focoPreso >= 0) home_focar_titulo(focoPreso);
   }
   // Diz TAMBEM o limite e quantas vinham do catalogo. Com um numero so, uma
   // home de 5 fileiras nao distinguia "o limite e 5" de "so 5 catalogos
@@ -4059,6 +4064,12 @@ static void home_atualizar_(float dt, Uint32 agora) {
       else if (foco.coluna >= fileiras[foco.fileira].n) i = -1;
       if (i >= 0 && i < cat_n()) alvo = i;
     }
+    // O DESTAQUE NAO SEGUE O FOCO POR BAIXO DO MENU DE SEGURAR OK: o menu e do
+    // titulo do destaque. Um estilo trocado ao vivo que nao mostra esse titulo
+    // (Heroi: um cartao so, de outro titulo) levava o foco para outro cartao e,
+    // 220 ms depois, o destaque trocava por baixo do menu (26/11). Fechado o
+    // menu, o destaque volta a seguir o foco.
+    if (ctx_aberto()) alvo = -1;
     // TROCA SO COM O FOCO EM REPOUSO. `heroPendente` e o candidato; enquanto o
     // dono anda pela fileira ele muda a cada passo e o relogio reinicia, entao
     // nenhuma troca chega a acontecer. Quando o foco para por
@@ -4091,6 +4102,10 @@ static void home_atualizar_(float dt, Uint32 agora) {
       heroPreBuscarInfo(alvo);
     else if (focoHero && agora - heroUltTecla >= 300u)
       heroPreBuscarInfo(heroDesejado >= 0 ? heroDesejado : heroAtual);
+    // O CARROSSEL NAO GIRA POR BAIXO DO MENU DE SEGURAR OK: o menu e do titulo
+    // do destaque, e a troca automatica deixaria o menu de um titulo sobre o
+    // destaque de outro. O relogio fica rearmado enquanto o menu esta aberto.
+    if (ctx_aberto()) heroTrocaEm = agora + NV_HERO_INTERVALO_MS;
     if (alvo >= 0 && heroPendente != heroAtual &&
         agora - heroPendenteEm >= NV_HERO_REPOUSO_MS) {
       // So ANUNCIA o desejo. Quem efetiva a troca e o desenho, quando a textura
@@ -9672,6 +9687,17 @@ int home_fileira_titulos(int *out, int max, int *pos) {
 // Leva o foco da fileira para o titulo `indice` do catalogo (o que o
 // carrossel deixou em cena), para o Voltar cair nele. A rolagem horizontal
 // segue o foco sozinha no proximo home_atualizar.
+// O FOCO PRESO AO TITULO DO MENU DE SEGURAR OK (ctxmenu_r8.inc): enquanto o
+// menu esta na tela, cada remontagem das fileiras (o estilo trocado ao vivo na
+// lista de estilos) devolve o foco ao titulo do menu. -1 solta.
+void home_prender_foco(int indice) { focoPreso = indice; }
+int home_titulo_na_fileira(int indice) {
+  int c;
+  if (foco.fileira < 0 || foco.fileira >= nFileiras) return 0;
+  for (c = 0; c < fileiras[foco.fileira].n; c++)
+    if (fileiraItemIndice(&fileiras[foco.fileira], c) == indice) return 1;
+  return 0;
+}
 void home_focar_titulo(int indice) {
   const Fileira *fl;
   int c;

@@ -93,6 +93,11 @@ static void r8Abrir(void) {
   r8PagAnt = pagina;
   r8EstOpAnt = 0; r8Confirmou = r8Pendente = r8Aperto = -1e9;
   r8AbertoAnt = 1;
+  // O foco da Home fica preso ao titulo do menu ate ele fechar de vez (a lista
+  // de estilos remonta a fileira a cada seta; ver home_prender_foco).
+  { HomeItem hi;
+    // (Aqui temCartaz ainda nao foi ligado: ctx_abrir o liga depois de abrirComum.)
+    if (!deOutraTela && !soFileira && !doLista && home_item_focado(&hi) && hi.indice == idx) { home_prender_foco(idx); r8Prendeu = 1; } }
 }
 static void r8Atualizar(Uint32 agora) {
   double t;
@@ -101,6 +106,9 @@ static void r8Atualizar(Uint32 agora) {
   t = r8Seg(agora);
   if (!r8On) return;
   if (r8AbertoAnt && !aberto) r8ab_fechar(&r8Ab, t);
+  // Solta o foco so com o menu FECHADO DE VEZ: o estilo restaurado no Voltar
+  // remonta a fileira mais uma vez, ainda com o menu saindo.
+  if (r8Prendeu && !aberto && r8ab_fechada(&r8Ab, t)) { home_prender_foco(-1); r8Prendeu = 0; }
   if (!r8AbertoAnt && aberto) r8ab_abrir(&r8Ab, t);
   r8AbertoAnt = aberto;
   if (pagina != r8PagAnt) {

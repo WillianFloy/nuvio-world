@@ -2264,6 +2264,7 @@ void ctx_abrir_sessao(void) {
   idx = -1; foco = 0;
   anim = animV = 0.0f;
   r8On = 0; r8AbertoAnt = 0;
+  if (r8Prendeu) { home_prender_foco(-1); r8Prendeu = 0; }
   doPainel = doSocial = doLista = soFileira = cartazFixo = 0;
   inlineOn = inlinePend = 0;
   pagina = confFoco = 0;
