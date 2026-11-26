@@ -29,6 +29,7 @@ typedef struct {
   unsigned rev;      // revisao do catalogo da copia pronta
   Uint32 desde;      // quando a serie de repinturas por tempo comecou
   Uint32 pintadoEm;  // quando a ultima pintura aconteceu
+  unsigned sessao;   // fundoparado_sessao: a abertura do painel dona da copia
 } FundoParado;
 
 typedef enum { FP_DIRETO, FP_COPIAR, FP_PINTAR } FpAcao;
@@ -54,6 +55,17 @@ static inline FpAcao fundoparado_passo(FundoParado *f, int parar, unsigned rev, 
     }
   }
   return f->pronto ? FP_COPIAR : FP_PINTAR;
+}
+
+// UMA COPIA POR ABERTURA. Quem chama so com o painel na tela (o menu R8:
+// ctxFundoParado em app.c) nunca passa `parar` 0 quando ele fecha, entao a
+// copia da abertura anterior ficava "pronta" e voltava na seguinte, com a Home
+// de antes (outro destaque, a fileira em outra posicao; TCL, 26/11). O FBO
+// ainda e o mesmo da Busca e do Salvos. Cada abertura nova traz um numero novo.
+static inline void fundoparado_sessao(FundoParado *f, unsigned sessao) {
+  if (f->sessao == sessao) return;
+  f->pronto = f->refeitas = f->faltou = f->tentativas = f->copiaPreta = 0;
+  f->sessao = sessao;
 }
 
 // Depois de pintar a copia: `faltou` (arte sem chegar), `preta` (gfx_snap_vazio).

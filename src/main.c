@@ -2221,10 +2221,10 @@ int main(int argc, char **argv) {
       if (!rastroQuadros && nvPrimeiroQuadroFeito && rq_quadro_lento(dtms, swapint_referencia(&swapInt, hzTela < 0.0 ? 0.0 : hzTela)) && qdAuto < 8) {
         qdAuto++;
         printf("[qd-lento] %.1fms tecla=%s ha %ums | ev=%.1f bomb=%.1f(%d tex %.1fMB) upd=%.1f clr=%.1f des=%.1f swap=%.1f"
-               " txt=%.1fms/%d rects=%d fill=%.2f gpu~=%.1f vidro cap=%d pass=%d reusos=%d | %s\n",
+               " txt=%.1fms/%d rects=%d fill=%.2f gpu~=%.1f vidro cap=%d pass=%d reusos=%d%s | %s\n",
                dtms, SDL_GetKeyName(nvUltTecla), (unsigned)(agora - nvUltTeclaEm), fEv, fBomb, fUplN, fUplB / 1048576.0,
                fUpd, fClr, fDes, fSwap, txtMsQuadro, txtNQuadro, fNRect, fFill, gputempo_ultimo(),
-               gfx_vidro_capturas, gfx_vidro_passadas, gfx_vidro_reusos, home_rastro_foco());
+               gfx_vidro_capturas, gfx_vidro_passadas, gfx_vidro_reusos, app_fundo_rastro(), home_rastro_foco());
       } }
     if (rastroQuadros && dtms > 25.0)
       printf("[qd] %.1fms ev=%.1f bomb=%.1f(%d tex %.1fMB) upd=%.1f clr=%.1f des=%.1f aux=%.1f swap=%.1f"

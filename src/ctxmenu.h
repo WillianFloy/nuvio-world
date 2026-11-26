@@ -157,6 +157,7 @@ float ctx_menu_passo(void);   // altura de uma linha + o vao
 // desenhada recuada e escurecida: 1 e os parametros de gfx_snap_desenhar_xf;
 // `versao` muda quando a copia tem de ser refeita (o estilo da fileira mudou).
 // ctx_r8_fundo_pronto(1) diz ao menu que a copia deste quadro esta no FBO (o
+unsigned ctx_r8_sessao(void);   // muda a cada abertura do zero: a copia parada e por abertura
 // Desdobrar desenha as vizinhas a partir dela); 0 = sem copia (o menu poe o
 // proprio veu sobre a Home viva).
 int  ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao);

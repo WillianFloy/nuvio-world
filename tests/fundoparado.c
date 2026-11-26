@@ -94,6 +94,21 @@ int main(void) {
   PASSO(p, 0, 1, w + 21000);
   OK(PASSO(p, 1, 1, w + 21016) == FP_PINTAR, "fechou e reabriu: pinta uma copia nova");
 
+  // 4. UMA COPIA POR ABERTURA (menu R8, TCL 26/11): quem so chama com o painel
+  // na tela nunca passa `parar` 0; a sessao nova invalida a copia anterior.
+  FundoParado s = {0};
+  Uint32 z = 120000;
+  fundoparado_sessao(&s, 1);
+  OK(PASSO(s, 1, 1, z) == FP_PINTAR, "sessao 1: pinta");
+  fundoparado_pintado(&s, 0, 0, 1, z);
+  fundoparado_sessao(&s, 1);
+  OK(PASSO(s, 1, 1, z + 16) == FP_COPIAR, "sessao 1: copia");
+  fundoparado_sessao(&s, 2);
+  OK(PASSO(s, 1, 1, z + 5000) == FP_PINTAR, "sessao 2 (sem passar parar=0): pinta de novo, nao reaproveita");
+  fundoparado_pintado(&s, 0, 1, 1, z + 5000);
+  fundoparado_sessao(&s, 3);
+  OK(PASSO(s, 1, 1, z + 9000) == FP_PINTAR, "copia preta numa sessao nao condena a seguinte");
+
   printf("RESULTADO: %d falhas\n", falhas);
   return falhas ? 1 : 0;
 }

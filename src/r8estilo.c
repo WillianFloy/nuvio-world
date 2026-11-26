@@ -39,6 +39,26 @@ void r8_foco_acao(GfxRect r, float raioPx, float a) {
   gfx_anel(r, raioNorm(r, raioPx), R8_FOCO_ACAO_PX, R8_OSSO, a);
 }
 
+void r8_foco_linha(GfxRect r, float a) {
+  if (a <= 0.0f) return;
+  gfx_cor(r, raioNorm(r, R8_RAIO_LINHA), R8_OSSO, R8_FOCO_LINHA_VEU * a);
+  gfx_anel(r, raioNorm(r, R8_RAIO_LINHA), R8_FOCO_LINHA_PX, R8_OSSO, R8_FOCO_LINHA_A * a);
+}
+
+// Sem um modo de degrade lateral no gfx: faixas de 4 px, cada uma na forca do
+// seu meio (o passo de 0,8 / 70 fica abaixo de 1 nivel de 8 bits no escuro).
+void r8_escuro_lateral(float x0, float x1, float forca) {
+  float w = x1 - x0, x;
+  int n, i;
+  if (forca <= 0.0f || w <= 1.0f) return;
+  n = (int)(w / 4.0f + 0.999f);
+  for (i = 0; i < n; i++) {
+    float a = x0 + w * (float)i / (float)n, b = x0 + w * (float)(i + 1) / (float)n;
+    x = (a + b) * 0.5f;
+    gfx_cor((GfxRect){ a, 0.0f, b - a, NV_TELA_H }, 0.0f, 0, 0, 0, forca * (x - x0) / w);
+  }
+}
+
 void r8_foco_conteudo(GfxRect r, float raioPx, float a) {
   if (a <= 0.0f) return;
   gfx_anel(r, raioNorm(r, raioPx), R8_FOCO_CONT_PX, R8_OSSO, a);

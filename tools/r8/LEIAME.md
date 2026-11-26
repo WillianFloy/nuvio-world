@@ -14,6 +14,15 @@ opacidade, escala, raio). O app tem de bater com ele.
 | `fase1.py`, `build_f1.py` | as 14 pranchas da secao 10 (Fase 1, aprovadas em 25/11) |
 | `icones.py` | os icones das pranchas como `deploy/app/art/icones/r8_*.png` (128 px, traco 2) |
 
+MUDANCAS PEDIDAS PELO DONO DEPOIS DA APROVACAO (os hashes em
+`aprovadas.sha256` foram refeitos so por elas):
+- 26/11, depois do teste na TCL: a Folha (`MC`, e a adaptacao) virou GAVETA,
+  encostada na borda direita, que entra e sai deslizando pela direita, sempre
+  a direita; a arte nao voa mais do cartaz (mora no topo e anda junto); a Home
+  escurece ate a beirada (degrade de 280 px, 90 %). O foco das linhas dos
+  menus (Folha e Desdobrar) ficou mais leve: raio 10, veu 10 %, contorno de
+  1,5 px a 50 %. Mudam R8-MC-1/2, R8-MA-1/2 e R8-M-comparativo.
+
 Pecas: `MC` Folha (padrao), `MA` Desdobrar, `S1` Estante (padrao), `S2` Coluna,
 `C2` Central, `HO`/`HR` segurar CH+ sem/com relogio, `BU` Busca antiga (so
 referencia); da secao 10: `BF`/`BM` Busca flutuante (a aprovada), `FHR`/`FHO`

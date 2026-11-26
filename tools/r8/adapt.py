@@ -83,7 +83,7 @@ def A_contents(px, py, title, meta, actions, focus=0, w=A_PW, pitch=66):
     if title: o += txt(px + 30, py + 28, title, 30, BONE, 700)
     if meta: o += txt(px + 30, py + 70, meta, 19, MUT, 500)
     y0 = py + (124 if title else 20)
-    o += box(px + 16, y0 + pitch * focus, w - 32, 56, "border-radius:16px;background:rgba(244,242,238,.13);box-shadow:inset 0 0 0 2px #F4F2EE")
+    o += box(px + 16, y0 + pitch * focus, w - 32, 56, "border-radius:10px;background:rgba(244,242,238,.10);box-shadow:inset 0 0 0 1.5px rgba(244,242,238,.5)")
     for i, (ic, lab) in enumerate(actions):
         o += box(px + 16, y0 + pitch * i, w - 32, 56, "", row_label_html(ic, lab))
     return o
@@ -192,18 +192,23 @@ def B_static(kind):
 
 # ---------------------------------------------------------------- C · Folha (estatico)
 def C_draw(g, title, actions, art_fig, focus=0, info=True, styles=False):
-    sx, sy = g["x"], g["y"]
-    o = box(sx, sy, g["w"], g["h"], "border-radius:22px;background:rgba(14,14,16,.97);box-shadow:0 0 0 1.5px rgba(255,255,255,.10),-30px 0 80px rgba(0,0,0,.55)")
-    o += box(sx, sy, g["w"], 338, f"border-radius:22px 22px 0 0;background:{FIGS[art_fig]}",
+    # a gaveta encostada na borda direita (menus.build_C)
+    from menus import C_P, C_ARTE_H, C_ESCURO, C_Y0, C_PASSO, C_LH
+    sx, sy, W = g["x"], g["y"], g["w"]
+    LX = C_P - 16
+    o = box(sx - C_ESCURO, 0, C_ESCURO, SH, "background:linear-gradient(90deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.9) 100%)")
+    o += box(sx, sy, W, g["h"], "background:rgba(14,14,16,.97);box-shadow:inset 1px 0 0 rgba(255,255,255,.08)")
+    o += box(sx, sy, W, C_ARTE_H, f"background:{FIGS[art_fig]}",
              '<div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,14,16,1) 0%,rgba(14,14,16,0) 55%)"></div>')
-    o += txt(sx + 36, sy + 264, title, 40, BONE, 800, "text-transform:uppercase")
-    o += txt(sx + 36, sy + 358, f'<span style="color:{BONE}">IMDb 8,7</span>&nbsp;&nbsp;·&nbsp;&nbsp;Série · 2022&nbsp;&nbsp;·&nbsp;&nbsp;16', 19, MUT, 600)
-    y0 = sy + 414
-    o += box(sx + 20, y0 + 68 * focus, g["w"] - 40, 58, "border-radius:16px;background:rgba(244,242,238,.13);box-shadow:inset 0 0 0 2px #F4F2EE")
+    o += txt(sx + C_P, sy + C_ARTE_H - 64, title, 40, BONE, 800, "text-transform:uppercase")
+    o += txt(sx + C_P, sy + C_ARTE_H + 8, f'<span style="color:{BONE}">IMDb 8,7</span>&nbsp;&nbsp;·&nbsp;&nbsp;Série · 2022&nbsp;&nbsp;·&nbsp;&nbsp;16', 19, MUT, 600)
+    y0 = sy + C_Y0
+    o += box(sx + LX, y0 + C_PASSO * focus, W - 2 * LX, C_LH, "border-radius:10px;background:rgba(244,242,238,.10);box-shadow:inset 0 0 0 1.5px rgba(244,242,238,.5)")
     for i, (ic, lab) in enumerate(actions):
-        o += box(sx + 20, y0 + 68 * i, g["w"] - 40, 58, "", row_label_html(ic, lab))
+        o += box(sx + LX, y0 + C_PASSO * i, W - 2 * LX, C_LH, "",
+                 f'<div style="position:absolute;inset:0;display:flex;align-items:center;gap:14px;padding:0 16px;color:{BONE};font-size:23px;font-weight:600;white-space:nowrap">{ico(ic, 26)}{lab}</div>')
     if info:
-        o += txt(sx + 36, y0 + 68 * len(actions) + 30, "Mark lidera uma equipe cujas memórias foram separadas entre o trabalho e a vida pessoal.", 20, MUT, 400, "line-height:1.45", w=g["w"] - 72)
+        o += txt(sx + C_P, y0 + C_PASSO * len(actions) + 28, "Mark lidera uma equipe cujas memórias foram separadas entre o trabalho e a vida pessoal.", 20, MUT, 400, "line-height:1.45", w=W - 2 * C_P)
     return o
 
 def C_static(kind):
@@ -212,7 +217,7 @@ def C_static(kind):
         base, R = sc_poster(f, None, 0.0)
         g = C_geo(R)
         o = base + VEIL(0.5) + art(*R, f, 14, NAMES[f], "box-shadow:0 0 0 3px #F4F2EE") + C_draw(g, NAMES[f], ACTIONS, f)
-        return o, f"folha à {'direita' if g['side'] > 0 else 'esquerda'}: sempre do lado oposto ao item"
+        return o, "gaveta sempre à direita, encostada na borda; a Home escurece até ela"
     if kind == "land":
         base, R = sc_land()
         g = C_geo(R)

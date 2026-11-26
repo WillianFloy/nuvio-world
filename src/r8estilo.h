@@ -62,6 +62,16 @@ void r8_sombra_desl(GfxRect r, float raioPx, float a, float dx, float dy);
 // Foco numa acao (linha, botao, pilula) e num conteudo (anel por dentro de `r`).
 void r8_foco_acao(GfxRect r, float raioPx, float a);
 void r8_foco_conteudo(GfxRect r, float raioPx, float a);
+// FOCO NUMA LINHA DE MENU (Folha e Desdobrar, dono 26/11: o de acao ficava
+// redondo e pesado demais): raio 10, veu osso 10 %, contorno de 1,5 px a 50 %.
+#define R8_RAIO_LINHA     10.0f
+#define R8_FOCO_LINHA_VEU 0.10f
+#define R8_FOCO_LINHA_PX  1.5f
+#define R8_FOCO_LINHA_A   0.50f
+void r8_foco_linha(GfxRect r, float a);
+// Degrade horizontal preto de `x0` (transparente) a `x1` (`forca`), da altura
+// inteira da tela: a Home escurecendo ate a borda da gaveta.
+void r8_escuro_lateral(float x0, float x1, float forca);
 // Veu preto de fundo (a Home recuada escurecendo): `forca` 0..1.
 void r8_veu(float forca);
 

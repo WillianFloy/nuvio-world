@@ -49,6 +49,21 @@ static void gravarPng(const char *png) {
   printf("%s\n", png);
 }
 static int passoMs = 16;
+// Diferenca media (0-255) entre a Home desenhada viva agora e a copia parada
+// sem recuo nem veu: a copia tem de ser a Home DESTA abertura.
+static float difCopiaViva(void) {
+  static unsigned char a[1920 * 1080 * 4], b[1920 * 1080 * 4];
+  double soma = 0; long n = 0;
+  glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  home_desenhar(relogio); menu_desenhar(relogio);
+  glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, a);
+  glClear(GL_COLOR_BUFFER_BIT);
+  gfx_snap_desenhar_xf(1.0f, 960.0f, 540.0f, 0.0f, 0.0f, 0.0f);
+  glReadPixels(0, 0, 1920, 1080, GL_RGBA, GL_UNSIGNED_BYTE, b);
+  for (long i = 0; i < 1920L * 1080 * 4; i += 4 * 7) { for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]); n += 3; }
+  return (float)(soma / n);
+}
 static void quadro(const char *png) {
   relogio += passoMs;
   SDL_PumpEvents();
@@ -65,6 +80,7 @@ static void quadro(const char *png) {
     static const Uint32 REFAZ[] = { 400, 1500, 4000 };
     if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver)) {
       // o mesmo caminho de ctxFundoParado (app.c)
+      fundoparado_sessao(&fp, ctx_r8_sessao());
       if (fundoparado_passo(&fp, 1, cat_revisao() + ver * 7919u, relogio, REFAZ, 3) == FP_PINTAR) {
         gfx_snap_comecar();
         glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
@@ -80,7 +96,8 @@ static void quadro(const char *png) {
       gfx_snap_desenhar_xf(esc, ox, oy, 0.0f, 0.0f, veu);
       ctx_r8_fundo_pronto(1);
     } else {
-      fundoparado_passo(&fp, 0, 0, relogio, REFAZ, 3);
+      // Como em app.c: com o menu fechado ninguem mexe em `fp` (a copia de
+      // uma abertura nao pode valer para a seguinte: fundoparado_sessao).
       ctx_r8_fundo_pronto(0);
       home_desenhar(relogio);
       menu_desenhar(relogio);
@@ -197,20 +214,53 @@ int main(int argc, char **argv) {
         getenv("NV_DESDOBRAR") ? "Desdobrar gravado" : "Folha por padrao", ajustes_menu_segurar());
     if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz\n"); return 1; }
     ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice);
-    for (i = 0; i < 40; i++) quadro(NULL);
+    { float x0 = -1, ant = 1e9f; int volta = 0;
+      for (i = 0; i < 40; i++) {
+        quadro(NULL);
+        if (ctx_r8_geo(&g) && g.superficieA > 0.0f) {
+          if (x0 < 0) x0 = g.superficie.x;
+          if (g.superficie.x > ant + 0.01f) volta = 1;
+          ant = g.superficie.x;
+        } }
+      if (!ajustes_menu_segurar() && !getenv("NV_REDUZIDO"))
+        OKC(x0 >= 1920.0f - 80.0f && !volta, "Folha: entra de fora da tela pela direita (1o quadro x %.0f) e so anda para a esquerda", x0); }
     ctx_r8_geo(&g);
     OKC(ctx_aberto() && g.visivel && g.forma == ajustes_menu_segurar(), "abre o menu das pranchas na forma do ajuste (forma %d)", g.forma);
     OKC(ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && esc < 1.0f && veu > 0.3f, "a Home atras congela, recua (%.3f) e escurece (%.2f)", esc, veu);
+    if (!g.forma)
+      OKC(fabsf(g.superficie.x + g.superficie.w - 1920.0f) < 0.5f && g.superficie.y == 0.0f && g.superficie.h == 1080.0f,
+          "Folha: gaveta encostada na borda direita, da altura da tela (x %.1f w %.1f)", g.superficie.x, g.superficie.w);
     // Voltar fecha: a superficie vai a zero sem saltar e a Home volta viva.
     memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
-    // A Folha apaga (alfa); o Desdobrar recolhe (largura, ate 3,8 px/ms no pico).
-#define SALTO(g, ant) (g.forma ? fabsf(g.superficie.w - (ant)) > 80.0f : fabsf(g.superficieA - (ant)) > 0.35f)
-#define VAL(g) (g.forma ? g.superficie.w : g.superficieA)
+    // A Folha (gaveta) sai acelerando para a direita: no fim do fechar (k^2,4
+    // em 0,26 s) anda ate 94 px num quadro de 16 ms. O Desdobrar recolhe
+    // (largura, ate 3,8 px/ms: menos de 80 por quadro).
+#define SALTO(g, ant) (g.forma ? fabsf(g.superficie.w - (ant)) > 80.0f : fabsf(g.superficie.x - (ant)) > 100.0f)
+#define VAL(g) (g.forma ? g.superficie.w : g.superficie.x)
     { int salto = 0; antA = VAL(g);
-      for (i = 0; i < 30; i++) { quadro(NULL); if (ctx_r8_geo(&g)) { if (SALTO(g, antA)) salto = 1; antA = VAL(g); } }
+      for (i = 0; i < 30; i++) { quadro(NULL); if (ctx_r8_geo(&g)) { if (SALTO(g, antA)) { salto = 1; printf("  salto no quadro %d: %.1f -> %.1f (a %.2f)\n", i, antA, VAL(g), g.superficieA); } antA = VAL(g); } }
       OKC(!salto, "fechar nao salta"); }
     OKC(!ctx_aberto() && !ctx_r8_geo(&g) && !ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver),
         "fechado: nada do menu na tela e a Home volta a ser desenhada viva");
+    // A COPIA E DA ABERTURA NOVA (TCL, 26/11: o menu de "A Odisseia" abria
+    // sobre a Home de "Homem de Ferro"). Fecha, anda o foco na Home (muda o
+    // destaque e a fileira) e reabre: a copia tem de ser a Home de agora.
+    { float d0, d1;
+      ctx_abrir(hi.indice);
+      for (i = 0; i < 40; i++) quadro(NULL);
+      d0 = difCopiaViva();
+      e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
+      for (i = 0; i < 30; i++) quadro(NULL);
+      memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_RIGHT; home_evento(&e);
+      e.type = SDL_KEYUP; home_evento(&e);
+      for (i = 0; i < 60; i++) quadro(NULL);
+      if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois da seta\n"); return 1; }
+      ctx_abrir(hi.indice);
+      for (i = 0; i < 40; i++) quadro(NULL);
+      d1 = difCopiaViva();
+      OKC(d0 < 4.0f && d1 < 4.0f, "a copia parada e a Home desta abertura (dif %.2f na 1a, %.2f depois de mudar a Home)", d0, d1);
+      memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
+      for (i = 0; i < 30; i++) quadro(NULL); }
     // Reabrir no meio do fechar continua do ponto em que estava.
     ctx_abrir(hi.indice);
     for (i = 0; i < 40; i++) quadro(NULL);
@@ -291,7 +341,9 @@ int main(int argc, char **argv) {
         printf("FALHOU t=%.3f %s: prancha %.3f app %.3f\n", t, nome, (double)(pr), (double)(app)); falhas++; } } while (0)
       if (!ma) {
         if (g.visivel) {
-          CONF("folha.x", g.superficie.x, v[0], 1.0f);
+          // A gaveta anda 640 px em 0,44 s, ate 4,7 px/ms no pico; o relogio do
+          // app e em ms inteiros (ate 0,33 ms fora do instante da prancha).
+          CONF("folha.x", g.superficie.x, v[0], 2.0f);
           CONF("folha.o", g.superficieA, v[1], 0.01f);
           if (v[3] > 0.0f || g.pilulaA > 0.0f) { CONF("pilula.y", g.pilula.y, v[2], 1.0f); CONF("pilula.o", g.pilulaA, v[3], 0.01f); }
           CONF("titulo.y", g.tituloY, v[4], 1.0f); CONF("titulo.o", g.tituloA, v[5], 0.01f);

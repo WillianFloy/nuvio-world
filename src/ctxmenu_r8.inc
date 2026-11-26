@@ -21,12 +21,16 @@
 // A tela das pranchas: os pixels reais do alvo (1920 x 1080 na TV).
 #define R8M_TW  ((float)NV_LAYOUT_REAL_W)
 #define R8M_TH  ((float)NV_LAYOUT_REAL_H)
-#define R8M_FOLHA_W     600.0f
-#define R8M_FOLHA_M      48.0f
-#define R8M_FOLHA_ENTRA  70.0f
-#define R8M_ARTE_H      338.0f
-#define R8M_ACAO_PASSO   68.0f
-#define R8M_ACAO_H       58.0f
+// A Folha e uma GAVETA encostada na borda direita (tools/r8/menus.py, C_*).
+#define R8M_FOLHA_W     640.0f
+#define R8M_FOLHA_P      48.0f     // margem interna: titulo, meta, icones, sinopse
+#define R8M_FOLHA_LX     32.0f     // a linha comeca 16 px antes do texto
+#define R8M_ARTE_H      360.0f
+#define R8M_ESCURO      280.0f     // degrade da Home ate a borda da gaveta
+#define R8M_ESCURO_A      0.90f
+#define R8M_ACAO_Y0     436.0f
+#define R8M_ACAO_PASSO   64.0f
+#define R8M_ACAO_H       56.0f
 #define R8M_PW          470.0f     // o Desdobrar se estende isto
 #define R8M_A_PASSO      66.0f
 #define R8M_A_H          56.0f
@@ -48,6 +52,9 @@ static int r8Cartaz(GfxRect *F);
 // (o mesmo do resto da interface); abrir e o OK usam o ultimo visto.
 static Uint32 r8Relogio;
 static Uint32 r8Agora(void) { return r8Relogio ? r8Relogio : SDL_GetTicks(); }
+// Cada abertura do zero (nao a reabertura no meio do fechar) e uma sessao: a
+// copia parada da Home e por sessao (fundoparado_sessao).
+static unsigned r8Sessao;
 
 // ---------------------------------------------------------------- estado
 static int r8Elegivel(void) {
@@ -61,6 +68,7 @@ static void r8Abrir(void) {
   r8Forma = ajustes_menu_segurar();
   r8Reduzido = ajustes_animacoes_reduzidas();
   if (r8Ab.estado == 0 || r8ab_fechada(&r8Ab, t)) {
+    r8Sessao++;
     r8ab_iniciar(&r8Ab, r8Reduzido ? R8_REDUZIDO_DUR : R8_MENU_ABRIR,
                  r8Reduzido ? R8_REDUZIDO_DUR : R8_MENU_FECHAR);
     r8Ab.dConteudoSair = R8_MENU_CONTEUDO_SAIR;
@@ -164,20 +172,24 @@ static const char *r8Icone(int acao, const CatItem *ci) {
 }
 // A linha da prancha (row_label_html): icone de 26 a 18 px da borda, 14 de vao,
 // o rotulo em 23/600, centrados na altura.
+// O icone fica `r8LinPad` para dentro da linha: 16 na Folha (alinha com o
+// titulo), 18 no Desdobrar (as pranchas).
+static float r8LinPad = 18.0f;
 static void r8Linha(GfxRect r, const char *icone, const char *rot, float a) {
   TxtLinha t;
   if (a <= 0.003f) return;
-  gfx_icone((GfxRect){ r.x + 18.0f, r.y + (r.h - 26.0f) * 0.5f, 26.0f, 26.0f }, icone, R8_OSSO, a);
-  t = txt_linha_corta(TXT_R8_23S, rot, 244, 242, 238, 255, r.w - 18.0f - 26.0f - 14.0f - 18.0f);
-  txt_desenhar_alpha(t, r.x + 18.0f + 26.0f + 14.0f, r.y + (r.h - (float)t.h) * 0.5f, a);
+  gfx_icone((GfxRect){ r.x + r8LinPad, r.y + (r.h - 26.0f) * 0.5f, 26.0f, 26.0f }, icone, R8_OSSO, a);
+  t = txt_linha_corta(TXT_R8_23S, rot, 244, 242, 238, 255, r.w - r8LinPad - 26.0f - 14.0f - r8LinPad);
+  txt_desenhar_alpha(t, r.x + r8LinPad + 26.0f + 14.0f, r.y + (r.h - (float)t.h) * 0.5f, a);
 }
-// A pilula de foco (veu osso 13 % + contorno de 2 px) apertada pelo OK
-// (encolhe `aperto` no meio do toque de 140 ms).
+// A pilula de foco (r8_foco_linha: raio 10, veu 10 %, contorno de 1,5 px a
+// 50 %) apertada pelo OK (encolhe `aperto` no meio do toque de 140 ms).
 static void r8Pilula(GfxRect r, float raio, float a, float aperto, double t) {
   float p = (float)sin(M_PI * r8_seg((float)(t - r8Aperto), 0.0f, 0.14f));
   float s = 1.0f - aperto * p;
   GfxRect q = { r.x + r.w * (1.0f - s) * 0.5f, r.y + r.h * (1.0f - s) * 0.5f, r.w * s, r.h * s };
-  r8_foco_acao(q, raio, a);
+  (void)raio;
+  r8_foco_linha(q, a);
 }
 // O fio da escrita no ar: corre (assintota a 92 %) enquanto pendente; completa
 // e some quando confirma.
@@ -239,6 +251,7 @@ int ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao)
   return 1;
 }
 void ctx_r8_fundo_pronto(int ok) { r8FundoOk = ok; }
+unsigned ctx_r8_sessao(void) { return r8Sessao; }
 
 // O retangulo do cartaz neste quadro (a mola de foco da Home pode andar), EM
 // PIXELS DA TELA: o menu R8 desenha nas medidas da prancha (1920 x 1080), fora
@@ -320,10 +333,16 @@ static void r8Estilos(R8Lista L, float trA, float trDx, double t, float (*cascat
     else { passo = 52.0f; h = 46.0f; }
   }
   r8mola_valor(&r8Foco, t, &fp);
+  // So linhas INTEIRAS na janela que rola (dono, 26/11: nada pela metade na
+  // beirada de baixo): a altura visivel desce ao multiplo do passo.
+  if (passo * (float)n > disp) disp = floorf((disp + (passo - h)) / passo) * passo - (passo - h);
   if (passo * (float)n > disp) {
-    rol = fp * passo + h * 0.5f - disp * 0.5f;
+    // O foco fica perto do meio; parado (fp inteiro), a janela comeca numa
+    // linha inteira e termina noutra.
+    int vis = (int)((disp + (passo - h)) / passo + 0.5f);
+    rol = (fp - (float)((vis - 1) / 2)) * passo;
     if (rol < 0.0f) rol = 0.0f;
-    if (rol > passo * (float)n - disp) rol = passo * (float)n - disp;
+    if (rol > passo * (float)(n - vis)) rol = passo * (float)(n - vis);
   }
   L.y -= rol;
   if (rol > 0.0f || passo * (float)n > disp) gfx_recorte(L.x - 8.0f, L.y + rol - 4.0f, L.w + 16.0f, disp + 8.0f);
@@ -335,9 +354,9 @@ static void r8Estilos(R8Lista L, float trA, float trDx, double t, float (*cascat
     if (i < nEstilos) {
       TxtLinha tl;
       if (aberto && c > 0.5f) ponteiro_alvo(r.x, r.y, r.w, r.h, ponteiroEstFoco, ponteiroEstOk, i, 0);
-      estGlifo((GfxRect){ r.x + 18.0f, r.y + (r.h - 26.0f) * 0.5f, 26.0f, 26.0f }, estTipo(i), 0.95f, c);
+      estGlifo((GfxRect){ r.x + r8LinPad, r.y + (r.h - 26.0f) * 0.5f, 26.0f, 26.0f }, estTipo(i), 0.95f, c);
       tl = txt_linha_corta(TXT_R8_23S, estLin[i].rotulo, 244, 242, 238, 255, r.w - 160.0f);
-      txt_desenhar_alpha(tl, r.x + 58.0f, r.y + (r.h - (float)tl.h) * 0.5f, c * (i == estFoco ? 1.0f : 0.72f));
+      txt_desenhar_alpha(tl, r.x + r8LinPad + 40.0f, r.y + (r.h - (float)tl.h) * 0.5f, c * (i == estFoco ? 1.0f : 0.72f));
       // O tamanho: as letras na ponta; a escolhida em osso, as outras apagadas.
       if (estLin[i].n > 1) {
         int j;
@@ -406,13 +425,14 @@ static float r8Confirmacao(const CatItem *ci, float x, float y, float w, float a
 static double r8T;
 // Reduzir animacoes: sem cascata nem deslize; o conjunto so aparece e some
 // na opacidade da superficie (aGeral).
-static float r8CascFolha(int i) { return r8Reduzido ? (r8Ab.estado ? 1.0f : 0.0f) : r8ab_cascata(&r8Ab, r8T, (float)i, 0.22f, 0.05f, 0.20f); }
+// A Folha e uma gaveta: o conteudo anda com ela, sem cascata.
+static float r8CascFolha(int i) { (void)i; return 1.0f; }
 static float r8CascA(int i)     { return r8Reduzido ? (r8Ab.estado ? 1.0f : 0.0f) : r8ab_cascata(&r8Ab, r8T, (float)i, 0.12f, 0.05f, 0.20f); }
 
 static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) {
   GfxRect F = { 0 }, S;
-  int temF = r8Cartaz(&F), lado, i;
-  float sx, off, sa, k, cr, cg, cb, ca, tdx[3], tw[3];
+  int temF = r8Cartaz(&F), i;
+  float sx, x, sa, cr, cg, cb, ca, tdx[3], tw[3];
   const char *arteLarga = NULL, *artePoster = r8ArteCartaz();
   CtxInfoR8 inf;
   CtxInfoEstado est;
@@ -420,48 +440,45 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
   memset(&inf, 0, sizeof inf);
   if (ci) { est.salvo = tituloSalvo(ci); est.visto = historicoDe(ci); ctxinfo_r8(ci, &est, &inf); arteLarga = inf.arte; }
   if (!arteLarga) arteLarga = artePoster ? artePoster : (ci && ci->poster[0] ? ci->poster : NULL);
-  lado = !temF || F.x + F.w * 0.5f < R8M_TW * 0.62f ? 1 : -1;
-  sx = lado > 0 ? R8M_TW - R8M_FOLHA_M - R8M_FOLHA_W : R8M_FOLHA_M;
-  off = (float)lado * R8M_FOLHA_ENTRA * (1.0f - m);
-  S = (GfxRect){ sx + off, R8M_FOLHA_M, R8M_FOLHA_W, R8M_TH - 2.0f * R8M_FOLHA_M };
-  sa = r8_seg(m, 0.0f, 0.45f) * aGeral;
+  // A GAVETA (dono, 26/11): o painel inteiro entra pela direita, de fora da
+  // tela ate encostar na borda, e sai do mesmo jeito; sempre a direita. Nada
+  // voa do cartaz: a arte mora no topo e anda junto. Opaca o tempo todo (so as
+  // animacoes reduzidas trocam o deslize por opacidade, em aGeral).
+  sx = R8M_TW - R8M_FOLHA_W;
+  x = sx + R8M_FOLHA_W * (1.0f - m);
+  S = (GfxRect){ x, 0.0f, R8M_FOLHA_W, R8M_TH };
+  sa = (m > 0.001f ? 1.0f : 0.0f) * aGeral;
+  r8LinPad = R8M_FOLHA_P - R8M_FOLHA_LX;
   r8Geo.superficie = S; r8Geo.superficieA = sa; r8Geo.forma = 0;
   if (!r8FundoOk) r8_veu(0.5f * m * aGeral);      // sem a copia parada, o veu vai aqui
   if (temF) r8CartazVivo(F, aGeral);
+  // A Home escurece ate a beirada: o cartao que fica sob ela some no escuro
+  // em vez de aparecer cortado.
+  r8_escuro_lateral(x - R8M_ESCURO, x, R8M_ESCURO_A * m * aGeral);
   if (aberto && m > 0.5f && ponteiro_ativo()) {
     ponteiro_alvo(0, 0, R8M_TW, R8M_TH, NULL, pagina == 1 ? ponteiroEstFora : ponteiroCtxFora, 0, 0);
     ponteiro_alvo(S.x, S.y, S.w, S.h, NULL, NULL, 0, 0);
   }
-  r8_material_sombra(S, R8_RAIO_FOLHA, sa, -30.0f * (float)lado, 0.0f);
   r8_superficie_cor(&cr, &cg, &cb, &ca);
-  // A ARTE DO PROPRIO ITEM VOA do cartaz ate o topo da folha, trocando o
-  // poster pela imagem larga entre 20 % e 75 % do caminho.
-  k = r8_dec(m);
-  { GfxRect A = { sx + off, R8M_FOLHA_M, R8M_FOLHA_W, R8M_ARTE_H }, V;
-    float raio = R8_RAIO_FOLHA, troca = r8_seg(m, 0.2f, 0.75f);
-    if (temF && artePoster && !r8Reduzido) {
-      float r0 = ajustes_raio_poster_px() / gfx_escala_ui();
-      V = (GfxRect){ r8_lerp(F.x, A.x, k), r8_lerp(F.y, A.y, k), r8_lerp(F.w, A.w, k), r8_lerp(F.h, A.h, k) };
-      raio = r8_lerp(r0, R8_RAIO_FOLHA, k);
-      r8Arte(V, artePoster, raio, (1.0f - troca) * aGeral * (m > 0.01f ? 1.0f : 0.0f));
-    } else { V = A; troca = 1.0f; }
-    r8Arte(V, arteLarga, raio, troca * (temF && artePoster && !r8Reduzido ? aGeral : sa));
+  gfx_cor(S, 0.0f, cr, cg, cb, ca * sa);
+  { GfxRect A = { x, 0.0f, R8M_FOLHA_W, R8M_ARTE_H };
+    r8Arte(A, arteLarga, 0.0f, sa);
     // degrade da base da arte para a superficie (0 % a 55 % de baixo)
-    gfx_rect((GfxRect){ V.x, V.y + V.h * 0.45f, V.w, V.h * 0.55f + 1.0f }, 0, GFX_VEU_BAIXO,
-             0, 0, 0, 0, cr, cg, cb, troca * (temF && artePoster && !r8Reduzido ? aGeral : sa)); }
+    gfx_rect((GfxRect){ A.x, A.y + A.h * 0.45f, A.w, A.h * 0.55f + 1.0f }, 0, GFX_VEU_BAIXO,
+             0, 0, 0, 0, cr, cg, cb, sa); }
+  // o fio da beirada (1 px, 8 %)
+  gfx_cor((GfxRect){ x, 0.0f, 1.0f, R8M_TH }, 0.0f, 1, 1, 1, 0.08f * sa);
 
   // PAGINAS: acoes (0), estilos (1), confirmacao (2), com a troca cruzada.
   for (i = 0; i < 3; i++) tw[i] = r8troca_peso(&r8Pag, t, i, &tdx[i]);
-  // titulo e meta (as tres paginas mostram o titulo; a de estilos sem titulo
-  // de item mostra o da fileira)
   { const char *nome = ci ? ci->titulo : filTitulo;
     TxtLinha l;
-    float c0 = r8CascFolha(0), c1 = r8CascFolha(1);
+    float tx = x + R8M_FOLHA_P, tWid = R8M_FOLHA_W - 2.0f * R8M_FOLHA_P;
     r8Maiusc(nome && nome[0] ? nome : i18n("Estilo da fileira"), tit, sizeof tit);
-    l = txt_linha_corta(TXT_R8_40X, tit, 244, 242, 238, 255, R8M_FOLHA_W - 72.0f);
-    txt_desenhar_alpha(l, sx + off + 36.0f, R8M_FOLHA_M + R8M_ARTE_H - 74.0f + 10.0f * (1.0f - c0), c0 * aGeral);
-    r8Geo.tituloY = R8M_FOLHA_M + R8M_ARTE_H - 74.0f + 10.0f * (1.0f - c0); r8Geo.tituloA = c0 * aGeral;
-    { float mx = sx + off + 36.0f, my = R8M_FOLHA_M + R8M_ARTE_H + 20.0f, mw = R8M_FOLHA_W - 72.0f;
+    l = txt_linha_corta(TXT_R8_40X, tit, 244, 242, 238, 255, tWid);
+    txt_desenhar_alpha(l, tx, R8M_ARTE_H - 64.0f, sa);
+    r8Geo.tituloY = R8M_ARTE_H - 64.0f; r8Geo.tituloA = sa;
+    { float mx = tx, my = R8M_ARTE_H + 8.0f, mw = tWid;
       char meta[260] = "";
       int falha = estadoOperacao == CTX_FALHA;
       if (pagina == 1) snprintf(meta, sizeof meta, "%s", i18n("Estilo da fileira"));
@@ -472,7 +489,7 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
           snprintf(n, sizeof n, idioma_ponto_decimal(ajustes_idioma()) ? "IMDb %d.%d" : "IMDb %d,%d",
                    inf.notaImdb / 10, inf.notaImdb % 10);
           l = txt_linha(TXT_R8_19S, n, 244, 242, 238, 255);
-          txt_desenhar_alpha(l, mx, my, c1 * aGeral);
+          txt_desenhar_alpha(l, mx, my, sa);
           mx += (float)l.w + 18.0f; mw -= (float)l.w + 18.0f;
         }
         snprintf(meta, sizeof meta, "%s%s%s", inf.meta, inf.meta[0] && inf.classif[0] ? " \xc2\xb7 " : "", inf.classif);
@@ -480,41 +497,40 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
       if (meta[0] && mw > 40.0f) {
         l = falha ? txt_linha_corta(TXT_R8_19S, meta, 240, 190, 130, 255, mw)
                   : txt_linha_corta(TXT_R8_19S, meta, 180, 177, 171, 255, mw);
-        txt_desenhar_alpha(l, mx, my, c1 * aGeral);
+        txt_desenhar_alpha(l, mx, my, sa);
       } } }
-  { R8Lista L = { sx + off + 20.0f, R8M_FOLHA_M + R8M_ARTE_H + 76.0f, R8M_FOLHA_W - 40.0f,
-                  R8M_ACAO_PASSO, R8M_ACAO_H, R8_RAIO_PAINEL, 20.0f, 0.03f };
-    float teto = R8M_FOLHA_M + S.h - 24.0f;
+  { R8Lista L = { x + R8M_FOLHA_LX, R8M_ACAO_Y0, R8M_FOLHA_W - 2.0f * R8M_FOLHA_LX,
+                  R8M_ACAO_PASSO, R8M_ACAO_H, R8_RAIO_LINHA, R8M_FOLHA_P - R8M_FOLHA_LX, 0.03f };
+    float teto = R8M_TH - R8M_FOLHA_P, tx = x + R8M_FOLHA_P, tWid = R8M_FOLHA_W - 2.0f * R8M_FOLHA_P;
     if (tw[0] > 0.0f && ci) {
-      r8Acoes(ci, L, tw[0] * aGeral, tdx[0], t, r8CascFolha, r8CascFolha(1));
+      r8Acoes(ci, L, tw[0] * sa, tdx[0], t, r8CascFolha, 1.0f);
       // A SINOPSE (e onde a pessoa parou) embaixo das acoes, ate o fim da folha.
-      { float y = L.y + L.passo * (float)nOps + 30.0f, c = r8CascFolha(nOps + 2) * tw[0] * aGeral;
+      { float y = L.y + L.passo * (float)nOps + 28.0f, c = tw[0] * sa;
         if (inf.prog[0] && y + 30.0f < teto) {
-          TxtLinha p = txt_linha_corta(TXT_R8_19S, inf.prog, 244, 242, 238, 255, R8M_FOLHA_W - 72.0f);
-          txt_desenhar_alpha(p, sx + off + 36.0f + tdx[0], y, c);
+          TxtLinha p = txt_linha_corta(TXT_R8_19S, inf.prog, 244, 242, 238, 255, tWid);
+          txt_desenhar_alpha(p, tx + tdx[0], y, c);
           if (inf.progFrac > 0.0f) {
-            gfx_cor((GfxRect){ sx + off + 36.0f + tdx[0], y + 30.0f, R8M_FOLHA_W - 72.0f, 4.0f }, 0.5f, 1, 1, 1, 0.14f * c);
-            gfx_cor((GfxRect){ sx + off + 36.0f + tdx[0], y + 30.0f, (R8M_FOLHA_W - 72.0f) * inf.progFrac, 4.0f }, 0.5f, R8_ACENTO, c);
+            gfx_cor((GfxRect){ tx + tdx[0], y + 30.0f, tWid, 4.0f }, 0.5f, 1, 1, 1, 0.14f * c);
+            gfx_cor((GfxRect){ tx + tdx[0], y + 30.0f, tWid * inf.progFrac, 4.0f }, 0.5f, R8_ACENTO, c);
           }
           y += 52.0f;
         }
         if (inf.sinopse && inf.sinopse[0]) {
           int j;
-          r8Quebrar(inf.sinopse, R8M_FOLHA_W - 72.0f, TXT_R8_20R);
+          r8Quebrar(inf.sinopse, tWid, TXT_R8_20R);
           for (j = 0; j < r8Sin.n && y + 29.0f <= teto; j++, y += 29.0f) {
             char linha[270];
             int ultima = j + 1 < r8Sin.n && y + 58.0f > teto;
             snprintf(linha, sizeof linha, "%s%s", r8Sin.l[j], ultima ? "\xe2\x80\xa6" : "");
-            txt_desenhar_alpha(txt_linha_corta(TXT_R8_20R, linha, 180, 177, 171, 255, R8M_FOLHA_W - 72.0f),
-                               sx + off + 36.0f + tdx[0], y, c);
+            txt_desenhar_alpha(txt_linha_corta(TXT_R8_20R, linha, 180, 177, 171, 255, tWid), tx + tdx[0], y, c);
           }
         } } }
-    if (tw[1] > 0.0f) r8Estilos(L, tw[1] * aGeral, tdx[1], t, r8CascFolha, r8CascFolha(1), teto);
+    if (tw[1] > 0.0f) r8Estilos(L, tw[1] * sa, tdx[1], t, r8CascFolha, 1.0f, teto);
     if (tw[2] > 0.0f && ci)
-      r8Confirmacao(ci, sx + off + 36.0f + tdx[2], L.y + 4.0f, R8M_FOLHA_W - 72.0f, tw[2] * aGeral, t); }
-  infoDesenhada = 1; infoLadoUlt = -lado;
-  infoCaixa = (GfxRect){ sx, R8M_FOLHA_M, R8M_FOLHA_W, R8M_ARTE_H };
-  menuCaixa = (GfxRect){ sx, R8M_FOLHA_M, R8M_FOLHA_W, R8M_TH - 2.0f * R8M_FOLHA_M };
+      r8Confirmacao(ci, tx + tdx[2], L.y + 4.0f, tWid, tw[2] * sa, t); }
+  infoDesenhada = 1; infoLadoUlt = -1;
+  infoCaixa = (GfxRect){ sx, 0.0f, R8M_FOLHA_W, R8M_ARTE_H };
+  menuCaixa = (GfxRect){ sx, 0.0f, R8M_FOLHA_W, R8M_TH };
 }
 
 // ---------------------------------------------------------------- A · Desdobrar
@@ -522,6 +538,7 @@ static void r8DesenharDesdobrar(const CatItem *ci, double t, float m, float aGer
   GfxRect F, P;
   int temF = r8Cartaz(&F), lado, i, deitado, titulo;
   float px, need, top, passo, rowH, tw[3], tdx[3];
+  r8LinPad = 18.0f;
   if (!temF) {
     // Sem cartaz (o destaque): o painel nasce no lugar do botao do destaque.
     F = (GfxRect){ 96.0f, 400.0f, 0.0f, 56.0f };

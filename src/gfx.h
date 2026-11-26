@@ -464,6 +464,7 @@ GLuint gfx_desfocado(GLuint src, const char *chave);
 // Um pixel da copia desfocada (u da esquerda, v de cima). So diagnostico.
 int gfx_desfocado_px(GLuint tex, float u, float v, unsigned char rgb[3]);
 int  gfx_snap_ok(void);        // 1 quando o FBO do snapshot existe
+void gfx_snap_tamanho(int *w, int *h);   // o FBO da copia parada (para o log)
 void gfx_snap_comecar(void);   // redireciona o desenho para o snapshot
 void gfx_snap_terminar(void);   // volta para a tela
 int  gfx_snap_vazio(int *maxCanal);   // 1 = o snapshot (alvo ligado) saiu preto

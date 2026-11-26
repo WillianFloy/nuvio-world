@@ -18,6 +18,8 @@ def content(t, i=0, step=0.05, start=0.12):
     a = seg(t, T_OPEN0 + start + i * step, T_OPEN0 + start + i * step + 0.2)
     return a * (1 - seg(t, T_CLOSE0 - 0.02, T_CLOSE0 + 0.08))
 
+# Foco de linha dos menus (dono, 26/11): raio 10, veu 10 %, contorno de 1,5 px a 50 %.
+FOCO_LINHA = "background:rgba(244,242,238,.10);box-shadow:inset 0 0 0 1.5px rgba(244,242,238,.5)"
 ACTIONS = [("bookmark", "Salvar"), ("eye", "Marcar como assistido"), ("rows", "Estilo da fileira")]
 TL_MARKS = [(0.6, 1.3, "segurar"), (1.3, 1.74, "abrir"), (2.45, 3.97, "foco"), (4.1, 4.9, "OK → pendente → feito"), (5.3, 5.56, "fechar")]
 FOCUS = 2
@@ -84,10 +86,10 @@ def build_A():
     a.add("meta", lambda t: dict(x=px + 30, y=F[1] + 70 + 10 * (1 - content(t, 1)), w=A_PW - 60, h=30, o=content(t, 1)),
           f'<div style="font-size:19px;font-weight:500;color:{MUT};white-space:nowrap">Série · 2022 · 2 temporadas</div>')
     y0, pitch = F[1] + 124, 66
-    a.add("pill", lambda t: dict(x=px + 16, y=y0 + pitch * fpos(t), w=A_PW - 32, h=56, r=16,
+    a.add("pill", lambda t: dict(x=px + 16, y=y0 + pitch * fpos(t), w=A_PW - 32, h=56, r=10,
                                  o=content(t, 1), s=1 - 0.04 * press(t)),
           f'<div style="position:absolute;left:18px;right:18px;bottom:6px;height:3px;border-radius:2px;background:rgba(255,255,255,.12)"></div>',
-          "background:rgba(244,242,238,.13);box-shadow:inset 0 0 0 2px #F4F2EE")
+          FOCO_LINHA)
     a.add("pend", lambda t: dict(x=px + 34, y=y0 + pitch * fpos(t) + 47, w=(A_PW - 68) * pend(t), h=3, r=2, o=1 if pend(t) > 0 else 0, bg=ACC))
     for i, (ic, lab) in enumerate(ACTIONS):
         if i == 1:
@@ -157,12 +159,21 @@ def build_B():
     return a
 
 # ================================================================ C · Folha
-C_W = 600
+# A FOLHA E UMA GAVETA (dono, 26/11, depois do teste na TCL): o painel inteiro
+# entra pela DIREITA, de fora da tela ate encostar na borda, e sai do mesmo
+# jeito. Sempre a direita, qualquer que seja o cartaz. Nada voa do cartaz: a
+# arte mora no topo do painel e anda com ele. Encostada na borda (sem margem,
+# sem canto, sem contorno), com um degrade escurecendo a Home ate a borda dela,
+# para o cartao que fica sob a beirada sumir no escuro em vez de aparecer
+# cortado. O foco das acoes e mais leve e menos redondo (raio 10, veu 10 %,
+# contorno de 1,5 px a 50 %).
+C_W = 640
+C_P = 48            # margem interna: titulo, meta, icones das acoes e sinopse
+C_ARTE_H = 360
+C_ESCURO = 280      # degrade da Home ate a borda da gaveta
+C_Y0, C_PASSO, C_LH = 436, 64, 56
 def C_geo(rect=F):
-    x, y, w, h = rect
-    side = 1 if (x + w / 2) < SW * 0.62 else -1
-    sx = SW - 48 - C_W if side > 0 else 48
-    return dict(x=sx, y=48, w=C_W, h=SH - 96, side=side, hx=sx, hy=48, hw=C_W, hh=338)
+    return dict(x=SW - C_W, y=0, w=C_W, h=SH)
 
 def build_C():
     a = Anim("C")
@@ -170,35 +181,32 @@ def build_C():
     g = C_geo()
     a.add("poster", lambda t: dict(x=F[0], y=F[1], w=F[2], h=F[3], r=14), poster_label(FOCUS, F[2]), poster_style(FOCUS, True))
     add_hold(a, F)
-    def sheet(t):
-        m = menu(t)
-        return dict(x=g["x"] + 70 * (1 - m), y=g["y"], w=g["w"], h=g["h"], r=22, o=seg(m, 0, 0.45))
-    a.add("sheet", sheet, "", "background:rgba(14,14,16,.97);box-shadow:0 0 0 1.5px rgba(255,255,255,.10),-30px 0 80px rgba(0,0,0,.55)")
-    # a arte do proprio item VOA do cartaz para o topo da folha (cartaz -> imagem larga)
-    def fly(t):
-        m = menu(t)
-        k = dec(seg(m, 0, 1))
-        return dict(x=lerp(F[0], g["hx"] + 70 * (1 - m), k), y=lerp(F[1], g["hy"], k), w=lerp(F[2], g["hw"], k), h=lerp(F[3], g["hh"], k), r=lerp(14, 22, k),
-                    o=1 if m > 0.01 else 0)
-    a.add("flyP", lambda t: dict(fly(t), o=(1 if menu(t) > 0.01 else 0) * (1 - seg(menu(t), 0.2, 0.75))), poster_label(FOCUS, 200), poster_style(FOCUS, False))
-    a.add("flyB", lambda t: dict(fly(t), o=(1 if menu(t) > 0.01 else 0) * seg(menu(t), 0.2, 0.75)),
+    def px(t): return g["x"] + C_W * (1 - menu(t))
+    vis = lambda t: 1 if menu(t) > 0.001 else 0
+    a.add("escuro", lambda t: dict(x=px(t) - C_ESCURO, y=0, w=C_ESCURO, h=SH, o=0.9 * menu(t)),
+          "", "background:linear-gradient(90deg,rgba(0,0,0,0) 0%,rgba(0,0,0,1) 100%)")
+    a.add("sheet", lambda t: dict(x=px(t), y=0, w=C_W, h=SH, o=vis(t)), "",
+          "background:rgba(14,14,16,.97);box-shadow:inset 1px 0 0 rgba(255,255,255,.08)")
+    a.add("arte", lambda t: dict(x=px(t), y=0, w=C_W, h=C_ARTE_H, o=vis(t)),
           '<div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(14,14,16,1) 0%,rgba(14,14,16,0) 55%)"></div>',
           f"background:{FIGS[FOCUS]};overflow:hidden;background-size:cover")
-    sx = g["x"]
-    a.add("tit", lambda t: dict(x=sx + 36, y=g["hy"] + g["hh"] - 74 + 10 * (1 - content(t, 0, 0.05, 0.22)), w=C_W - 72, h=50, o=content(t, 0, 0.05, 0.22)),
+    a.add("tit", lambda t: dict(x=px(t) + C_P, y=C_ARTE_H - 64, w=C_W - 2 * C_P, h=50, o=vis(t)),
           f'<div style="font-size:40px;font-weight:800;color:{BONE};white-space:nowrap;text-transform:uppercase">{NAMES[FOCUS]}</div>')
-    a.add("meta", lambda t: dict(x=sx + 36, y=g["hy"] + g["hh"] + 20, w=C_W - 72, h=30, o=content(t, 1, 0.05, 0.22)),
+    a.add("meta", lambda t: dict(x=px(t) + C_P, y=C_ARTE_H + 8, w=C_W - 2 * C_P, h=30, o=vis(t)),
           f'<div style="display:flex;gap:18px;font-size:19px;font-weight:600;color:{MUT};white-space:nowrap"><span style="color:{BONE}">IMDb 8,7</span><span>Série · 2022</span><span>2 temporadas</span><span>16</span></div>')
-    y0, pitch = g["hy"] + g["hh"] + 76, 68
-    a.add("pill", lambda t: dict(x=sx + 20, y=y0 + pitch * fpos(t), w=C_W - 40, h=58, r=16, o=content(t, 1, 0.05, 0.22), s=1 - 0.03 * press(t)),
-          "", "background:rgba(244,242,238,.13);box-shadow:inset 0 0 0 2px #F4F2EE")
-    a.add("pend", lambda t: dict(x=sx + 40, y=y0 + pitch * fpos(t) + 49, w=(C_W - 80) * pend(t), h=3, r=2, o=1 if pend(t) > 0 else 0, bg=ACC))
+    LX = C_P - 16       # a linha comeca 16 px antes do texto: o icone alinha com o titulo
+    a.add("pill", lambda t: dict(x=px(t) + LX, y=C_Y0 + C_PASSO * fpos(t), w=C_W - 2 * LX, h=C_LH, r=10, o=vis(t), s=1 - 0.03 * press(t)),
+          "", "background:rgba(244,242,238,.10);box-shadow:inset 0 0 0 1.5px rgba(244,242,238,.5)")
+    a.add("pend", lambda t: dict(x=px(t) + C_P, y=C_Y0 + C_PASSO * fpos(t) + C_LH - 8, w=(C_W - 2 * C_P) * pend(t), h=3, r=2, o=1 if pend(t) > 0 else 0, bg=ACC))
+    def linha(ic, lab):
+        return (f'<div style="position:absolute;inset:0;display:flex;align-items:center;gap:14px;padding:0 16px;color:{BONE};'
+                f'font-size:23px;font-weight:600;white-space:nowrap">{ico(ic, 26)}{lab}</div>')
     for i, (ic, lab) in enumerate(ACTIONS + [("users", "Recomendar a amigos")]):
-        fn = (lambda i: lambda t: dict(x=sx + 20, y=y0 + pitch * i + 8 * (1 - content(t, i + 2, 0.05, 0.22)), w=C_W - 40, h=58,
-                                        o=content(t, i + 2, 0.05, 0.22) * ((1 - done(t)) if i == 1 else 1)))(i)
-        a.add(f"r{i}", fn, row_label_html(ic, lab))
-    a.add("r1b", lambda t: dict(x=sx + 20, y=y0 + pitch, w=C_W - 40, h=58, o=done(t)), row_label_html("check", "Marcado como assistido"))
-    a.add("sin", lambda t: dict(x=sx + 36, y=y0 + pitch * 4 + 30, w=C_W - 72, h=200, o=content(t, 6, 0.05, 0.22)),
+        fn = (lambda i: lambda t: dict(x=px(t) + LX, y=C_Y0 + C_PASSO * i, w=C_W - 2 * LX, h=C_LH,
+                                        o=vis(t) * ((1 - done(t)) if i == 1 else 1)))(i)
+        a.add(f"r{i}", fn, linha(ic, lab))
+    a.add("r1b", lambda t: dict(x=px(t) + LX, y=C_Y0 + C_PASSO, w=C_W - 2 * LX, h=C_LH, o=vis(t) * done(t)), linha("check", "Marcado como assistido"))
+    a.add("sin", lambda t: dict(x=px(t) + C_P, y=C_Y0 + C_PASSO * 4 + 28, w=C_W - 2 * C_P, h=200, o=vis(t)),
           f'<div style="font-size:20px;line-height:1.45;color:{MUT}">Mark lidera uma equipe cujas memórias foram separadas cirurgicamente entre o trabalho e a vida pessoal. Faltam 38 min do T2 E4.</div>')
     return a
 

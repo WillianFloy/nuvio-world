@@ -47,6 +47,9 @@ void app_encerrar(void);
 int  app_na_home(void);
 // Home owns the D-pad without keyboard-capturing layers (FPS scene guard).
 int  app_home_recebe_teclas(void);
+// O que a copia parada do menu R8 fez NESTE quadro ("fundo=P 12.3ms"...), para
+// o [qd-lento]; "" quando o menu R8 nao esta na tela.
+const char *app_fundo_rastro(void);
 // A tela atual e o login (a abertura dissolve o logo sobre o fundo dele).
 int  app_no_login(void);
 

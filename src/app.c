@@ -7042,14 +7042,28 @@ static void desenharAtrasDoPainel(void *ctx) {
 // faltando, 0,4 / 1,5 / 4 s) e quando o estilo da fileira muda (`versao`).
 // Sem FBO, com video no ar ou com a copia preta, a Home e desenhada viva e o
 // menu poe o proprio veu.
+// O RASTRO DA COPIA (TCL, 26/11): o [qd-lento] da lista de estilos tinha
+// quadros de 45-50 ms com des=2.5 e swap=45, e so isso nao diz se a copia foi
+// repintada naquele quadro. Cada quadro do menu R8 diz o que fez com ela (P =
+// pintou, C = copiou, D = Home direto), quanto tempo a pintura levou na CPU
+// (com a leitura de conferencia) e cada pintura sai no log com o motivo.
+static char fundoRastro[80];
+const char *app_fundo_rastro(void) { return fundoRastro; }
 static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float veu, unsigned versao) {
   static FundoParado fp;
+  static unsigned verAnt, catAnt, sesAnt;
   static const Uint32 REFAZ[] = { 400, 1500, 4000 };
   int parar = gfx_snap_ok() && !player_mini_ativo() && !player_aberto() && !spainel_visivel();
-  FpAcao acao = fundoparado_passo(&fp, parar, cat_revisao() + versao * 7919u, SDL_GetTicks(), REFAZ, 3);
+  FpAcao acao;
+  fundoparado_sessao(&fp, ctx_r8_sessao());
+  acao = fundoparado_passo(&fp, parar, cat_revisao() + versao * 7919u, SDL_GetTicks(), REFAZ, 3);
   if (acao == FP_PINTAR) {
     unsigned faltas0 = tex_n_falta;
-    int mx = 0, preta;
+    int mx = 0, preta, fw = 0, fh = 0;
+    Uint64 c0 = SDL_GetPerformanceCounter(), c1;
+    double ms, lerMs;
+    const char *motivo = ctx_r8_sessao() != sesAnt ? "abertura" : versao != verAnt ? "estilo"
+                       : cat_revisao() != catAnt ? "catalogo" : fp.faltou ? "arte" : "tempo";
     gfx_snap_comecar();
     gfx_sem_recorte();
     glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
@@ -7058,8 +7072,15 @@ static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float ve
     desenharAtrasDoPainel(&agora);
     ctxForaDoFundo = 0;
     gfx_sem_recorte();
+    c1 = SDL_GetPerformanceCounter();
     preta = gfx_snap_vazio(&mx);
     gfx_snap_terminar();
+    lerMs = (double)(SDL_GetPerformanceCounter() - c1) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+    ms = (double)(SDL_GetPerformanceCounter() - c0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+    gfx_snap_tamanho(&fw, &fh);
+    snprintf(fundoRastro, sizeof fundoRastro, " fundo=P %.1fms(ler %.1f)", ms, lerMs);
+    printf("[ctx-r8] copia da Home pintada: motivo=%s %.1f ms (leitura %.1f ms) fbo=%dx%d\n", motivo, ms, lerMs, fw, fh);
+    sesAnt = ctx_r8_sessao(); verAnt = versao; catAnt = cat_revisao();
     fundoparado_pintado(&fp, tex_n_falta != faltas0, preta, cat_revisao() + versao * 7919u, SDL_GetTicks());
     if (preta) {
       printf("[ctx-r8] copia parada saiu PRETA (max=%d): desenhando a home direto\n", mx);
@@ -7068,6 +7089,7 @@ static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float ve
     } else acao = FP_COPIAR;
   }
   if (acao == FP_COPIAR) {
+    if (!fundoRastro[0]) snprintf(fundoRastro, sizeof fundoRastro, " fundo=C");
     home_fileiras_vistas(SDL_GetTicks());
     gfx_sem_recorte();
     glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
@@ -7078,11 +7100,13 @@ static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float ve
     ctx_desenhar(agora);
     return;
   }
+  snprintf(fundoRastro, sizeof fundoRastro, " fundo=D");
   ctx_r8_fundo_pronto(0);
   desenharAtrasDoPainel(&agora);
 }
 
 static void desenharTelas(Uint32 agora) {
+  fundoRastro[0] = 0;
   if (tela == TELA_LOGIN)          { login_desenhar(agora);     return; }
   if (tela == TELA_ESCOLHA_PERFIL) { perfilsel_desenhar(agora); return; }
 

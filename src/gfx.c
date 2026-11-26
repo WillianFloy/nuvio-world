@@ -4760,6 +4760,7 @@ int gfx_snap_iniciar(int w, int h) {
 }
 
 int gfx_snap_ok(void) { return snapFbo != 0; }
+void gfx_snap_tamanho(int *w, int *h) { if (w) *w = snapW; if (h) *h = snapH; }
 
 static unsigned snapGeracao;
 int gfx_snap_ativo(void) { return snapAtivo; }
