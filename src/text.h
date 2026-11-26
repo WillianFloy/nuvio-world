@@ -205,8 +205,8 @@ typedef enum {
   TXT_W_LN,       // rotulo da linha (30 / 500)
   TXT_W_LN_B,     // rotulo da linha em foco (30 / 700)
   // PECAS R8 (r8estilo.h; pranchas das secoes 8 e 10): corpo e peso exatos das
-  // pranchas. X = 800 (Montserrat ExtraBold), B = 700, S = 600, M = 500. O 600
-  // nao tem arquivo: claro sobre o escuro vai para o Bold (regra optica acima).
+  // pranchas. X = 800 (Montserrat ExtraBold), B = 700, S = 600 (Montserrat
+  // SemiBold), M = 500. Fora da Montserrat, o 800 e o 600 usam o Bold da familia.
   TXT_R8_64X,      // 64 / 800
   TXT_R8_60X,      // 60 / 800
   TXT_R8_44X,      // 44 / 800

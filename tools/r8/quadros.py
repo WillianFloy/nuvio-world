@@ -5,8 +5,8 @@
 #   python3 tools/r8/quadros.py MC /tmp/r8-q 1.0 1.42 1.6     -> MC-1.000.png ...
 #   python3 tools/r8/quadros.py MC /tmp/r8-q --de 1.2 --ate 1.9 --fps 30
 #
-# Fontes: o app tem Montserrat 400/500/700 (a ExtraBold 800 entra na Fase 2);
-# ate la o Chrome sintetiza o 600/800 a partir das que existem.
+# Fontes: as mesmas Montserrat do app, 400/500/600/700/800 (SemiBold e
+# ExtraBold entraram na Fase 2), iguais as que as pranchas publicadas usam.
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import base
@@ -16,8 +16,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 FONTES = os.path.join(RAIZ, "deploy", "app", "fonts")
 
 def fontes_css():
-    pesos = [(400, "Montserrat-Regular.ttf"), (500, "Montserrat-Medium.ttf"), (700, "Montserrat-Bold.ttf"),
-             (800, "Montserrat-ExtraBold.ttf")]
+    pesos = [(400, "Montserrat-Regular.ttf"), (500, "Montserrat-Medium.ttf"), (600, "Montserrat-SemiBold.ttf"),
+             (700, "Montserrat-Bold.ttf"), (800, "Montserrat-ExtraBold.ttf")]
     css = ""
     for p, f in pesos:
         cam = os.path.join(FONTES, f)

@@ -31,6 +31,20 @@ static void px(int x, int y, int *r, int *g, int *b) {
 static int lum(int x, int y) { int r, g, b; px(x, y, &r, &g, &b); return (r + g + b) / 3; }
 static void limpar(float c) { glClearColor(c, c, c, 1); glClear(GL_COLOR_BUFFER_BIT); }
 
+// Pixels acesos do texto "Editar atalhos" desenhado no estilo `e`.
+static int tinta(TxtEstilo e) {
+  int n = 0;
+  unsigned char *b = malloc(600 * 80 * 4);
+  limpar(0); gfx_novo_quadro(); txt_novo_quadro();
+  TxtLinha l = txt_linha(e, "Editar atalhos", 255, 255, 255, 255);
+  txt_desenhar(l, 100, 100);
+  glFinish(); glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(100, 1080 - 100 - 80, 600, 80, GL_RGBA, GL_UNSIGNED_BYTE, b);
+  for (int i = 0; i < 600 * 80; i++) if (b[i * 4] > 128) n++;
+  free(b);
+  return n;
+}
+
 // GLES so garante RGBA na leitura: le em RGBA e grava a superficie de 32 bits.
 static void salvar(const char *dir, const char *nome) {
   SDL_Surface *s = SDL_CreateRGBSurface(0, 1920, 1080, 32, 0xff, 0xff00, 0xff0000, 0xff000000);
@@ -106,6 +120,16 @@ int main(int argc, char **argv) {
     txt_definir_fonte_interface(TXT_FAMILIA_INTER);
     i8 = txt_largura(TXT_R8_44X, "Salvos 12"); i7 = txt_largura(TXT_R8_44B, "Salvos 12");
     OK(i8 == i7 && i8 > 0, "Inter: 800 cai no Bold da propria familia (%d == %d)", i8, i7);
+    // 600 (Montserrat SemiBold): entre o 500 e o 700 na Montserrat; Bold na Inter.
+    { int m5, m6, m7, n6, n7;
+      txt_definir_fonte_interface(TXT_FAMILIA_MONTSERRAT);
+      // A largura quase nao muda entre os pesos da Montserrat; a TINTA (pixels
+      // acesos do traco) sim: e ela que separa 500, 600 e 700.
+      m5 = tinta(TXT_R8_26M); m6 = tinta(TXT_R8_26S); m7 = tinta(TXT_R8_26B);
+      OK(m6 > m5 * 104 / 100 && m7 > m6 * 104 / 100, "Montserrat: o traco do 600 (SemiBold) fica entre o 500 e o 700 (%d < %d < %d pixels)", m5, m6, m7);
+      txt_definir_fonte_interface(TXT_FAMILIA_INTER);
+      n6 = txt_largura(TXT_R8_26S, "Editar atalhos"); n7 = txt_largura(TXT_R8_26B, "Editar atalhos");
+      OK(n6 == n7 && n6 > 0, "Inter: 600 cai no Bold da propria familia (%d == %d)", n6, n7); }
     txt_definir_fonte_interface(TXT_FAMILIA_MONTSERRAT);
     int c1, s1, mm, pe;
     txt_estilo_medidas(TXT_R8_60X, &c1, &pe); txt_estilo_medidas(TXT_R8_19M, &s1, &mm);

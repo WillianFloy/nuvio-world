@@ -114,8 +114,9 @@ static SDL_RWops     *rwFonteCam[TXT_NCAM][TXT_FAMILIA_N][TXT_NFONTES];
 // mesma origem e versao 9.000 dos outros tres Montserrat). Ao contrario dos
 // outros, so vale NA familia Montserrat: nas demais o 800 cai no Bold da propria
 // familia (ver arquivoDoPeso), para a escolha de fonte da interface continuar
-// valendo inteira.
-#define TXT_NMONO 4
+// valendo inteira. O QUINTO e o 600 das pecas R8 (PESO_SEMI,
+// fonts/Montserrat-SemiBold.ttf, mesma origem), com a mesma regra do 800.
+#define TXT_NMONO 5
 static char           caminhoMono[TXT_NMONO][512];
 static unsigned char *bytesMono[TXT_NMONO];
 static size_t         tamMono[TXT_NMONO];
@@ -268,7 +269,10 @@ enum { PESO_REGULAR, PESO_MEDIUM, PESO_BOLD,
        PESO_FINO,
        // 800 das pecas R8 (r8estilo.h). So a Montserrat tem o arquivo; nas
        // outras familias, e sem o arquivo, cai no Bold da familia.
-       PESO_EXTRA };
+       PESO_EXTRA,
+       // 600 das pecas R8. Mesma regra do 800: so a Montserrat tem o arquivo;
+       // nas outras familias (e sem o arquivo) cai no Bold da familia.
+       PESO_SEMI };
 static const struct { int corpo, peso; } ESTILOS[TXT_NFONTES] = {
   { NV_FT_TITULO1,  PESO_BOLD   },   // titulo do filme na tela de detalhe
   // ERA PESO_REGULAR, pelo cabecalho espacado da pagina de titulo do app da
@@ -483,17 +487,17 @@ static const struct { int corpo, peso; } ESTILOS[TXT_NFONTES] = {
   { 15, PESO_BOLD   },   // TXT_R8_15B
   { 14, PESO_BOLD   },   // TXT_R8_14B
   { 12, PESO_BOLD   },   // TXT_R8_12B
-  { 34, PESO_BOLD   },   // TXT_R8_34S
-  { 30, PESO_BOLD   },   // TXT_R8_30S
-  { 28, PESO_BOLD   },   // TXT_R8_28S
-  { 26, PESO_BOLD   },   // TXT_R8_26S
-  { 24, PESO_BOLD   },   // TXT_R8_24S
-  { 22, PESO_BOLD   },   // TXT_R8_22S
-  { 21, PESO_BOLD   },   // TXT_R8_21S
-  { 20, PESO_BOLD   },   // TXT_R8_20S
-  { 19, PESO_BOLD   },   // TXT_R8_19S
-  { 18, PESO_BOLD   },   // TXT_R8_18S
-  { 16, PESO_BOLD   },   // TXT_R8_16S
+  { 34, PESO_SEMI   },   // TXT_R8_34S
+  { 30, PESO_SEMI   },   // TXT_R8_30S
+  { 28, PESO_SEMI   },   // TXT_R8_28S
+  { 26, PESO_SEMI   },   // TXT_R8_26S
+  { 24, PESO_SEMI   },   // TXT_R8_24S
+  { 22, PESO_SEMI   },   // TXT_R8_22S
+  { 21, PESO_SEMI   },   // TXT_R8_21S
+  { 20, PESO_SEMI   },   // TXT_R8_20S
+  { 19, PESO_SEMI   },   // TXT_R8_19S
+  { 18, PESO_SEMI   },   // TXT_R8_18S
+  { 16, PESO_SEMI   },   // TXT_R8_16S
   { 26, PESO_MEDIUM },   // TXT_R8_26M
   { 21, PESO_MEDIUM },   // TXT_R8_21M
   { 20, PESO_MEDIUM },   // TXT_R8_20M
@@ -1149,8 +1153,9 @@ static void liberarFamilia(TxtFamilia familia) {
 static int arquivoDoPeso(TxtFamilia familia, int peso, int ler, const unsigned char **buf, size_t *tam) {
   if (peso >= PESO_MONO_R) {
     int m = peso - PESO_MONO_R;
-    int reserva = (peso == PESO_MONO_B || peso == PESO_EXTRA) ? PESO_BOLD : PESO_REGULAR;
-    if (peso == PESO_EXTRA && familia != TXT_FAMILIA_MONTSERRAT) m = -1;
+    int soMontserrat = peso == PESO_EXTRA || peso == PESO_SEMI;
+    int reserva = (peso == PESO_MONO_B || soMontserrat) ? PESO_BOLD : PESO_REGULAR;
+    if (soMontserrat && familia != TXT_FAMILIA_MONTSERRAT) m = -1;
     if (m >= 0 && ler && !monoTentada[m]) {
       monoTentada[m] = 1;
       bytesMono[m] = lerTudo(caminhoMono[m], &tamMono[m]);
@@ -1333,6 +1338,7 @@ int txt_iniciar(const char *dirRecursos, float escala) {
   snprintf(caminhoMono[1], 512, "%sfonts/JetBrainsMonoNL-SemiBold.ttf", base);
   snprintf(caminhoMono[2], 512, "%sfonts/Montserrat-ExtraLight-Relogio.ttf", base);
   snprintf(caminhoMono[3], 512, "%sfonts/Montserrat-ExtraBold.ttf", base);
+  snprintf(caminhoMono[4], 512, "%sfonts/Montserrat-SemiBold.ttf", base);
 #ifdef NV_ANDROID
   // Android: nao ha LG_Display nem /usr/share/fonts. A "LG" vira Roboto do
   // sistema e a "Droid" a DroidSans (so nas versoes antigas) ou Roboto.
