@@ -30,7 +30,9 @@ int r8fundo_quadro(R8Fundo *f, int parar, float esc, float ox, float oy, float v
     gfx_sem_recorte();
     glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    home_pintura_parada(1);
     atras(ctx);
+    home_pintura_parada(0);
     gfx_sem_recorte();
     c1 = SDL_GetPerformanceCounter();
     preta = gfx_snap_vazio(&mx);

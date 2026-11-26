@@ -7064,6 +7064,14 @@ trailer_hero_fim:
 #define NUM_COR 232, 234, 240, 255
 #define NUM_ALFA 0.86f
 static Uint32 numPedidoEm[MAX_FIL], numProntoEm[MAX_FIL];
+// A PINTURA DA COPIA PARADA (home_pintura_parada, chamado por r8fundo.c em
+// volta do desenho da copia do menu de segurar OK): as entradas por relogio
+// decididas no desenho (numerais do Ranking, linha da Linha do tempo, cascata
+// das fileiras) saem no estado final. A Home congelada atras do menu nunca
+// mais e desenhada, entao uma entrada pega no comeco ficava assim (TCL e
+// harness, 26/11: Ranking numerado sem os numeros atras do menu).
+static int homePintandoParada;
+void home_pintura_parada(int on) { homePintandoParada = on; }
 static float numeraisAlfa(int r, Uint32 agora) {
   if (r < 0 || r >= MAX_FIL) return 0.0f;
   if (!numProntoEm[r]) {
@@ -7074,9 +7082,13 @@ static float numeraisAlfa(int r, Uint32 agora) {
       snprintf(rank, sizeof rank, "%d", fileiraRanking(&fileiras[r], c));
       if (!txt_linha(TXT_RANK_GRANDE, rank, NUM_COR).tex) falta = 1;
     }
-    if (falta && (Uint32)(agora - numPedidoEm[r]) < 400u) return 0.0f;
+    // Parada: so com todos prontos (o que faltar vira txt_pendentes e a copia
+    // e refeita no quadro seguinte, ver r8fundo.h).
+    if (falta && (homePintandoParada || (Uint32)(agora - numPedidoEm[r]) < 400u)) return 0.0f;
     numProntoEm[r] = agora ? agora : 1u;
+    if (homePintandoParada) numProntoEm[r] = agora > 1000u ? agora - 1000u : 1u;   // ja revelados
   }
+  if (homePintandoParada) return 1.0f;
   if (ajustes_animacoes_reduzidas()) return 1.0f;
   return revela_saida((float)(Uint32)(agora - numProntoEm[r]) / 180.0f);
 }
@@ -7441,6 +7453,10 @@ static void desenhaLinhaTempo(int r, float topoFil, float top, float passo, floa
   int c, alvo = colunaDaFileira(r), focada = foco.fileira == r && !focoHero, anoAnt = -1;
   if (fl->n < 1) return;
   if (!tempoEntraEm[r]) { tempoEntraEm[r] = agora ? agora : 1; tempoCol[r] = 0.0f; }
+  if (homePintandoParada) {   // a copia parada: linha inteira, cabeca no foco
+    tempoEntraEm[r] = agora > 900u ? agora - 900u : 1u;
+    tempoCol[r] = (float)alvo; tempoUlt[r] = agora;
+  }
   prog = anim_clamp((float)(Uint32)(agora - tempoEntraEm[r]) / 900.0f, 0.0f, 1.0f);
   prog = 1.0f - (1.0f - prog) * (1.0f - prog) * (1.0f - prog);
   tempoCol[r] = anim_mola(tempoCol[r], (float)alvo, dt, NV_MOLA_FOCO);
@@ -8792,7 +8808,7 @@ static void home_desenhar_(Uint32 agora) {
       // depois de uma ausencia. So as VISIVEIS: as de baixo ja estarao
       // assentadas quando o foco descer ate elas.
       if (n > 0 && visivel && (reentra || filNAntes[r] == 0))
-        filEntraEm[r] = agora + (Uint32)(ordemFil * NV_ENTRA_FIL_MS);
+        filEntraEm[r] = homePintandoParada ? 0u : agora + (Uint32)(ordemFil * NV_ENTRA_FIL_MS);
       else if (!visivel)
         filEntraEm[r] = 0;
       if (visivel && n > 0) ordemFil++;
