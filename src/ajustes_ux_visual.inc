@@ -7,6 +7,7 @@ static const char *ajVisualIcone(int op) {
     case AJ_COL_EXPANDIR: case AJ_COL_EXPANDIR_ATRASO: return "aj_images";
     case AJ_COL_ENTRADA: return "aj_sparkles";
     case AJ_TEMA_FUNDO: return "aj_moon";
+    case AJ_MENU_SEGURAR: return "aj_layout-dashboard";
     case AJ_ABERTURA_VIDEO: return "aj_clapperboard";
     case AJ_COL_GIF: return "aj_sparkles";
     // Auditoria de icones (World, 20/11): as opcoes do menu superior e as

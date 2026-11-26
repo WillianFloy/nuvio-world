@@ -146,6 +146,10 @@ static void testeCentral(void) {
 // --- 6. Revisao: reaparicao por quadro (nao relogio) e pilula sem opcao --------
 static void testeRevisao(void) {
   // P2: engasgo de 300 ms COM o OSD na tela (quadros consecutivos) segue em voo.
+  // SDL_GetTicks() comeca em 0 na 1a chamada e o tic() le ult==0 como "nunca
+  // desenhou" (dt 0). Sem isto o teste dependia de alguma thread ja ter lido o
+  // relogio antes: passava ou falhava conforme a corrida.
+  (void)SDL_GetTicks(); SDL_Delay(2);
   osdUlt = 0; osdQuadro = 0; memset(osdFocoPronto, 0, sizeof osdFocoPronto);
   gfx_quadro_n = 10; osdFocoAlvo = AV_B_PAUSA; osdTic();
   gfx_quadro_n = 11; osdFocoAlvo = AV_B_GUIA; SDL_Delay(300); osdTic();

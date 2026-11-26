@@ -35,6 +35,7 @@ float r8_mola(float k);                      // foco: chega com ~10 % de repique
 // apaga de C0 - 0,02 a C0 + 0,09; a superficie fecha a partir de C0).
 #define R8_CONTEUDO_ANTES 0.02f
 #define R8_CONTEUDO_SAIR  0.11f
+#define R8_MENU_CONTEUDO_SAIR 0.10f   // nos menus C e A (menus.py: C0 - 0,02 a C0 + 0,08)
 // Segurar CH+ (decisao 4): 200 ms sem desenho + 450 ms enchendo.
 #define R8_SEGURAR_MORTO  0.20f
 #define R8_SEGURAR_ENCHER 0.45f
@@ -51,6 +52,7 @@ typedef struct {
   double tAbriu;      // relogio da cascata de entrada do conteudo
   float  v0;          // valor no inicio do movimento atual
   float  dAbrir, dFechar;
+  float  dConteudoSair;   // R8_CONTEUDO_SAIR (paineis) ou R8_MENU_CONTEUDO_SAIR
 } R8Abertura;
 
 void  r8ab_iniciar(R8Abertura *a, float dAbrir, float dFechar);

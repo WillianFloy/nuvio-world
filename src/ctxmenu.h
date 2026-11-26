@@ -152,6 +152,23 @@ void  ctx_menu_ilha(GfxRect p, float raioPx, float a);
 void  ctx_menu_linha(GfxRect r, const char *rot, const char *icone, float f, float a,
                      float tinta);
 float ctx_menu_passo(void);   // altura de uma linha + o vao
+// O MENU DAS PRANCHAS R8 (Folha e Desdobrar): enquanto ele esta na tela, a
+// Home atras fica CONGELADA (app.c pinta uma copia no FBO do snapshot) e e
+// desenhada recuada e escurecida: 1 e os parametros de gfx_snap_desenhar_xf;
+// `versao` muda quando a copia tem de ser refeita (o estilo da fileira mudou).
+// ctx_r8_fundo_pronto(1) diz ao menu que a copia deste quadro esta no FBO (o
+// Desdobrar desenha as vizinhas a partir dela); 0 = sem copia (o menu poe o
+// proprio veu sobre a Home viva).
+int  ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao);
+void ctx_r8_fundo_pronto(int ok);
+// O que o menu R8 desenhou no ultimo quadro, em pixels da tela (testes contra a
+// especificacao das pranchas). 0 = nao estava na tela.
+typedef struct {
+  int visivel, forma;              // forma 0 Folha, 1 Desdobrar
+  GfxRect superficie, pilula, cartaz;
+  float superficieA, pilulaA, tituloY, tituloA, deslVizinhas;
+} CtxR8Geo;
+int  ctx_r8_geo(CtxR8Geo *g);
 // Centro horizontal da barra "Segure OK para opções"; negativo = centro da tela.
 void ctx_centro_dica(float cx);
 #endif

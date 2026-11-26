@@ -35,6 +35,7 @@
 #include "listas.h"
 #include "home.h"
 #include "ctxinfo.h"
+#include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -307,6 +308,14 @@ static int   estOrigTipo, estOrigOrdem, estVivo;
 // Onde a fileira esta, em pixels da tela virtual: o menu nasce ao lado dele.
 static GfxRect estAncora;
 static int     temAncora;
+// O MENU DAS PRANCHAS R8 (ctxmenu_r8.inc, incluido mais abaixo): estas sao as
+// portas que a logica de cima chama.
+static void r8Abrir(void);
+static void r8Atualizar(Uint32 agora);
+static int  r8Desenhar(Uint32 agora);
+static void r8Apertou(void);
+static void r8EstiloMudou(void);
+static int  r8Desligar(void);
 
 // --- RECOMENDAR: O FLUXO NAO MORA MAIS AQUI ---------------------------------
 //
@@ -696,6 +705,7 @@ static void abrirComum(int indice) {
   // seria pior que nenhum (o toque continua abrindo o titulo).
   if (!doLista && pagina == 0 && nOps == 0) { aberto = 0; return; }
   if (infoPossivel(itemAtual())) ctxinfo_abrir(itemAtual());
+  r8Abrir();
 }
 
 void ctx_abrir_salvo(const CatItem *titulo) {
@@ -857,6 +867,7 @@ static void estAoVivo(void) {
   if (estSel >= 0 && estSel < nEstilos) fil_definir_tipo(filChave, estTipo(estSel));
   if (ordemLinha && ordemSel != fil_ordem(filChave)) fil_definir_ordem(filChave, ordemSel);
   estVivo = 1;
+  r8EstiloMudou();
 }
 // Voltar / clique fora / menu fechado por outro caminho: o que valia ao abrir.
 static void estRestaurar(void) {
@@ -864,6 +875,7 @@ static void estRestaurar(void) {
   estVivo = 0;
   fil_definir_tipo(filChave, estOrigTipo);
   if (ordemLinha) fil_definir_ordem(filChave, estOrigOrdem);
+  r8EstiloMudou();
 }
 // OK: o que esta na fileira fica.
 static void aplicarEstilo(void) {
@@ -1123,6 +1135,7 @@ void ctx_evento(const SDL_Event *e) {
   // vezes solta e aperta de novo.
   if (e->key.repeat && teclaOk(k)) return;
   if (esperandoSoltura && teclaOk(k)) return;
+  if (teclaOk(k)) r8Apertou();
   if (k == SDLK_AC_BACK || k == SDLK_ESCAPE || k == SDLK_BACKSPACE ||
       e->key.keysym.scancode == NV_SCANCODE_BACK) {
     // Da pagina de estilos, Voltar volta ao menu do titulo — com o foco na
@@ -1188,6 +1201,7 @@ void ctx_atualizar(float dt, Uint32 agora) {
     holdObservador = 1;
   }
   if (holdAtivo && segurar_venceu(agora, holdDesde ? holdDesde : 1, "menu")) holdPronto = 1;
+  r8Atualizar(agora);
   if (ajustes_animacoes_reduzidas())
     anim = aberto ? 1.0f : 0.0f;
   else if (inlineOn && doPainel) {
@@ -1959,7 +1973,7 @@ void ctx_desenhar(Uint32 agora) {
   ESCALA_INI();
   ctx_desenharCorpo_(agora);
   // Depois do corpo: o veu de 94% do menu apagaria o seletor que esta sumindo.
-  if (estSaindo && anim >= 0.01f && !(modoInline() && pagina == 0)) desenhaEstilos(anim);
+  if (estSaindo && anim >= 0.01f && !(modoInline() && pagina == 0) && !r8Desligar()) desenhaEstilos(anim);
   ESCALA_FIM();
 }
 // O cartao da home e em pixels reais; o menu desenha na tela virtual.
@@ -1970,6 +1984,11 @@ static int cartaoDaHome(void) {
   ESCALA_REAL_FIM();
   return ok;
 }
+#include "ctxmenu_r8.inc"
+static void r8Apertou(void) { r8Aperto = r8Seg(r8Agora()); }
+static void r8EstiloMudou(void) { r8FundoVer++; }
+static int  r8Desligar(void) { return r8On; }   // 1 = o menu e o das pranchas (o seletor antigo nao sai)
+
 static void ctx_desenharCorpo_(Uint32 agora) {
   const CatItem *ci;
   const char *mensagem = NULL;
@@ -2005,6 +2024,7 @@ static void ctx_desenharCorpo_(Uint32 agora) {
     gfx_cor((GfxRect){ cx - 210.0f, NV_TELA_H - 82.0f,
                        420.0f * p, 8.0f }, 4.0f, 0.78f, 0.84f, 0.96f, 0.98f);
   }
+  if (r8Desenhar(agora)) return;
   if (a < 0.01f) return;
   if (modoInline() && pagina == 0) return;   // a linha do painel se abre sozinha (salvospainel.c)
   if (pagina == 1) { desenhaEstilos(a); return; }
@@ -2242,6 +2262,7 @@ void ctx_abrir_sessao(void) {
   aberto = 0;
   idx = -1; foco = 0;
   anim = animV = 0.0f;
+  r8On = 0; r8AbertoAnt = 0;
   doPainel = doSocial = doLista = soFileira = cartazFixo = 0;
   inlineOn = inlinePend = 0;
   pagina = confFoco = 0;

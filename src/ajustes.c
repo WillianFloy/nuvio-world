@@ -758,6 +758,7 @@ typedef enum {
   AJ_ABERTURA_VIDEO,       // Android: video de abertura Nuvio World (0 = ligado)
   AJ_COL_GIF,              // World 21/11: GIF das Collections: 0 Automatico | 1 Ligado | 2 Desligado (local)
   AJ_RAIL_TAMANHO,         // World 22/11: tamanho da barra lateral: 0 Pequeno | 1 Medio (o de sempre) | 2 Grande (local)
+  AJ_MENU_SEGURAR,         // R8 (25/11): menu de segurar OK: 0 Folha (padrao) | 1 Desdobrar (local)
   AJ_N
 } OpcaoId;
 _Static_assert(DEBRID_RD == 0 && DEBRID_TB == 1 && DEBRID_PM == 2 && DEBRID_AD == 3,
@@ -858,6 +859,7 @@ static const char *V_DTS_SAIDA[] = { "Estéreo (AAC)", "5.1 (Dolby Digital)" };
 static const char *V_PROPORCAO[] = { "Último usado", "Original", "Recortar", "Esticar", "Zoom leve", "Zoom cinema", "Zoom ultra", "Ajustar altura", "Ajustar largura" };
 static const char *V_LOGO_APP[] = { "World", "Clássico" };
 static const char *V_TEMA_FUNDO[] = { "Grafite", "Preto puro" };
+static const char *V_MENU_SEGURAR[] = { "Folha", "Desdobrar" };
 static const char *V_BUSCA_NUVIO[] = { "Primeiro", "Por último", "Desligado" };
 static const char *V_ABERTURA[] = { "Padrão", "Só esmaece", "Direto" };
 // #202: "Instantâneo" e 15/30 s, como o "Stream Selection Timeout" do
@@ -1909,6 +1911,7 @@ static const Opcao OPCOES[AJ_N] = {
   ESC("Vídeo de abertura",               V_LIGA, 2),             // aberturaVideoLocal (Android)
   ESC("GIF animado nas Collections",     V_COL_GIF, 3),          // colGifLocal (World 21/11)
   ESC("Tamanho do menu lateral",         V_MENU_TOPO_TAMANHO, 3), // railTamanhoLocal (World 22/11)
+  ESC("Menu de opções",                  V_MENU_SEGURAR, 2),      // menuSegurarLocal (R8, 25/11)
 };
 
 // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
@@ -2252,6 +2255,7 @@ static const char *CHAVE[] = {
   "aberturaVideoLocal",
   "colGifLocal",
   "railTamanhoLocal",
+  "menuSegurarLocal",
 };
 // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
 // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
@@ -3943,6 +3947,12 @@ int   ajustes_tema_preto(void) {
   return valor[AJ_TEMA_FUNDO] == 1;
 }
 int   ajustes_abertura_video(void) { return lig(AJ_ABERTURA_VIDEO); }
+int   ajustes_menu_segurar(void) {
+  static int env = -1;
+  if (env < 0) { const char *e = getenv("NUVIO_MENU_SEGURAR"); env = e && e[0] ? 1 + (atoi(e) ? 1 : 0) : 0; }
+  if (env) return env - 1;
+  return valor[AJ_MENU_SEGURAR] == 1 ? 1 : 0;
+}
 int   ajustes_col_gif(void) { int v = valor[AJ_COL_GIF]; return v >= 0 && v <= 2 ? v : 0; }
 float ajustes_col_expandir_atraso(void) { return (float)valor[AJ_COL_EXPANDIR_ATRASO]; }
 int   ajustes_navegacao_horizontal_rapida(void) { return lig(AJ_NAV_RAPIDA); }
@@ -7786,6 +7796,7 @@ static const char *ajudaOpcaoBase(int op) {
       if (ajustes_fonte_prioridade() == 3) return "Do addon: toca a primeira fonte permitida, sem priorizar qualidade nem reutilizar escolhas anteriores.";
       return "Equilíbrio: HDR e Dolby Vision ganham de SDR na mesma resolução ou numa abaixo, e uma fonte que a sua conexão claramente não sustenta desce. Qualidade máxima: a maior resolução permitida, depois Dolby Vision, HDR10+, HDR10 e SDR, sem rebaixar por velocidade. Começar rápido: prefere fontes em cache e arquivos menores, que abrem mais depressa. Sempre rebaixa uma fonte que a conexão medida não sustenta.";
     case AJ_LOGO_APP: return "O símbolo que o Nuvio mostra na abertura e nas telas de entrada. World é a identidade do Nuvio World; Clássico é a TV retrô de sempre. Vale só nesta TV.";
+    case AJ_MENU_SEGURAR: return "O menu que abre ao segurar OK num cartaz. Folha (padrão): uma folha do lado oposto, com a arte do título, as ações e a sinopse. Desdobrar: o próprio cartaz se abre para o lado com as ações, e os vizinhos abrem espaço. Vale só nesta TV.";
     case AJ_TEMA_FUNDO: return "Grafite (padrão): fundos e painéis em cinza bem escuro. Preto puro: fundos em preto absoluto, bom para TVs OLED; textos, foco e imagens continuam iguais. Vale só nesta TV.";
     case AJ_ABERTURA_VIDEO: return "Ligado (padrão): o app abre com o vídeo do Nuvio World enquanto se prepara. Se o vídeo falhar, a abertura de sempre aparece. Vale só nesta TV.";
     case AJ_COL_GIF: return "A capa da coleção em foco anima quando a pasta tem GIF. Automático: anima conforme a memória da TV (TVs de 1 GB ficam na capa parada). Ligado: anima também nessas TVs, mais devagar se o GIF for pesado. Desligado: sempre a capa parada. Vale só nesta TV.";

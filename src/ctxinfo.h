@@ -89,4 +89,14 @@ float ctxinfo_compacto(const CatItem *ci, const CtxInfoEstado *st, float x, floa
 // retangulo do cartao; ctxinfo_sobre_altura e a altura que isso pede.
 float ctxinfo_sobre_altura(const CatItem *ci, const CtxInfoEstado *st, float w);
 void  ctxinfo_sobre_arte(const CatItem *ci, const CtxInfoEstado *st, GfxRect r, float raioPx, float ca);
+// OS DADOS PARA O MENU R8 (Folha e Desdobrar, ctxmenu_r8.inc): o mesmo modelo
+// da extensao, em campos soltos. `notaImdb` e a nota x10 (0 = sem); `arte` e o
+// fundo largo do titulo (NULL sem). `sinopse` vale ate o proximo quadro.
+typedef struct {
+  int  notaImdb;
+  char meta[200], classif[16], prog[200];
+  float progFrac;
+  const char *sinopse, *arte;
+} CtxInfoR8;
+void ctxinfo_r8(const CatItem *ci, const CtxInfoEstado *st, CtxInfoR8 *o);
 #endif

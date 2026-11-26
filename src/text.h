@@ -243,6 +243,9 @@ typedef enum {
   TXT_R8_19M,      // 19 / 500
   TXT_R8_18M,      // 18 / 500
   TXT_R8_17M,      // 17 / 500
+  TXT_R8_23S,      // 23 / 600 (linha de acao dos menus C e A)
+  TXT_R8_20R,      // 20 / 400 (sinopse da Folha)
+  TXT_R8_21R,      // 21 / 400
   TXT_NFONTES
 } TxtEstilo;
 

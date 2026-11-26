@@ -53,8 +53,12 @@ void r8_superficie_cor(float *r, float *g, float *b, float *a);
 // opacidade da peca entrando). Opaca (a >= 0,98 no miolo), a sombra sai
 // vazada: nada e pintado embaixo dela.
 void r8_material(GfxRect r, float raioPx, float a);
+// O mesmo, com a sombra deslocada (dx, dy): a Folha do menu C joga a sombra
+// para o lado do conteudo (-30, 0 na direita; +30, 0 na esquerda).
+void r8_material_sombra(GfxRect r, float raioPx, float a, float dx, float dy);
 // So a sombra (para quem pinta o miolo por conta propria, ex.: a arte da folha).
 void r8_sombra(GfxRect r, float raioPx, float a);
+void r8_sombra_desl(GfxRect r, float raioPx, float a, float dx, float dy);
 // Foco numa acao (linha, botao, pilula) e num conteudo (anel por dentro de `r`).
 void r8_foco_acao(GfxRect r, float raioPx, float a);
 void r8_foco_conteudo(GfxRect r, float raioPx, float a);

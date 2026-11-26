@@ -548,6 +548,8 @@ float ajustes_tamanho_ajustes(void);
 int   ajustes_layout_lista(void);
 int   ajustes_col_entrada(void);   // 2.0.43: 1 = animacao de entrada ao abrir uma Collection
 int   ajustes_tema_preto(void);    // 1 = tom Preto puro (#000) em vez do Grafite
+// Menu de segurar OK (pecas R8): 0 Folha (padrao), 1 Desdobrar. NUVIO_MENU_SEGURAR=0/1 forca (testes).
+int   ajustes_menu_segurar(void);
 int   ajustes_abertura_video(void); // Android: 1 = video de abertura Nuvio World
 int   ajustes_col_gif(void);        // World: GIF das Collections 0 Automatico | 1 Ligado | 2 Desligado
 int   ajustes_esconder_logo_trailer(void);   // 1 = hide the corner title logo while a trailer plays

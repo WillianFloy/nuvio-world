@@ -294,6 +294,20 @@ static float linhaIcone(const char *icone, const char *texto, float x, float y, 
   return LINHA_H;
 }
 
+void ctxinfo_r8(const CatItem *ci, const CtxInfoEstado *st, CtxInfoR8 *o) {
+  Modelo m;
+  memset(o, 0, sizeof *o);
+  if (!ci) return;
+  montar(ci, st, &m);
+  o->notaImdb = ajustes_nota_titulo(EX_IMDB) ? m.cru[EX_IMDB] : 0;
+  snprintf(o->meta, sizeof o->meta, "%s", m.meta);
+  snprintf(o->classif, sizeof o->classif, "%s", m.classif);
+  snprintf(o->prog, sizeof o->prog, "%s", m.prog);
+  o->progFrac = m.progFrac;
+  o->sinopse = m.sinopse;
+  o->arte = arteDe(ci);
+}
+
 // O MESMO LACO mede e desenha: a altura nunca discorda do desenho.
 static float fazer(const CatItem *ci, const CtxInfoEstado *st, float x, float y, float w,
                    float a, float ca, int desenhar) {

@@ -6915,6 +6915,9 @@ void app_atualizar(float dt, Uint32 agora) {
 #else
 #define CAMADA_SE(aberta) do { if (aberta) ponteiro_camada(); } while (0)
 #endif
+// O MENU DAS PRANCHAS R8 VAI POR CIMA DA COPIA PARADA (ctxFundoParado): ao
+// pintar a copia, o que esta atras dele e desenhado SEM ele.
+static int ctxForaDoFundo;
 static void desenharCtxDoPainel(Uint32 agora) {
   CAMADA_SE(ctx_aberto()
 #ifdef NV_TOUCH_UI
@@ -6966,7 +6969,7 @@ static void desenharAtrasDoPainel(void *ctx) {
   gfx_deslocar_base(0.0f);
   // Com o painel de Salvos na tela o menu do cartaz e desenhado DEPOIS dele
   // (desenharTelas): e o painel que o abre, e por baixo ele ficaria sob o veu.
-  if (!spainel_visivel() && !detail_aberto()) {
+  if (!spainel_visivel() && !detail_aberto() && !ctxForaDoFundo) {
     CAMADA_SE(ctx_aberto());
     ctx_desenhar(agora);
   }
@@ -6976,7 +6979,7 @@ static void desenharAtrasDoPainel(void *ctx) {
 #endif
   detail_desenhar(agora);
   // Aberto de dentro da pagina do titulo, o menu vai POR CIMA dela.
-  if (!spainel_visivel() && detail_aberto() && ctx_aberto()) {
+  if (!spainel_visivel() && detail_aberto() && ctx_aberto() && !ctxForaDoFundo) {
     CAMADA_SE(1);
     ctx_desenhar(agora);
   }
@@ -7029,6 +7032,54 @@ static void desenharAtrasDoPainel(void *ctx) {
   // Palco: o holofote escurece a home e a barra, nunca um menu ou a pagina.
   if (tela == TELA_HOME && !detail_aberto() && !vertudo_aberta() && !ctx_aberto() && !menu_aberto())
     home_holofote_desenhar(agora);
+}
+
+// A HOME CONGELADA ATRAS DO MENU R8 (Folha e Desdobrar, ctxmenu_r8.inc): o que
+// esta atras do menu e pintado UMA vez no FBO do snapshot e os quadros seguintes
+// so copiam, recuado e escurecido numa passada (gfx_snap_desenhar_xf) — e o
+// "fundo congela e recua" das pranchas, sem uma camada de veu de tela cheia a
+// mais. Repinta como a do painel de Salvos (republicacao do catalogo, arte
+// faltando, 0,4 / 1,5 / 4 s) e quando o estilo da fileira muda (`versao`).
+// Sem FBO, com video no ar ou com a copia preta, a Home e desenhada viva e o
+// menu poe o proprio veu.
+static void ctxFundoParado(Uint32 agora, float esc, float ox, float oy, float veu, unsigned versao) {
+  static FundoParado fp;
+  static const Uint32 REFAZ[] = { 400, 1500, 4000 };
+  int parar = gfx_snap_ok() && !player_mini_ativo() && !player_aberto() && !spainel_visivel();
+  FpAcao acao = fundoparado_passo(&fp, parar, cat_revisao() + versao * 7919u, SDL_GetTicks(), REFAZ, 3);
+  if (acao == FP_PINTAR) {
+    unsigned faltas0 = tex_n_falta;
+    int mx = 0, preta;
+    gfx_snap_comecar();
+    gfx_sem_recorte();
+    glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ctxForaDoFundo = 1;
+    desenharAtrasDoPainel(&agora);
+    ctxForaDoFundo = 0;
+    gfx_sem_recorte();
+    preta = gfx_snap_vazio(&mx);
+    gfx_snap_terminar();
+    fundoparado_pintado(&fp, tex_n_falta != faltas0, preta, cat_revisao() + versao * 7919u, SDL_GetTicks());
+    if (preta) {
+      printf("[ctx-r8] copia parada saiu PRETA (max=%d): desenhando a home direto\n", mx);
+      fflush(stdout);
+      acao = FP_DIRETO;
+    } else acao = FP_COPIAR;
+  }
+  if (acao == FP_COPIAR) {
+    home_fileiras_vistas(SDL_GetTicks());
+    gfx_sem_recorte();
+    glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    gfx_snap_desenhar_xf(esc, ox, oy, 0.0f, 0.0f, veu);
+    ctx_r8_fundo_pronto(1);
+    CAMADA_SE(ctx_aberto());
+    ctx_desenhar(agora);
+    return;
+  }
+  ctx_r8_fundo_pronto(0);
+  desenharAtrasDoPainel(&agora);
 }
 
 static void desenharTelas(Uint32 agora) {
@@ -7091,7 +7142,14 @@ static void desenharTelas(Uint32 agora) {
     { int podeParar = tela == TELA_HOME && !detail_aberto() && !vertudo_aberta() &&
                       (!ctx_aberto() || ctx_do_painel()) && !menu_aberto() &&
                       !player_mini_ativo();
-      spainel_fundo(podeParar, cat_revisao(), desenharAtrasDoPainel, &agora); }
+      float esc, ox, oy, veu;
+      unsigned versao;
+      if (!spainel_visivel() && ctx_r8_fundo(&esc, &ox, &oy, &veu, &versao))
+        ctxFundoParado(agora, esc, ox, oy, veu, versao);
+      else {
+        ctx_r8_fundo_pronto(0);
+        spainel_fundo(podeParar, cat_revisao(), desenharAtrasDoPainel, &agora);
+      } }
     // Depois do menu: as duas camadas de "Salvos" escurecem a tela inteira e
     // tem de ficar por cima de tudo que a home desenhou, inclusive da rail.
     CAMADA_SE(spainel_aberto());

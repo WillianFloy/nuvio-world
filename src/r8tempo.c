@@ -19,6 +19,7 @@ float r8_mola(float k) {
 void r8ab_iniciar(R8Abertura *a, float dAbrir, float dFechar) {
   memset(a, 0, sizeof *a);
   a->dAbrir = dAbrir; a->dFechar = dFechar;
+  a->dConteudoSair = R8_CONTEUDO_SAIR;
 }
 float r8ab_linear(const R8Abertura *a, double agora) {
   float t;
@@ -61,7 +62,7 @@ float r8ab_cascata(const R8Abertura *a, double agora, float i, float inicio, flo
   if (a->estado == 0) return 0.0f;
   t = (float)(agora - a->tAbriu);
   v = r8_seg(t, inicio + i * passo, inicio + i * passo + dur);
-  if (a->estado == 2) v *= 1.0f - r8_seg((float)(agora - a->tConteudo), 0.0f, R8_CONTEUDO_SAIR);
+  if (a->estado == 2) v *= 1.0f - r8_seg((float)(agora - a->tConteudo), 0.0f, a->dConteudoSair);
   return v;
 }
 
