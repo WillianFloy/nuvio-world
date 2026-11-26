@@ -314,8 +314,13 @@ static const char *r8ArteCartaz(void) {
 }
 // O cartaz por cima do veu: o proprio cartao da Home (ou, fora dela, a arte).
 static void r8CartazVivo(GfxRect F, float a) {
-  if (temCartaz && !cartazFixo && cartaoDaHome()) return;
+  // Da Home: o proprio cartao dela por cima, quando ainda e ele o focado. Se o
+  // estilo trocado ao vivo nao mostra mais o titulo (Heroi), nada: a copia ja
+  // mostra a fileira como ela esta. Antes a arte guardada era desenhada no
+  // retangulo antigo e ficava flutuando sobre a fileira nova (TCL, 26/11).
+  if (temCartaz && !cartazFixo) { (void)cartaoDaHome(); return; }
   if (temCartaz && cartazArte[0]) {
+    r8Geo.cartazGuardado = 1;
     float raio = ajustes_raio_poster_px() / gfx_escala_ui();
     r8Arte(F, cartazArte, raio, a);
     r8_foco_conteudo((GfxRect){ F.x - 3.0f, F.y - 3.0f, F.w + 6.0f, F.h + 6.0f }, raio + 3.0f, a);
