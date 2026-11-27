@@ -63,6 +63,6 @@ void app_teste_cw_tocar(int temporada, int episodio);
 void app_teste_gravar_folha(int temporada, int episodio, int tem);
 int app_teste_consumir_folha(int *temporada, int *episodio);
 int app_navegacao_cartazes(void);   // setas com ritmo controlado (navritmo.h)
-int app_ilha_coberta(void);         // a ilha do relogio fica coberta (Salvos, atualizacao, Busca)
-float app_ilha_opacidade(void);     // 0..1: a ilha sai em fade com a Busca
+int app_ilha_coberta(void);         // a ilha do relogio fica coberta (Salvos, atualizacao, Busca, Folha aberta)
+float app_ilha_opacidade(void);     // 0..1: a ilha sai em fade com a Busca e com a Folha
 #endif

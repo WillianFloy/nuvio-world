@@ -7266,10 +7266,14 @@ static int miniToquePermitido(void) {
 // A ILHA DO RELOGIO SOBRE AS CAMADAS: quando ela fica coberta e com que
 // opacidade. Funcao publica para o harness do menu (tests/r8_menu_quadros_shot.c)
 // desenhar a ilha pela MESMA regra do app.
+// O RELOGIO E A GAVETA (dono, 26/11, opcao A): a pilula some junto com a
+// abertura da Folha e volta com o fechamento — o mesmo valor da superficie
+// (ctx_r8_gaveta), nunca por cima do painel.
 int app_ilha_coberta(void) {
-  return spainel_da_ilha() || atualizacao_cobre_ilha() || spot_progresso() > 0.995f;
+  return spainel_da_ilha() || atualizacao_cobre_ilha() || spot_progresso() > 0.995f ||
+         ctx_r8_gaveta() > 0.995f;
 }
-float app_ilha_opacidade(void) { return 1.0f - spot_progresso(); }
+float app_ilha_opacidade(void) { return (1.0f - spot_progresso()) * (1.0f - ctx_r8_gaveta()); }
 
 void app_desenhar(Uint32 agora) {
   relogioFocoValidar();
