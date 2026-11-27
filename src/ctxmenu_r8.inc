@@ -85,8 +85,13 @@ static void r8Abrir(void) {
     r8ab_iniciar(&r8Ab, r8Reduzido ? R8_REDUZIDO_DUR : R8_MENU_ABRIR,
                  r8Reduzido ? R8_REDUZIDO_DUR : R8_MENU_FECHAR);
     r8Ab.dConteudoSair = R8_MENU_CONTEUDO_SAIR;
+    r8Espera = 1; r8EsperaDesde = r8Agora(); r8FundoEst = -1;
+    if (!deOutraTela) home_assentar();
+  } else {
+    // Reaberto no meio do fechar: a copia desta sessao continua na tela.
+    r8Espera = 0;
+    r8ab_abrir(&r8Ab, t);
   }
-  r8ab_abrir(&r8Ab, t);
   f = (float)(pagina == 1 ? (estFoco < 0 ? 0 : estFoco) : foco);
   r8mola_iniciar(&r8Foco, &f, 1);
   r8troca_iniciar(&r8Pag, pagina);
@@ -105,7 +110,15 @@ static void r8Atualizar(Uint32 agora) {
   r8Relogio = agora;
   t = r8Seg(agora);
   if (!r8On) return;
-  if (r8AbertoAnt && !aberto) r8ab_fechar(&r8Ab, t);
+  if (r8Espera) {
+    if (!aberto) r8Espera = 0;   // fechado antes de aparecer: nada a animar
+    else if (r8FundoEst == R8F_Q_COPIOU || r8FundoEst == R8F_Q_SEM ||
+             agora - r8EsperaDesde >= R8M_ESPERA_MAX) {
+      r8Espera = 0; r8InicioMs = agora;
+      r8ab_abrir(&r8Ab, t);
+    }
+  }
+  if (r8AbertoAnt && !aberto && !r8Espera) r8ab_fechar(&r8Ab, t);
   // Solta o foco so com o menu FECHADO DE VEZ: o estilo restaurado no Voltar
   // remonta a fileira mais uma vez, ainda com o menu saindo.
   if (r8Prendeu && !aberto && r8ab_fechada(&r8Ab, t)) { home_prender_foco(-1); r8Prendeu = 0; }
@@ -129,8 +142,9 @@ static void r8Atualizar(Uint32 agora) {
   }
 }
 // 1 enquanto o menu R8 esta na tela (aberto ou fechando).
+// Na espera (r8Espera) ja conta: o app pinta a copia, o menu fica em 0.
 static int r8Visivel(Uint32 agora) {
-  return r8On && !r8ab_fechada(&r8Ab, r8Seg(agora)) && r8Ab.estado != 0;
+  return r8On && (r8Espera || (!r8ab_fechada(&r8Ab, r8Seg(agora)) && r8Ab.estado != 0));
 }
 
 // ---------------------------------------------------------------- texto
@@ -262,7 +276,7 @@ int ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao)
   Uint32 agora = r8Agora();
   float m;
   if (!r8Visivel(agora)) return 0;
-  m = r8Reduzido ? (aberto ? 1.0f : 0.0f) : r8ab_valor(&r8Ab, r8Seg(agora));
+  m = r8Espera ? 0.0f : r8Reduzido ? (aberto ? 1.0f : 0.0f) : r8ab_valor(&r8Ab, r8Seg(agora));
   *esc = 1.0f - (r8Forma ? 0.01f : 0.025f) * m;
   { GfxRect F;
     if (r8Cartaz(&F)) { *ox = F.x + F.w * 0.5f; *oy = F.y + F.h * 0.5f; }
