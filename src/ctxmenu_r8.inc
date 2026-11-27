@@ -1,5 +1,6 @@
-// O MENU DE SEGURAR OK DAS PRANCHAS R8 (Fase 3, plano 25/11): C FOLHA (padrao)
-// e A DESDOBRAR (Ajustes > Home > Menu de opcoes). Incluido por ctxmenu.c: a
+// O MENU DE SEGURAR OK DAS PRANCHAS R8 (Fase 3, plano 25/11): a FOLHA, a
+// gaveta que entra pela direita. O Desdobrar (a outra forma) saiu de vez por
+// decisao do dono em 27/11; so a Folha fica. Incluido por ctxmenu.c: a
 // LOGICA continua a dele (montar, aplicar, as escritas, a pagina de estilos, a
 // confirmacao); aqui so o DESENHO e o relogio, copiados das pranchas
 // aprovadas (tools/r8/menus.py e adapt.py: R8-MC e R8-MA).
@@ -12,9 +13,8 @@
 // FUNDO: enquanto o menu R8 esta na tela, app.c congela a Home num FBO
 // (ctx_r8_fundo) e a desenha recuada e escurecida numa passada so
 // (gfx_snap_desenhar_xf). O cartaz em foco volta por cima, vivo
-// (home_cartao_foco_por_cima). No Desdobrar as vizinhas da mesma fileira sao
-// faixas da copia deslocadas (gfx_snap_desenhar_faixa). Sem a copia (video no
-// ar, FBO indisponivel, copia preta) o menu fica sobre a Home viva com o veu.
+// (home_cartao_foco_por_cima). Sem a copia (video no ar, FBO indisponivel,
+// copia preta) o menu fica sobre a Home viva com o veu.
 #include "r8tempo.h"
 #include "r8estilo.h"
 
@@ -31,11 +31,8 @@
 #define R8M_ACAO_Y0     436.0f
 #define R8M_ACAO_PASSO   64.0f
 #define R8M_ACAO_H       56.0f
-#define R8M_PW          470.0f     // o Desdobrar se estende isto
-#define R8M_A_PASSO      66.0f
-#define R8M_A_H          56.0f
 
-static int        r8On, r8Forma, r8AbertoAnt, r8PagAnt = -1, r8EstOpAnt, r8OpFeita, r8IntFeita;
+static int        r8On, r8AbertoAnt, r8PagAnt = -1, r8EstOpAnt, r8OpFeita, r8IntFeita;
 static R8Abertura r8Ab;
 static R8Mola     r8Foco;
 static R8Troca    r8Pag;
@@ -78,7 +75,6 @@ static void r8Abrir(void) {
   float f;
   r8On = r8Elegivel();
   if (!r8On) return;
-  r8Forma = ajustes_menu_segurar();
   r8Reduzido = ajustes_animacoes_reduzidas();
   if (r8Ab.estado == 0 || r8ab_fechada(&r8Ab, t)) {
     r8Sessao++;
@@ -208,7 +204,7 @@ static const char *r8Icone(int acao, const CatItem *ci) {
 // A linha da prancha (row_label_html): icone de 26 a 18 px da borda, 14 de vao,
 // o rotulo em 23/600, centrados na altura.
 // O icone fica `r8LinPad` para dentro da linha: 16 na Folha (alinha com o
-// titulo), 18 no Desdobrar (as pranchas).
+// titulo).
 static float r8LinPad = 18.0f;
 static void r8Linha(GfxRect r, const char *icone, const char *rot, float a) {
   TxtLinha t;
@@ -266,8 +262,7 @@ static void r8Arte(GfxRect r, const char *url, float raioPx, float a) {
 }
 
 // ---------------------------------------------------------------- o fundo
-// Home congelada: recuo e veu da forma (prancha: Folha 0,975 e 50 %;
-// Desdobrar 0,99 e 34 %). A prancha recua em torno de (50 %, 60 %) da tela com a
+// Home congelada: recuo e veu da Folha (prancha: 0,975 e 50 %). A prancha recua em torno de (50 %, 60 %) da tela com a
 // fileira SEM o cartaz em foco; aqui a copia tem o cartaz dentro, entao o recuo
 // e em torno do CENTRO DO CARTAZ: a copia dele encolhe para dentro do proprio
 // lugar e o cartaz vivo, por cima, a cobre inteira (sem borda dupla). Sem
@@ -277,11 +272,11 @@ int ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao)
   float m;
   if (!r8Visivel(agora)) return 0;
   m = r8Espera ? 0.0f : r8Reduzido ? (aberto ? 1.0f : 0.0f) : r8ab_valor(&r8Ab, r8Seg(agora));
-  *esc = 1.0f - (r8Forma ? 0.01f : 0.025f) * m;
+  *esc = 1.0f - 0.025f * m;
   { GfxRect F;
     if (r8Cartaz(&F)) { *ox = F.x + F.w * 0.5f; *oy = F.y + F.h * 0.5f; }
     else { *ox = R8M_TW * 0.5f; *oy = R8M_TH * 0.6f; } }
-  *veu = (r8Forma ? 0.34f : 0.5f) * (r8Reduzido ? r8ab_linear(&r8Ab, r8Seg(agora)) : m);
+  *veu = 0.5f * (r8Reduzido ? r8ab_linear(&r8Ab, r8Seg(agora)) : m);
   *versao = r8FundoVer;
   return 1;
 }
@@ -290,11 +285,11 @@ void ctx_r8_fundo_estado(int q) { r8FundoEst = q; }
 int  ctx_r8_inicio(Uint32 *ms) { if (r8On && !r8Espera && r8Ab.estado != 0) { if (ms) *ms = r8InicioMs; return 1; } return 0; }
 // O QUANTO A GAVETA (Folha) ESTA NA TELA, 0..1 (o relogio sai com ela: dono,
 // 26/11, opcao A). Mesmo valor da superficie (com a curva; nas reduzidas, a
-// opacidade). O Desdobrar nao entra (Grupo C).
+// opacidade).
 float ctx_r8_gaveta(void) {
   Uint32 agora = r8Agora();
   double t = r8Seg(agora);
-  if (!r8On || r8Forma || r8Espera || !r8Visivel(agora)) return 0.0f;
+  if (!r8On || r8Espera || !r8Visivel(agora)) return 0.0f;
   return r8Reduzido ? r8ab_linear(&r8Ab, t) : r8ab_valor(&r8Ab, t);
 }
 unsigned ctx_r8_sessao(void) { return r8Sessao; }
@@ -500,7 +495,7 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
   S = (GfxRect){ x, 0.0f, R8M_FOLHA_W, R8M_TH };
   sa = (m > 0.001f ? 1.0f : 0.0f) * aGeral;
   r8LinPad = R8M_FOLHA_P - R8M_FOLHA_LX;
-  r8Geo.superficie = S; r8Geo.superficieA = sa; r8Geo.forma = 0;
+  r8Geo.superficie = S; r8Geo.superficieA = sa;
   if (!r8FundoOk) r8_veu(0.5f * m * aGeral);      // sem a copia parada, o veu vai aqui
   if (temF) r8CartazVivo(F, aGeral);
   // A Home escurece ate a beirada: o cartao que fica sob ela some no escuro
@@ -584,91 +579,10 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
   menuCaixa = (GfxRect){ sx, 0.0f, R8M_FOLHA_W, R8M_TH };
 }
 
-// ---------------------------------------------------------------- A · Desdobrar
-static void r8DesenharDesdobrar(const CatItem *ci, double t, float m, float aGeral) {
-  GfxRect F, P;
-  int temF = r8Cartaz(&F), lado, i, deitado, titulo;
-  float px, need, top, passo, rowH, tw[3], tdx[3];
-  r8LinPad = 18.0f;
-  if (!temF) {
-    // Sem cartaz (o destaque): o painel nasce no lugar do botao do destaque.
-    F = (GfxRect){ 96.0f, 400.0f, 0.0f, 56.0f };
-  }
-  deitado = F.w > F.h * 1.2f;
-  titulo = !deitado && ci && pagina != 1;
-  lado = F.x + F.w + R8M_PW <= R8M_TW - 48.0f ? 1 : -1;
-  passo = deitado ? 62.0f : R8M_A_PASSO;
-  rowH = R8M_A_H;
-  top = titulo ? 124.0f : pagina == 1 ? 60.0f : 16.0f;
-  { int n = pagina == 1 ? nEstilos + (ordemLinha ? 1 : 0) : nOps;
-    need = top + passo * (float)n + 12.0f;
-    if (pagina == 2) need = 330.0f; }
-  P.h = F.h > need ? F.h : need;
-  if (deitado && P.h < F.h + 40.0f && pagina == 0) P.h = F.h + 40.0f;
-  P.y = F.y;
-  if (P.y + P.h > R8M_TH - 48.0f) P.y = R8M_TH - 48.0f - P.h;
-  if (P.y < 48.0f) P.y = 48.0f;
-  P.w = F.w + R8M_PW * m;
-  P.x = lado > 0 ? F.x : F.x + F.w - P.w;
-  px = lado > 0 ? F.x + F.w : F.x - R8M_PW;
-  // Um cartao cortado pela borda (a fileira rolada) nao leva o painel para fora
-  // da tela: o conjunto anda para dentro da margem de 48 px.
-  { float minX = 48.0f, maxX = R8M_TW - 48.0f, ajuste = 0.0f;
-    float esq = lado > 0 ? F.x + (temF ? 0.0f : 0.0f) : px, dirX = lado > 0 ? px + R8M_PW : F.x + F.w;
-    if (esq < minX) ajuste = minX - esq;
-    else if (dirX > maxX) ajuste = maxX - dirX;
-    if (ajuste != 0.0f && !temCartaz) { P.x += ajuste; px += ajuste; F.x += ajuste; } }
-  // Sem cartaz do titulo (destaque, pasta de colecao) o painel e so a parte
-  // que se desdobra: o cartao da Home fica a vista, ao lado.
-  if (!temCartaz) { P.w = R8M_PW * m; P.x = lado > 0 ? px : px + R8M_PW - P.w; }
-  // As vizinhas da mesma fileira abrem espaco: faixas da copia parada.
-  if (r8FundoOk && temCartaz && !r8Reduzido) {
-    GfxRect esq = { 0.0f, F.y - 12.0f, F.x, F.h + 24.0f };
-    GfxRect dir = { F.x + F.w, F.y - 12.0f, R8M_TW - (F.x + F.w), F.h + 24.0f };
-    float veu = 0.55f * m;
-    gfx_snap_desenhar_faixa(esq, lado > 0 ? -18.0f * m : -R8M_PW * m, veu);
-    gfx_snap_desenhar_faixa(dir, lado > 0 ? R8M_PW * m : 18.0f * m, veu);
-  }
-  if (!r8FundoOk) r8_veu(0.34f * m * aGeral);
-  if (aberto && m > 0.5f && ponteiro_ativo()) {
-    ponteiro_alvo(0, 0, R8M_TW, R8M_TH, NULL, pagina == 1 ? ponteiroEstFora : ponteiroCtxFora, 0, 0);
-    ponteiro_alvo(P.x, P.y, P.w, P.h, NULL, NULL, 0, 0);
-  }
-  r8Geo.superficie = P; r8Geo.superficieA = m > 0.01f ? aGeral : 0.0f; r8Geo.forma = 1;
-  r8Geo.cartaz = F; r8Geo.deslVizinhas = R8M_PW * m;
-  if (m > 0.01f) r8_material(P, R8_RAIO_PAINEL, aGeral);
-  if (temF) r8CartazVivo(F, aGeral);
-  for (i = 0; i < 3; i++) tw[i] = r8troca_peso(&r8Pag, t, i, &tdx[i]);
-  if (titulo && tw[0] > 0.0f) {
-    float c0 = r8CascA(0), c1 = r8CascA(1);
-    CtxInfoR8 inf; CtxInfoEstado est;
-    TxtLinha l = txt_linha_corta(TXT_R8_30B, ci->titulo, 244, 242, 238, 255, R8M_PW - 60.0f);
-    txt_desenhar_alpha(l, px + 30.0f + tdx[0], P.y + 28.0f + 10.0f * (1.0f - c0), c0 * tw[0] * aGeral);
-    r8Geo.tituloY = P.y + 28.0f + 10.0f * (1.0f - c0); r8Geo.tituloA = c0 * tw[0] * aGeral;
-    est.salvo = tituloSalvo(ci); est.visto = historicoDe(ci); ctxinfo_r8(ci, &est, &inf);
-    if (estadoOperacao == CTX_FALHA)
-      l = txt_linha_corta(TXT_R8_19M, i18n("Não foi possível atualizar. Tente novamente."), 240, 190, 130, 255, R8M_PW - 60.0f);
-    else l = txt_linha_corta(TXT_R8_19M, inf.meta, 180, 177, 171, 255, R8M_PW - 60.0f);
-    txt_desenhar_alpha(l, px + 30.0f + tdx[0], P.y + 70.0f + 10.0f * (1.0f - c1), c1 * tw[0] * aGeral);
-  }
-  { R8Lista L = { px + 16.0f, P.y + top, R8M_PW - 32.0f, passo, rowH, R8_RAIO_PAINEL, 18.0f, 0.04f };
-    if (tw[0] > 0.0f && ci) r8Acoes(ci, L, tw[0] * aGeral, tdx[0], t, r8CascA, r8CascA(1));
-    if (tw[1] > 0.0f) {
-      TxtLinha h = txt_linha_corta(TXT_R8_24B, i18n("Estilo da fileira"), 244, 242, 238, 255, R8M_PW - 60.0f);
-      txt_desenhar_alpha(h, px + 30.0f + tdx[1], P.y + 18.0f, r8CascA(0) * tw[1] * aGeral);
-      L.passo = 52.0f; L.h = 46.0f;
-      r8Estilos(L, tw[1] * aGeral, tdx[1], t, r8CascA, r8CascA(1), P.y + P.h - 12.0f);
-    }
-    if (tw[2] > 0.0f && ci) r8Confirmacao(ci, px + 30.0f + tdx[2], P.y + 28.0f, R8M_PW - 60.0f, tw[2] * aGeral, t); }
-  infoDesenhada = 1; infoLadoUlt = lado;
-  infoCaixa = F;
-  menuCaixa = (GfxRect){ px, P.y, R8M_PW, P.h };
-}
-
 // 1 = o desenho e deste arquivo (aberto ou fechando); 0 = o de antes.
 // AS MEDIDAS SAO AS DA PRANCHA, EM PIXELS DA TELA 1920 x 1080 (r8DesenharReal
 // sai da tela virtual do arquivo): o tamanho do texto da interface nao muda a
-// Folha nem o Desdobrar, que sao desenho fixo aprovado.
+// Folha, que e desenho fixo aprovado.
 static int r8DesenharReal(Uint32 agora);
 static int r8Desenhar(Uint32 agora) {
   int r;
@@ -691,7 +605,6 @@ static int r8DesenharReal(Uint32 agora) {
   if (!ci && pagina != 1) return 1;
   if (r8Reduzido) { aGeral = r8ab_linear(&r8Ab, t); m = 1.0f; }
   else m = r8ab_valor(&r8Ab, t);
-  if (r8Forma) r8DesenharDesdobrar(ci, t, m, aGeral);
-  else r8DesenharFolha(ci, t, m, aGeral);
+  r8DesenharFolha(ci, t, m, aGeral);
   return 1;
 }

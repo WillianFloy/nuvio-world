@@ -472,7 +472,7 @@ void gfx_snap_desenhar(void);  // pinta o snapshot ocupando a tela toda
 // O snapshot recuado (escala `esc` em torno de (ox, oy)), deslocado (dx, dy) e
 // com veu preto `veu` na mesma passada (pecas R8). Espaco 1920 x 1080.
 void gfx_snap_desenhar_xf(float esc, float ox, float oy, float dx, float dy, float veu);
-// So a faixa `faixa` do snapshot, deslocada `dx` (o Desdobrar).
+// So a faixa `faixa` do snapshot, deslocada `dx` (era do Desdobrar, removido em 27/11; fica a primitiva, testada em r8_fundacao).
 void gfx_snap_desenhar_faixa(GfxRect faixa, float dx, float veu);
 void gfx_snap_encerrar(void);
 int  gfx_snap_ativo(void);     // 1 enquanto o desenho vai para o snapshot

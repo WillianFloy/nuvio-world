@@ -21,7 +21,7 @@ float r8_mola(float k);                      // foco: chega com ~10 % de repique
 // ---------------------------------------------------------------- tempos (s)
 #define R8_PAINEL_ABRIR   0.50f   // Estante, Coluna editorial e Central
 #define R8_PAINEL_FECHAR  0.28f
-#define R8_MENU_ABRIR     0.44f   // menus C (Folha) e A (Desdobrar)
+#define R8_MENU_ABRIR     0.44f   // o menu C (Folha)
 #define R8_MENU_FECHAR    0.26f
 #define R8_FOLHA_ABRIR    0.44f   // folha de opcoes que nasce da pilula (10.2)
 #define R8_FOLHA_FECHAR   0.26f

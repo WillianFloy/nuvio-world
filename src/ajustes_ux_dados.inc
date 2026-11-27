@@ -201,7 +201,6 @@ static const char *uxSinonimos(int op) {
     case AJ_FONTE_IDIOMA_AUDIO: return "fonte automatica idioma audio dublado dublagem dual multi anime ingles japones preferir dub language";
     case AJ_FONTE_PRIORIDADE: case AJ_FONTE_HDR: return "fonte automatica prioridade qualidade equilibrio fluidez hdr dolby vision dv hdr10 sdr cor escolha melhor resolucao addon aiostreams ordem primeira order first";
     case AJ_LOGO_APP: return "logo marca simbolo world novo classico icone identidade nuvio tv retro play splash";
-    case AJ_MENU_SEGURAR: return "menu opcoes segurar ok cartaz poster folha desdobrar acoes salvar assistido long press context hold";
     case AJ_TEMA_FUNDO: return "tema tom fundo preto puro amoled oled grafite escuro dark black background";
     case AJ_ABERTURA_VIDEO: return "abertura video splash inicio animacao logo world intro boot arranque";
     case AJ_COL_GIF: return "gif animado animacao capa colecao colecoes collection collections pasta foco movimento";

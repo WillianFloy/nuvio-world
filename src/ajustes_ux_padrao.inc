@@ -363,4 +363,4 @@
   0, /* Android opening video: On, local */
   0, /* World: Collections GIF: Automatic (by RAM), local */
   1, /* World: side rail size: Medium (the usual), local */
-  0, /* R8: hold-OK menu: Folha (Desdobrar = 1), local */
+  0, /* R8: hold-OK menu: Folha only (Desdobrar retired 27/11), local */

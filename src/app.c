@@ -7038,7 +7038,7 @@ static void desenharAtrasDoPainel(void *ctx) {
     home_holofote_desenhar(agora);
 }
 
-// A HOME CONGELADA ATRAS DO MENU R8 (Folha e Desdobrar, ctxmenu_r8.inc): o que
+// A HOME CONGELADA ATRAS DO MENU R8 (a Folha, ctxmenu_r8.inc): o que
 // esta atras do menu e pintado UMA vez no FBO do snapshot e os quadros seguintes
 // so copiam, recuado e escurecido numa passada (gfx_snap_desenhar_xf) — e o
 // "fundo congela e recua" das pranchas, sem uma camada de veu de tela cheia a

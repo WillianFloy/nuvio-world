@@ -183,7 +183,8 @@ int main(int argc, char **argv) {
   // As pranchas sao desenhadas a 100 %: o comparador usa o mesmo tamanho.
   fprintf(a, "tamanhoUiLocal 0\n");
   if (getenv("NV_PRETO")) fprintf(a, "temaFundoLocal 1\n");
-  if (getenv("NV_DESDOBRAR")) fprintf(a, "menuSegurarLocal 1\n");
+  // O Desdobrar saiu (27/11): quem o tinha gravado abre a Folha (migracao).
+  if (getenv("NV_DESDOBRAR_GRAVADO")) fprintf(a, "menuSegurarLocal 1\n");
   if (getenv("NV_REDUZIDO")) fprintf(a, "animacoes 1\nperformanceAutoVersaoLocal 1\nvidroOpacVersaoLocal 1\n");
   fclose(a);
   ajustes_dir(dir);
@@ -220,7 +221,7 @@ int main(int argc, char **argv) {
   // A Home assenta (artes carregadas) antes de abrir.
   for (k = 0; k < 120; k++) quadro(NULL);
   // MENU: o foco desce para a primeira fileira e vai ao terceiro cartaz.
-  if (!strcmp(peca, "MC") || !strcmp(peca, "MA") || !strcmp(peca, "COMP")) {
+  if (!strcmp(peca, "MC") || !strcmp(peca, "COMP")) {
     SDL_Event e;
     // NV_ORIGEM: poster (padrao), borda (o ultimo cartaz visivel), hero (o
     // destaque, sem descer), colecao (so a pagina de estilos da fileira).
@@ -248,14 +249,12 @@ int main(int argc, char **argv) {
     SDL_Event e;
 #define OKC(c, ...) do { if (!(c)) { printf("FALHOU: "); printf(__VA_ARGS__); printf("\n"); falhas++; } \
                          else { printf("ok  "); printf(__VA_ARGS__); printf("\n"); } } while (0)
-    OKC(ajustes_menu_segurar() == (getenv("NV_DESDOBRAR") ? 1 : 0), "ajuste: %s (%d)",
-        getenv("NV_DESDOBRAR") ? "Desdobrar gravado" : "Folha por padrao", ajustes_menu_segurar());
     if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz\n"); return 1; }
     // A PINTURA DA COPIA CUSTA NA GPU (TCL: 45-60 ms no quadro seguinte):
     // simulado aqui (NV_GPU_PINTURA), a gaveta tem de comecar do zero mesmo assim.
     setenv("NV_GPU_PINTURA", "60", 0);
     ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice);
-    { float x0 = -1, ant = 1e9f, piorVeu = 0, piorRel = 0, meio = -1, passoMax = 0; int volta = 0, folha = !ajustes_menu_segurar() && !getenv("NV_REDUZIDO");
+    { float x0 = -1, ant = 1e9f, piorVeu = 0, piorRel = 0, meio = -1, passoMax = 0; int volta = 0, folha = !getenv("NV_REDUZIDO");
       for (i = 0; i < 40; i++) {
         quadro(NULL);
         if (ctx_r8_geo(&g) && g.superficieA > 0.0f) {
@@ -279,21 +278,18 @@ int main(int argc, char **argv) {
         OKC(piorVeu < 0.01f, "Folha: o escurecimento da Home sai do mesmo valor da gaveta (pior diferenca %.3f)", piorVeu);
         OKC(piorRel < 0.01f && meio > 0.25f && meio < 0.75f && app_ilha_opacidade() < 0.01f && app_ilha_coberta(),
             "Folha: o relogio some junto com a gaveta (no meio %.2f, aberta %.2f, pior %.3f)", meio, app_ilha_opacidade(), piorRel);
-      } else if (!getenv("NV_REDUZIDO"))
-        OKC(app_ilha_opacidade() > 0.99f, "Desdobrar: o relogio nao muda (fica para o Grupo C) (%.2f)", app_ilha_opacidade()); }
+      } }
     ctx_r8_geo(&g);
-    OKC(ctx_aberto() && g.visivel && g.forma == ajustes_menu_segurar(), "abre o menu das pranchas na forma do ajuste (forma %d)", g.forma);
+    OKC(ctx_aberto() && g.visivel, "abre a Folha%s", getenv("NV_DESDOBRAR_GRAVADO") ? " mesmo com o Desdobrar gravado nos dados antigos" : "");
     OKC(ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && esc < 1.0f && veu > 0.3f, "a Home atras congela, recua (%.3f) e escurece (%.2f)", esc, veu);
-    if (!g.forma)
-      OKC(fabsf(g.superficie.x + g.superficie.w - 1920.0f) < 0.5f && g.superficie.y == 0.0f && g.superficie.h == 1080.0f,
+    OKC(fabsf(g.superficie.x + g.superficie.w - 1920.0f) < 0.5f && g.superficie.y == 0.0f && g.superficie.h == 1080.0f,
           "Folha: gaveta encostada na borda direita, da altura da tela (x %.1f w %.1f)", g.superficie.x, g.superficie.w);
     // Voltar fecha: a superficie vai a zero sem saltar e a Home volta viva.
     memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
     // A Folha (gaveta) sai acelerando para a direita: no fim do fechar (k^2,4
-    // em 0,26 s) anda ate 94 px num quadro de 16 ms. O Desdobrar recolhe
-    // (largura, ate 3,8 px/ms: menos de 80 por quadro).
-#define SALTO(g, ant) (g.forma ? fabsf(g.superficie.w - (ant)) > 80.0f : fabsf(g.superficie.x - (ant)) > 100.0f)
-#define VAL(g) (g.forma ? g.superficie.w : g.superficie.x)
+    // em 0,26 s) anda ate 94 px num quadro de 16 ms.
+#define SALTO(g, ant) (fabsf(g.superficie.x - (ant)) > 100.0f)
+#define VAL(g) (g.superficie.x)
     { int salto = 0; antA = VAL(g);
       for (i = 0; i < 30; i++) { quadro(NULL); if (ctx_r8_geo(&g)) { if (SALTO(g, antA)) { salto = 1; printf("  salto no quadro %d: %.1f -> %.1f (a %.2f)\n", i, antA, VAL(g), g.superficieA); } antA = VAL(g); } }
       OKC(!salto, "fechar nao salta"); }
@@ -438,7 +434,7 @@ int main(int argc, char **argv) {
   if (getenv("NV_ESPEC")) {
     FILE *ef = fopen(getenv("NV_ESPEC"), "r");
     char lin[400];
-    int falhas = 0, conf = 0, ev = 0, ma = !strcmp(peca, "MA");
+    int falhas = 0, conf = 0, ev = 0;
     Uint32 base = relogio;
     HomeItem hi;
     const double EV[] = { 1.3, 2.45, 3.1, 3.7, 5.28 };
@@ -479,27 +475,15 @@ int main(int argc, char **argv) {
       ctx_r8_geo(&g);
 #define CONF(nome, app, pr, tol) do { conf++; if (fabsf((app) - (pr)) > (tol)) { if (falhas < 25) \
         printf("FALHOU t=%.3f %s: prancha %.3f app %.3f\n", t, nome, (double)(pr), (double)(app)); falhas++; } } while (0)
-      if (!ma) {
-        if (g.visivel) {
-          // A gaveta anda 640 px em 0,44 s, ate 4,7 px/ms no pico; o relogio do
-          // app e em ms inteiros (ate 0,33 ms fora do instante da prancha).
-          CONF("folha.x", g.superficie.x, v[0], 2.0f);
-          CONF("folha.o", g.superficieA, v[1], 0.01f);
-          if (v[3] > 0.0f || g.pilulaA > 0.0f) { CONF("pilula.y", g.pilula.y, v[2], 1.0f); CONF("pilula.o", g.pilulaA, v[3], 0.01f); }
-          CONF("titulo.y", g.tituloY, v[4], 1.0f); CONF("titulo.o", g.tituloA, v[5], 0.01f);
-        } else CONF("folha.o", 0.0f, v[1], 0.01f);
-        CONF("veu", veu, v[6], 0.01f);
-      } else {
-        if (g.visivel) {
-          // O relogio do app e em ms inteiros: o quadro de 1/60 s cai ate 0,33 ms
-          // fora do instante da prancha, e no pico o Desdobrar anda 3,8 px/ms.
-          CONF("superficie.w-cartaz", g.superficie.w - g.cartaz.w, v[0], 1.5f);
-          if (v[2] > 0.0f || g.pilulaA > 0.0f) { CONF("pilula.y-cartaz", g.pilula.y - g.cartaz.y, v[1], 1.0f); CONF("pilula.o", g.pilulaA, v[2], 0.01f); }
-          CONF("titulo.y-cartaz", g.tituloY - g.cartaz.y, v[3], 1.0f); CONF("titulo.o", g.tituloA, v[4], 0.01f);
-          CONF("vizinhas.dx", g.deslVizinhas, v[6], 1.5f);
-        } else CONF("superficie.w-cartaz", 0.0f, v[0], 1.0f);
-        CONF("veu", veu, v[5], 0.01f);
-      }
+      if (g.visivel) {
+        // A gaveta anda 640 px em 0,44 s, ate 4,7 px/ms no pico; o relogio do
+        // app e em ms inteiros (ate 0,33 ms fora do instante da prancha).
+        CONF("folha.x", g.superficie.x, v[0], 2.0f);
+        CONF("folha.o", g.superficieA, v[1], 0.01f);
+        if (v[3] > 0.0f || g.pilulaA > 0.0f) { CONF("pilula.y", g.pilula.y, v[2], 1.0f); CONF("pilula.o", g.pilulaA, v[3], 0.01f); }
+        CONF("titulo.y", g.tituloY, v[4], 1.0f); CONF("titulo.o", g.tituloA, v[5], 0.01f);
+      } else CONF("folha.o", 0.0f, v[1], 0.01f);
+      CONF("veu", veu, v[6], 0.01f);
     }
     fclose(ef);
     printf("r8_menu_espec %s: %d valores conferidos, %d falhas\n", peca, conf, falhas);
@@ -515,7 +499,7 @@ int main(int argc, char **argv) {
         alvo = 1;
         if (!strcmp(peca, "BU")) spot_abrir(0);
         else if (!strcmp(peca, "SV")) spainel_abrir();
-        else if (!strcmp(peca, "MC") || !strcmp(peca, "MA")) {
+        else if (!strcmp(peca, "MC")) {
           HomeItem hi;
           const char *orig = getenv("NV_ORIGEM") ? getenv("NV_ORIGEM") : "poster";
           if (!strcmp(orig, "colecao")) ctx_abrir_fileira("pop_movie", "Populares");
@@ -557,7 +541,7 @@ int main(int argc, char **argv) {
                    ok ? fh.indice : -1, ok ? fh.rect.x : 0, ok ? fh.rect.y : 0, ok ? fh.rect.w : 0, ok ? fh.rect.h : 0); }
         }
       } else
-      if (alvo && ctx_aberto() && !strcmp(peca, "MC") + !strcmp(peca, "MA")) {
+      if (alvo && ctx_aberto() && !strcmp(peca, "MC")) {
         static int mov;
         const float quando[] = { 2.45f, 3.1f, 3.7f };
         const SDL_Keycode tec[] = { SDLK_DOWN, SDLK_DOWN, SDLK_UP };
