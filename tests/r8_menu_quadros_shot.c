@@ -68,12 +68,32 @@ static float difCopiaViva(void) {
   gfx_snap_desenhar_xf(1.0f, 960.0f, 540.0f, 0.0f, 0.0f, 0.0f);
   glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, b);
   for (long i = 0; i < (long)janW * janH * 4; i += 4 * 7) { for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]); n += 3; }
+  // NV_DIFPNG=pasta: guarda a Home viva (v) e a copia (c) de cada medida, para
+  // ver o que difere.
+  if (getenv("NV_DIFPNG")) {
+    static int nd; char cam[600]; int y;
+    SDL_Surface *sv = SDL_CreateRGBSurfaceWithFormat(0, janW, janH, 32, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface *sc = SDL_CreateRGBSurfaceWithFormat(0, janW, janH, 32, SDL_PIXELFORMAT_RGBA32);
+    for (y = 0; y < janH; y++) {
+      memcpy((char *)sv->pixels + y * sv->pitch, a + (size_t)(janH - 1 - y) * janW * 4, (size_t)janW * 4);
+      memcpy((char *)sc->pixels + y * sc->pitch, b + (size_t)(janH - 1 - y) * janW * 4, (size_t)janW * 4);
+    }
+    snprintf(cam, sizeof cam, "%s/dif%02d-v.bmp", getenv("NV_DIFPNG"), nd); SDL_SaveBMP(sv, cam);
+    snprintf(cam, sizeof cam, "%s/dif%02d-c.bmp", getenv("NV_DIFPNG"), nd); SDL_SaveBMP(sc, cam);
+    nd++; SDL_FreeSurface(sv); SDL_FreeSurface(sc);
+  }
   return (float)(soma / n);
 }
 static Uint32 relogioFalso(void) { return relogio; }
 static void atrasHome(void *ctx) { (void)ctx; home_desenhar(relogio); menu_desenhar(relogio); }
+// O CUSTO DA PINTURA NA GPU (TCL, 26/11: 45-60 ms, que caem no quadro
+// SEGUINTE ao da pintura). NV_GPU_PINTURA=ms soma esse tempo ao relogio do
+// quadro depois de cada pintura, para provar que a gaveta comeca do zero no
+// primeiro quadro visivel mesmo assim.
+static int ultQ = -1;
 static void quadro(const char *png) {
   relogio += passoMs;
+  if (ultQ == R8F_Q_PINTOU && getenv("NV_GPU_PINTURA")) relogio += (Uint32)atoi(getenv("NV_GPU_PINTURA"));
   SDL_PumpEvents();
   tex_bombear(8);
   home_atualizar(0.016f, relogio);
@@ -91,8 +111,13 @@ static void quadro(const char *png) {
     // O MESMO QUADRO DO APP (r8fundo_quadro, chamado por ctxFundoParado em
     // app.c): decidir, pintar, conferir e copiar sao o codigo do app; so o
     // que fica atras do menu (`atrasHome`) e deste harness.
-    if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) &&
-        r8fundo_quadro(&rf, 1, esc, ox, oy, veu, ver, ctx_r8_sessao(), relogioFalso, atrasHome, NULL, NULL, 0)) {
+    int q = -1;
+    if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver)) {
+      q = r8fundo_quadro(&rf, 1, esc, ox, oy, veu, ver, ctx_r8_sessao(), relogioFalso, atrasHome, NULL, NULL, 0);
+      ctx_r8_fundo_estado(q);
+    }
+    ultQ = q;
+    if (q == R8F_Q_PINTOU || q == R8F_Q_COPIOU) {
       ctx_r8_fundo_pronto(1);
     } else {
       // Como em app.c: com o menu fechado ninguem mexe na copia (ela e por
@@ -206,6 +231,7 @@ int main(int argc, char **argv) {
     if (!strcmp(orig, "borda")) for (int q = 0; q < 7; q++) teclas[nt2++] = SDLK_RIGHT;
     else if (strcmp(orig, "hero")) { teclas[nt2++] = SDLK_RIGHT; teclas[nt2++] = SDLK_RIGHT; }
     abre = 1.3f; fecha = 5.28f;   // a prancha: segura de 0,6 a 1,3; o conteudo sai em 5,28
+    if (getenv("NV_TECLAS")) fecha = 1e9f;   // com roteiro, so ele fecha (E)
     for (k = 0; k < nt2; k++) {
       memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = teclas[k];
       home_evento(&e);
@@ -225,17 +251,36 @@ int main(int argc, char **argv) {
     OKC(ajustes_menu_segurar() == (getenv("NV_DESDOBRAR") ? 1 : 0), "ajuste: %s (%d)",
         getenv("NV_DESDOBRAR") ? "Desdobrar gravado" : "Folha por padrao", ajustes_menu_segurar());
     if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz\n"); return 1; }
+    // A PINTURA DA COPIA CUSTA NA GPU (TCL: 45-60 ms no quadro seguinte):
+    // simulado aqui (NV_GPU_PINTURA), a gaveta tem de comecar do zero mesmo assim.
+    setenv("NV_GPU_PINTURA", "60", 0);
     ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice);
-    { float x0 = -1, ant = 1e9f; int volta = 0;
+    { float x0 = -1, ant = 1e9f, piorVeu = 0, piorRel = 0, meio = -1, passoMax = 0; int volta = 0, folha = !ajustes_menu_segurar() && !getenv("NV_REDUZIDO");
       for (i = 0; i < 40; i++) {
         quadro(NULL);
         if (ctx_r8_geo(&g) && g.superficieA > 0.0f) {
+          float m = (1920.0f - g.superficie.x) / 640.0f, rel = app_ilha_opacidade();
           if (x0 < 0) x0 = g.superficie.x;
           if (g.superficie.x > ant + 0.01f) volta = 1;
+          if (ant < 1e8f && ant - g.superficie.x > passoMax) passoMax = ant - g.superficie.x;
           ant = g.superficie.x;
+          if (folha && ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver)) {
+            if (fabsf(veu - 0.5f * m) > piorVeu) piorVeu = fabsf(veu - 0.5f * m);
+            if (fabsf(rel - (1.0f - m)) > piorRel) piorRel = fabsf(rel - (1.0f - m));
+            if (meio < 0 && m > 0.3f && m < 0.7f) meio = rel;
+          }
         } }
-      if (!ajustes_menu_segurar() && !getenv("NV_REDUZIDO"))
-        OKC(x0 >= 1920.0f - 80.0f && !volta, "Folha: entra de fora da tela pela direita (1o quadro x %.0f) e so anda para a esquerda", x0); }
+      if (folha) {
+        OKC(x0 >= 1920.0f - 80.0f && !volta, "Folha: entra de fora da tela pela direita (1o quadro x %.0f, com 60 ms de GPU depois da pintura) e so anda para a esquerda", x0);
+        // O passo maximo legitimo: a curva de entrada anda ate 4,7 px/ms, ~76 px
+        // num quadro de 16 ms. Um quadro que pagou a pintura (76 ms) saltava
+        // ~270 px: a gaveta "aparecia ja no meio" (TCL, 26/11).
+        OKC(passoMax < 90.0f, "Folha: nenhum salto na entrada, mesmo com a pintura cara na GPU (maior passo %.0f px)", passoMax);
+        OKC(piorVeu < 0.01f, "Folha: o escurecimento da Home sai do mesmo valor da gaveta (pior diferenca %.3f)", piorVeu);
+        OKC(piorRel < 0.01f && meio > 0.25f && meio < 0.75f && app_ilha_opacidade() < 0.01f && app_ilha_coberta(),
+            "Folha: o relogio some junto com a gaveta (no meio %.2f, aberta %.2f, pior %.3f)", meio, app_ilha_opacidade(), piorRel);
+      } else if (!getenv("NV_REDUZIDO"))
+        OKC(app_ilha_opacidade() > 0.99f, "Desdobrar: o relogio nao muda (fica para o Grupo C) (%.2f)", app_ilha_opacidade()); }
     ctx_r8_geo(&g);
     OKC(ctx_aberto() && g.visivel && g.forma == ajustes_menu_segurar(), "abre o menu das pranchas na forma do ajuste (forma %d)", g.forma);
     OKC(ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && esc < 1.0f && veu > 0.3f, "a Home atras congela, recua (%.3f) e escurece (%.2f)", esc, veu);
@@ -254,14 +299,13 @@ int main(int argc, char **argv) {
       OKC(!salto, "fechar nao salta"); }
     OKC(!ctx_aberto() && !ctx_r8_geo(&g) && !ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver),
         "fechado: nada do menu na tela e a Home volta a ser desenhada viva");
+    OKC(app_ilha_opacidade() > 0.99f && !app_ilha_coberta(), "fechado: o relogio volta (%.2f)", app_ilha_opacidade());
     // A COPIA E DA ABERTURA NOVA (TCL, 26/11: o menu de "A Odisseia" abria
     // sobre a Home de "Homem de Ferro"). Fecha, anda o foco na Home (muda o
     // destaque e a fileira) e reabre: a copia tem de ser a Home de agora.
-    // A medida vale no 2o QUADRO da reabertura: depois de 400/1500 ms a
-    // repintura por tempo (fundoparado.h) troca a copia velha sozinha e o
-    // defeito some — medir no 40o quadro deixava a mutacao passar (26/11).
-    // A 1a abertura fica 4,8 s (300 quadros): as tres repinturas por tempo
-    // (0,4/1,5/4 s) se esgotam, como na TCL, e nada mais repinta sozinho.
+    // A medida vale logo no comeco da reabertura (no 2o quadro e no 40o), e a
+    // 1a abertura fica 4,8 s: antes de 26/11 (noite) havia repinturas por
+    // tempo que trocavam a copia velha sozinhas e escondiam o defeito no teste.
     { float d0, d1, d2;
       ctx_abrir(hi.indice);
       for (i = 0; i < 300; i++) quadro(NULL);
@@ -281,6 +325,67 @@ int main(int argc, char **argv) {
           "a copia parada e a Home desta abertura desde o 2o quadro (dif %.2f na 1a; %.2f e %.2f depois de mudar a Home)", d0, d1, d2);
       memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
       for (i = 0; i < 30; i++) quadro(NULL); }
+    // O MENU ABERTO NO MEIO DA TROCA DO DESTAQUE (TCL, 26/11: dois titulos
+    // sobrepostos atras do menu de "A Odisseia"). Anda o foco (o destaque
+    // troca depois de 220 ms de repouso e esvanece/desliza por ~0,5 s) e abre
+    // no meio: a copia tem de ser a Home de um titulo so — igual a Home viva
+    // assentada — logo no primeiro quadro da curva.
+    { float d = 99; Uint32 ini;
+      memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_RIGHT; home_evento(&e);
+      e.type = SDL_KEYUP; home_evento(&e);
+      for (i = 0; i < 24; i++) quadro(NULL);   // ~380 ms: destaque no meio da troca
+      if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois da seta\n"); return 1; }
+      ctx_abrir(hi.indice);
+      for (i = 0; i < 12 && !ctx_r8_inicio(&ini); i++) quadro(NULL);
+      quadro(NULL);
+      d = difCopiaViva();
+      OKC(d < 4.0f, "aberto no meio da troca do destaque: a copia e a Home de um titulo so (dif %.2f)", d);
+      memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
+      for (i = 0; i < 30; i++) quadro(NULL); }
+    // ESTILOS AO VIVO (TCL, 26/11: 4 repinturas por seta, engasgos de 40-75 ms;
+    // no Poster grande o cartaz do menu ficava gigante sobre a fileira antiga
+    // e o foco da Home ia para outro titulo). Cada seta muda o estilo da
+    // fileira por baixo: a copia tem de mostrar o estilo novo ja no 6o quadro
+    // (~100 ms), o foco da Home nao sai do titulo do menu, ha UMA pintura por
+    // estilo e nenhuma com o menu parado.
+    if (!getenv("NV_REDUZIDO")) {
+      int k, pin0, pinSetas, comp0, compSetas, foraTitulo = 0, flutua = 0, nSetas = 12; float pior = 0, dk;
+      HomeItem f;
+      memset(&e, 0, sizeof e);
+      ctx_abrir(hi.indice);
+      for (i = 0; i < 40; i++) quadro(NULL);
+      for (k = 0; k < 2; k++) { e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_DOWN; ctx_evento(&e); for (i = 0; i < 10; i++) quadro(NULL); }
+      e.key.keysym.sym = SDLK_RETURN; e.type = SDL_KEYUP; ctx_evento(&e); e.type = SDL_KEYDOWN; ctx_evento(&e);
+      for (i = 0; i < 40; i++) quadro(NULL);
+      pin0 = (int)r8fundo_pinturas; comp0 = (int)r8fundo_pinturas_complemento;
+      for (k = 0; k < nSetas; k++) {
+        e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_DOWN; ctx_evento(&e);
+        for (i = 0; i < 6; i++) quadro(NULL);
+        dk = difCopiaViva(); if (dk > pior) pior = dk;
+        // Um estilo que nao mostra o titulo (Heroi: um cartao so) leva o foco
+        // para outro cartao; nos outros, o foco fica no titulo do menu.
+        if ((!home_item_focado(&f) || f.indice != hi.indice) && home_titulo_na_fileira(hi.indice)) foraTitulo++;
+        // Titulo fora da fileira (Heroi): o menu nao desenha a arte guardada no
+        // retangulo antigo (o cartaz flutuando sobre a fileira nova, TCL 26/11).
+        { CtxR8Geo gk; if (ctx_r8_geo(&gk) && gk.cartazGuardado) flutua++; }
+        printf("  seta %2d: dif %.2f foco %d (menu %d) rect %.0fx%.0f pinturas %d\n", k + 1, dk,
+               home_item_focado(&f) ? f.indice : -1, hi.indice, f.rect.w, f.rect.h, (int)r8fundo_pinturas - pin0);
+        for (i = 0; i < 20; i++) quadro(NULL);
+      }
+      compSetas = (int)r8fundo_pinturas_complemento - comp0;
+      pinSetas = (int)r8fundo_pinturas - pin0 - compSetas;
+      OKC(pior < 4.0f, "estilos ao vivo: a copia mostra o estilo novo ~100 ms depois de cada seta (pior dif %.2f em %d estilos)", pior, nSetas);
+      OKC(!foraTitulo, "estilos ao vivo: o foco da Home fica no titulo do menu (%d vezes fora)", foraTitulo);
+      OKC(!flutua, "estilos ao vivo: nenhum cartaz guardado desenhado por cima da fileira (%d vezes)", flutua);
+      OKC(pinSetas >= 1 && pinSetas <= nSetas, "estilos ao vivo: no maximo uma pintura por estilo (%d pinturas em %d setas; mais %d de complemento: arte que chegou, texto que faltava)", pinSetas, nSetas, compSetas);
+      pin0 = (int)r8fundo_pinturas;
+      for (i = 0; i < 360; i++) quadro(NULL);   // 5,8 s parado
+      OKC((int)r8fundo_pinturas == pin0, "menu parado 5,8 s: nenhuma repintura (%d)", (int)r8fundo_pinturas - pin0);
+      e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
+      for (i = 0; i < 20; i++) quadro(NULL);
+      e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
+      for (i = 0; i < 40; i++) quadro(NULL);
+      if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois dos estilos\n"); return 1; } }
     // Reabrir no meio do fechar continua do ponto em que estava.
     ctx_abrir(hi.indice);
     for (i = 0; i < 40; i++) quadro(NULL);
@@ -350,6 +455,21 @@ int main(int argc, char **argv) {
         if (ev == 0) { ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice); }
         else { e.key.keysym.sym = ev == 1 || ev == 2 ? SDLK_DOWN : ev == 3 ? SDLK_UP : SDLK_ESCAPE; ctx_evento(&e); }
         ctx_atualizar(0.0f, base + (Uint32)(EV[ev] * 1000.0 + 0.5));
+        // A CURVA COMECA QUANDO O FUNDO ESTA PRONTO (ctxmenu_r8.inc, r8Espera):
+        // os quadros da espera rodam aqui e o resto da prancha e conferido a
+        // partir do quadro 0 real (a prancha comeca a curva no OK, 1,3 s). O
+        // atraso tem teto: no maximo 6 quadros.
+        if (ev == 0) {
+          Uint32 ini = 0, ok0 = base + 1300u; int k;
+          relogio = ok0; passoMs = 16;
+          for (k = 0; k < 40 && !ctx_r8_inicio(&ini); k++) quadro(NULL);
+          if (!ctx_r8_inicio(&ini)) { printf("FALHOU a curva de abertura nunca comecou\n"); falhas++; }
+          else {
+            printf("abertura: a curva comecou %u ms depois do OK (%d quadros de espera)\n", ini - ok0, k);
+            if (ini - ok0 > 6u * 16u) { printf("FALHOU espera longa demais (%u ms)\n", ini - ok0); falhas++; }
+            base += ini - ok0;
+          }
+        }
         ev++;
       }
       relogio -= 16; passoMs = 16;   // quadro() soma o passo: chega em `relogio` exato
@@ -412,6 +532,31 @@ int main(int argc, char **argv) {
         else if (!strcmp(peca, "SV")) spainel_fechar();
         else if (ctx_aberto()) { SDL_Event e; memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e); }
       }
+      // ROTEIRO DE TECLAS (NV_TECLAS="2.0:D,2.1:O,..."): no tempo da prancha,
+      // D/U/L/R = setas, O = OK, E = Voltar; vai ao menu se ele esta aberto,
+      // senao a Home. Substitui o roteiro fixo abaixo.
+      if (alvo && getenv("NV_TECLAS")) {
+        static int nr = -1, ir; static float rt[64]; static char rk[64];
+        if (nr < 0) {
+          const char *q = getenv("NV_TECLAS"); nr = 0;
+          while (*q && nr < 64) { float tt; char kk; int n = 0;
+            if (sscanf(q, "%f:%c%n", &tt, &kk, &n) == 2) { rt[nr] = tt; rk[nr++] = kk; q += n; } else break;
+            if (*q == ',') q++; }
+        }
+        while (ir < nr && t + 0.0005f >= rt[ir]) {
+          SDL_Event e; SDL_Keycode k = rk[ir] == 'D' ? SDLK_DOWN : rk[ir] == 'U' ? SDLK_UP : rk[ir] == 'L' ? SDLK_LEFT
+                                     : rk[ir] == 'R' ? SDLK_RIGHT : rk[ir] == 'E' ? SDLK_ESCAPE : SDLK_RETURN;
+          memset(&e, 0, sizeof e); e.key.keysym.sym = k;
+          if (ctx_aberto()) {
+            if (k == SDLK_RETURN) { e.type = SDL_KEYUP; ctx_evento(&e); e.type = SDL_KEYDOWN; ctx_evento(&e); }
+            else { e.type = SDL_KEYDOWN; ctx_evento(&e); }
+          } else { e.type = SDL_KEYDOWN; home_evento(&e); e.type = SDL_KEYUP; home_evento(&e); }
+          ir++;
+          { HomeItem fh; int ok = home_item_focado(&fh);
+            printf("[roteiro] t=%.2f tecla=%c pagina-ctx foco da Home: indice %d rect %.0f,%.0f %.0fx%.0f\n", t, rk[ir - 1],
+                   ok ? fh.indice : -1, ok ? fh.rect.x : 0, ok ? fh.rect.y : 0, ok ? fh.rect.w : 0, ok ? fh.rect.h : 0); }
+        }
+      } else
       if (alvo && ctx_aberto() && !strcmp(peca, "MC") + !strcmp(peca, "MA")) {
         static int mov;
         const float quando[] = { 2.45f, 3.1f, 3.7f };

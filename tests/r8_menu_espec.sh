@@ -28,7 +28,7 @@ for p in MC MA; do
   mkdir -p "$work/$p"
   if ! NUVIO_DADOS="$work/$p" NV_ESPEC="$work/$(echo $p | tr A-Z a-z).txt" NV_POSTER=1 \
        NUVIO_MENU_SEGURAR=$([ $p = MA ] && echo 1 || echo 0) "$work/shot" $p "$work" 0 > "$work/$p.log" 2>&1; then rc=1; fi
-  grep -E "FALHOU|r8_menu_espec" "$work/$p.log" || { echo "$p: sem resultado"; tail -5 "$work/$p.log"; rc=1; }
+  grep -E "FALHOU|r8_menu_espec|abertura: a curva" "$work/$p.log" || { echo "$p: sem resultado"; tail -5 "$work/$p.log"; rc=1; }
 done
 # Comportamento: Folha por padrao e Desdobrar gravado no ajuste.
 for d in "" 1; do
