@@ -1978,13 +1978,16 @@ void ctx_desenhar(Uint32 agora) {
   ESCALA_FIM();
 }
 // O cartao da home e em pixels reais; o menu desenha na tela virtual.
-static int cartaoDaHome(void) {
+// O cartao focado da Home por cima do menu, escalado `s` no proprio lugar e com
+// a sombra `sombra` 0..1 (a abertura da Folha, ctxmenu_r8.inc).
+static int cartaoDaHomeCrescer(float s, float sombra) {
   int ok;
   ESCALA_REAL_INI();
-  ok = home_cartao_foco_por_cima(idx);
+  ok = home_cartao_foco_crescer(idx, s, sombra);
   ESCALA_REAL_FIM();
   return ok;
 }
+static int cartaoDaHome(void) { return cartaoDaHomeCrescer(1.0f, 0.0f); }
 #include "ctxmenu_r8.inc"
 static void r8Apertou(void) { r8Aperto = r8Seg(r8Agora()); }
 static void r8EstiloMudou(void) { r8FundoVer++; }

@@ -169,6 +169,7 @@ float ctx_r8_gaveta(void);         // 0..1: a Folha na tela (o relogio sai com e
 typedef struct {
   int visivel;
   int cartazGuardado;              // desenhou a arte guardada do cartaz (nao o cartao da Home)
+  float cartazEscala;              // o cartao da Home desenhado por cima, nesta escala (0 = nao desenhou)
   GfxRect superficie, pilula, cartaz;
   float superficieA, pilulaA, tituloY, tituloA;
 } CtxR8Geo;

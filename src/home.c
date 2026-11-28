@@ -7072,6 +7072,10 @@ static Uint32 numPedidoEm[MAX_FIL], numProntoEm[MAX_FIL];
 // harness, 26/11: Ranking numerado sem os numeros atras do menu).
 static int homePintandoParada;
 void home_pintura_parada(int on) { homePintandoParada = on; }
+// O cartao do menu fica FORA da copia parada (-1 = nenhum): o menu o desenha
+// por cima (home_cartao_foco_crescer). So vale enquanto ele e o focado.
+static int homeSemCartaz = -1;
+void home_copia_sem_cartaz(int indice) { homeSemCartaz = indice; }
 static float numeraisAlfa(int r, Uint32 agora) {
   if (r < 0 || r >= MAX_FIL) return 0.0f;
   if (!numProntoEm[r]) {
@@ -8560,12 +8564,34 @@ void home_vitrine_cartao_aberto(const CatItem *ci, GfxRect card, float abre, flo
 // Chamado pelo menu do cartaz, DEPOIS do veu: repinta o cartao focado inteiro
 // (anel, arte, veus, rotulo, logo) onde a home o pintou neste quadro. 0 se o
 // cartao focado nao foi pintado (destaque, pasta, pilha).
-static int home_cartao_foco_por_cima_(int indice) {
+// O CARTAO DO MENU CRESCE NO PROPRIO LUGAR (abertura da Folha, dono 27/11:
+// "o proprio poster selecionado aumente gradualmente de tamanho", proposta
+// aprovada: 4 %, ancora no centro, sombra suave). `s` e a escala em torno do
+// centro do cartao; `sombra` 0..1 liga a sombra (0 18 48 a 55 % na tela real,
+// como a proposta, tudo vezes `sombra`). A copia parada da Home e pintada SEM
+// este cartao (home_copia_sem_cartaz): o unico poster na tela e este, entao
+// nao ha segunda imagem por baixo, cresca ele ou nao.
+static int home_cartao_foco_por_cima_(int indice, float s, float sombra) {
   float og;
+  const CartaoFoco *k = &cartaoFoco;
   if (!temCartaoFoco || !temItemFoco || itemFoco.indice != indice) return 0;
   og = gfx_opacidade_grupo;
   gfx_opacidade_grupo = 1.0f;
+  // gfx_transformar nao aninha: com outra transformacao no ar, sem crescer.
+  if (s < 1.0f || gfx_transformado()) s = 1.0f;
+  if (sombra > 0.004f) {
+    const float u = homeUnidade() > 0.0f ? homeUnidade() : 1.0f;
+    const float b = 48.0f * sombra / u, dy = 18.0f * sombra / u;
+    const float cw = k->w * s, ch = k->h * s;
+    GfxRect r = { k->px + (k->w - cw) * 0.5f, k->py + (k->h - ch) * 0.5f, cw, ch };
+    GfxRect sr = { r.x - b, r.y - b + dy, r.w + 2.0f * b, r.h + 2.0f * b };
+    const float raio = cartaoFocoRaio * s;
+    gfx_sombra_sob(sr, 1.0f, b * 1.4f, sr.h > 0.0f ? (raio + b) / sr.h : 0.0f, 0, 0, 0, 0.55f * sombra,
+                   r, raio, 1.0f);
+  }
+  if (s > 1.0001f) gfx_transformar(k->px + k->w * 0.5f, k->py + k->h * 0.5f, s, 0.0f, 0.0f);
   pintarCartao(&cartaoFoco, cartaoFocoRaio);
+  if (s > 1.0001f) gfx_sem_transformar();
   gfx_opacidade_grupo = og;
   return 1;
 }
@@ -9277,7 +9303,12 @@ static void home_desenhar_(Uint32 agora) {
                             px, py, w, h, (!focoHero && focus_indice(&foco, r, c)) ? varreFoco : 0.0f,
                             trailerCard, caminhoB, tB, misturaB, artH > 0.0f ? lw / artH : 0.0f,
                             deitadaPrincipal };
-          pintarCartao(&ck, raio);
+          // A COPIA PARADA DO MENU SEM O CARTAO DO MENU (home_copia_sem_cartaz):
+          // ele e desenhado por cima, vivo e crescendo; aqui ficaria a segunda
+          // imagem (TCL, 27/11).
+          if (!(homePintandoParada && homeSemCartaz >= 0 && idxCat == homeSemCartaz &&
+                !focoHero && focus_indice(&foco, r, c)))
+            pintarCartao(&ck, raio);
           // MARCADOR "PRIMEIRA FILEIRA PINTADA" (#7 do handoff de desempenho,
           // 05/10). "primeira fileira da rede pronta" e "catalogo da rede
           // publicado" (descoberta.c) medem quando o DADO esta pronto; nada
@@ -9800,9 +9831,10 @@ void home_atualizar(float dt, Uint32 agora) { TXT_INI(); home_atualizar_(dt, ago
 // heroArteRect is layer px: the trailer step runs in the same layer (#205).
 void home_trailer_passo(int topo, float dt, Uint32 agora) { TXT_INI(); home_trailer_passo_(topo, dt, agora); TXT_FIM(); }
 void home_desenhar(Uint32 agora) { TXT_INI(); home_desenhar_(agora); TXT_FIM(); }
-int home_cartao_foco_por_cima(int indice) {
+int home_cartao_foco_por_cima(int indice) { return home_cartao_foco_crescer(indice, 1.0f, 0.0f); }
+int home_cartao_foco_crescer(int indice, float s, float sombra) {
   int r;
-  TXT_INI(); r = home_cartao_foco_por_cima_(indice); TXT_FIM();
+  TXT_INI(); r = home_cartao_foco_por_cima_(indice, s, sombra); TXT_FIM();
   return r;
 }
 int home_ancora_foco(GfxRect *out) {

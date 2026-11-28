@@ -54,6 +54,12 @@ typedef struct {
 
 int  home_iniciar(const char *dirArte);
 int  home_cartao_foco_por_cima(int indice); // repinta o cartao focado (menu do cartaz)
+// O mesmo, escalado `s` em torno do proprio centro e com a sombra suave da
+// abertura da Folha (`sombra` 0..1). 0 = o focado nao e `indice`.
+int  home_cartao_foco_crescer(int indice, float s, float sombra);
+// A copia parada do menu sai sem o cartao `indice` quando ele e o focado (o
+// menu o desenha por cima, crescendo). -1 = copia inteira.
+void home_copia_sem_cartaz(int indice);
 int  home_item_focado(HomeItem *out);      // 0 se o foco ainda nao foi desenhado
 // Retangulo (tela real) do cartao focado de qualquer fileira, pilha e pasta
 // inclusas. 0 sem cartao focado neste quadro (destaque, fileira vazia).

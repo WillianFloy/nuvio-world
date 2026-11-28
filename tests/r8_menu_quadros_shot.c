@@ -56,7 +56,12 @@ static void gravarPng(const char *png) {
 }
 static int passoMs = 16;
 // Diferenca media (0-255) entre a Home desenhada viva agora e a copia parada
-// sem recuo nem veu: a copia tem de ser a Home DESTA abertura.
+// sem veu, com o cartao do menu por cima no tamanho de origem (a copia sai SEM
+// ele: o menu o desenha vivo, crescendo; 27/11): a copia tem de ser a Home
+// DESTA abertura.
+static int indiceMenu = -1;
+// Toda abertura do menu passa por aqui: a medida acima sabe qual cartao e o dele.
+#define ABRIR(i) (indiceMenu = (i), ctx_abrir(indiceMenu))
 static float difCopiaViva(void) {
   static unsigned char a[1920 * 1080 * 4], b[1920 * 1080 * 4];
   double soma = 0; long n = 0;
@@ -66,6 +71,7 @@ static float difCopiaViva(void) {
   glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, a);
   glClear(GL_COLOR_BUFFER_BIT);
   gfx_snap_desenhar_xf(1.0f, 960.0f, 540.0f, 0.0f, 0.0f, 0.0f);
+  if (indiceMenu >= 0) home_cartao_foco_por_cima(indiceMenu);
   glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, b);
   for (long i = 0; i < (long)janW * janH * 4; i += 4 * 7) { for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]); n += 3; }
   // NV_DIFPNG=pasta: guarda a Home viva (v) e a copia (c) de cada medida, para
@@ -83,6 +89,27 @@ static float difCopiaViva(void) {
     nd++; SDL_FreeSurface(sv); SDL_FreeSurface(sc);
   }
   return (float)(soma / n);
+}
+// A COPIA SOZINHA (sem o cartao por cima) contra a Home viva, so dentro do
+// retangulo `r` do cartaz: alta = o cartaz nao esta na copia (uma imagem so).
+static float difCopiaNoCartaz(GfxRect r) {
+  static unsigned char a[1920 * 1080 * 4], b[1920 * 1080 * 4];
+  double soma = 0; long n = 0;
+  int x0 = (int)r.x + 8, x1 = (int)(r.x + r.w) - 8, y0 = (int)r.y + 8, y1 = (int)(r.y + r.h) - 8;
+  glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  home_desenhar(relogio); menu_desenhar(relogio);
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, a);
+  glClear(GL_COLOR_BUFFER_BIT);
+  gfx_snap_desenhar_xf(1.0f, 960.0f, 540.0f, 0.0f, 0.0f, 0.0f);
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, b);
+  for (int y = y0; y < y1; y += 3) for (int x = x0; x < x1; x += 3) {
+    long i = ((long)(janH - 1 - y) * janW + x) * 4;
+    if (x < 0 || y < 0 || x >= janW || y >= janH) continue;
+    for (int c = 0; c < 3; c++) soma += abs(a[i + c] - b[i + c]);
+    n += 3;
+  }
+  return n ? (float)(soma / n) : 0.0f;
 }
 static Uint32 relogioFalso(void) { return relogio; }
 static void atrasHome(void *ctx) { (void)ctx; home_desenhar(relogio); menu_desenhar(relogio); }
@@ -253,8 +280,9 @@ int main(int argc, char **argv) {
     // A PINTURA DA COPIA CUSTA NA GPU (TCL: 45-60 ms no quadro seguinte):
     // simulado aqui (NV_GPU_PINTURA), a gaveta tem de comecar do zero mesmo assim.
     setenv("NV_GPU_PINTURA", "60", 0);
-    ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice);
-    { float x0 = -1, ant = 1e9f, piorVeu = 0, piorRel = 0, meio = -1, passoMax = 0; int volta = 0, folha = !getenv("NV_REDUZIDO");
+    ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ABRIR(hi.indice);
+    { float x0 = -1, ant = 1e9f, piorVeu = 0, piorRel = 0, meio = -1, passoMax = 0, piorCresce = 0, piorEsc = 0;
+      int volta = 0, folha = !getenv("NV_REDUZIDO"), cresceu = 0;
       for (i = 0; i < 40; i++) {
         quadro(NULL);
         if (ctx_r8_geo(&g) && g.superficieA > 0.0f) {
@@ -267,7 +295,11 @@ int main(int argc, char **argv) {
             if (fabsf(veu - 0.5f * m) > piorVeu) piorVeu = fabsf(veu - 0.5f * m);
             if (fabsf(rel - (1.0f - m)) > piorRel) piorRel = fabsf(rel - (1.0f - m));
             if (meio < 0 && m > 0.3f && m < 0.7f) meio = rel;
-          }
+            // O CARTAZ CRESCE COM A GAVETA (proposta aprovada, 27/11): 1 + 0,04 m,
+            // e a Home atras nao recua (escala 1).
+            if (g.cartazEscala > 0.0f) { cresceu = 1; if (fabsf(g.cartazEscala - (1.0f + 0.04f * m)) > piorCresce) piorCresce = fabsf(g.cartazEscala - (1.0f + 0.04f * m)); }
+            if (fabsf(esc - 1.0f) > piorEsc) piorEsc = fabsf(esc - 1.0f);
+          } else if (!folha && g.cartazEscala > 0.0f && fabsf(g.cartazEscala - 1.0f) > piorCresce) piorCresce = fabsf(g.cartazEscala - 1.0f);
         } }
       if (folha) {
         OKC(x0 >= 1920.0f - 80.0f && !volta, "Folha: entra de fora da tela pela direita (1o quadro x %.0f, com 60 ms de GPU depois da pintura) e so anda para a esquerda", x0);
@@ -278,10 +310,18 @@ int main(int argc, char **argv) {
         OKC(piorVeu < 0.01f, "Folha: o escurecimento da Home sai do mesmo valor da gaveta (pior diferenca %.3f)", piorVeu);
         OKC(piorRel < 0.01f && meio > 0.25f && meio < 0.75f && app_ilha_opacidade() < 0.01f && app_ilha_coberta(),
             "Folha: o relogio some junto com a gaveta (no meio %.2f, aberta %.2f, pior %.3f)", meio, app_ilha_opacidade(), piorRel);
-      } }
+        OKC(cresceu && piorCresce < 0.002f, "Folha: o proprio cartaz cresce junto com a gaveta, ate 4 %% (pior diferenca %.4f)", piorCresce);
+        OKC(piorEsc < 0.0001f, "Folha: a Home atras nao recua nem da zoom out (pior escala fora de 1: %.4f)", piorEsc);
+      } else OKC(piorCresce < 0.0001f, "reduzidas: o cartaz nao cresce (pior %.4f)", piorCresce); }
     ctx_r8_geo(&g);
     OKC(ctx_aberto() && g.visivel, "abre a Folha%s", getenv("NV_DESDOBRAR_GRAVADO") ? " mesmo com o Desdobrar gravado nos dados antigos" : "");
-    OKC(ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && esc < 1.0f && veu > 0.3f, "a Home atras congela, recua (%.3f) e escurece (%.2f)", esc, veu);
+    OKC(ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && esc == 1.0f && veu > 0.3f, "a Home atras congela, fica no lugar (%.3f) e escurece (%.2f)", esc, veu);
+    // UMA IMAGEM SO DO CARTAZ (TCL, 27/11: um segundo poster aparecia por cima
+    // do original): a copia parada nao tem o cartaz; so o vivo, por cima.
+    if (ctx_r8_fundo(&esc, &ox, &oy, &veu, &ver) && home_item_focado(&hi) && hi.indice == indiceMenu) {
+      float dc = difCopiaNoCartaz(hi.rect);
+      OKC(dc > 25.0f, "a copia da Home sai sem o cartaz do menu: ele so existe vivo, por cima (diferenca no cartaz %.1f)", dc);
+    }
     OKC(fabsf(g.superficie.x + g.superficie.w - 1920.0f) < 0.5f && g.superficie.y == 0.0f && g.superficie.h == 1080.0f,
           "Folha: gaveta encostada na borda direita, da altura da tela (x %.1f w %.1f)", g.superficie.x, g.superficie.w);
     // Voltar fecha: a superficie vai a zero sem saltar e a Home volta viva.
@@ -303,7 +343,7 @@ int main(int argc, char **argv) {
     // 1a abertura fica 4,8 s: antes de 26/11 (noite) havia repinturas por
     // tempo que trocavam a copia velha sozinhas e escondiam o defeito no teste.
     { float d0, d1, d2;
-      ctx_abrir(hi.indice);
+      ABRIR(hi.indice);
       for (i = 0; i < 300; i++) quadro(NULL);
       d0 = difCopiaViva();
       e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
@@ -312,7 +352,7 @@ int main(int argc, char **argv) {
       e.type = SDL_KEYUP; home_evento(&e);
       for (i = 0; i < 60; i++) quadro(NULL);
       if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois da seta\n"); return 1; }
-      ctx_abrir(hi.indice);
+      ABRIR(hi.indice);
       for (i = 0; i < 2; i++) quadro(NULL);
       d1 = difCopiaViva();
       for (i = 0; i < 38; i++) quadro(NULL);
@@ -331,7 +371,7 @@ int main(int argc, char **argv) {
       e.type = SDL_KEYUP; home_evento(&e);
       for (i = 0; i < 24; i++) quadro(NULL);   // ~380 ms: destaque no meio da troca
       if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois da seta\n"); return 1; }
-      ctx_abrir(hi.indice);
+      ABRIR(hi.indice);
       for (i = 0; i < 12 && !ctx_r8_inicio(&ini); i++) quadro(NULL);
       quadro(NULL);
       d = difCopiaViva();
@@ -348,7 +388,7 @@ int main(int argc, char **argv) {
       int k, pin0, pinSetas, comp0, compSetas, foraTitulo = 0, flutua = 0, nSetas = 12; float pior = 0, dk;
       HomeItem f;
       memset(&e, 0, sizeof e);
-      ctx_abrir(hi.indice);
+      ABRIR(hi.indice);
       for (i = 0; i < 40; i++) quadro(NULL);
       for (k = 0; k < 2; k++) { e.type = SDL_KEYDOWN; e.key.keysym.sym = SDLK_DOWN; ctx_evento(&e); for (i = 0; i < 10; i++) quadro(NULL); }
       e.key.keysym.sym = SDLK_RETURN; e.type = SDL_KEYUP; ctx_evento(&e); e.type = SDL_KEYDOWN; ctx_evento(&e);
@@ -383,12 +423,12 @@ int main(int argc, char **argv) {
       for (i = 0; i < 40; i++) quadro(NULL);
       if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois dos estilos\n"); return 1; } }
     // Reabrir no meio do fechar continua do ponto em que estava.
-    ctx_abrir(hi.indice);
+    ABRIR(hi.indice);
     for (i = 0; i < 40; i++) quadro(NULL);
     e.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e);
     for (i = 0; i < 3; i++) quadro(NULL);
     ctx_r8_geo(&g); antA = VAL(g);
-    ctx_abrir(hi.indice);
+    ABRIR(hi.indice);
     { int salto = 0;
       for (i = 0; i < 40; i++) { quadro(NULL); ctx_r8_geo(&g); if (SALTO(g, antA)) salto = 1; antA = VAL(g); }
       OKC(!salto && g.visivel && ctx_aberto(), "reabrir durante o fechar nao pisca"); }
@@ -409,7 +449,7 @@ int main(int argc, char **argv) {
     // Reduzir animacoes: nada desliza nem voa; tudo aparece junto em 0,12 s.
     if (getenv("NV_REDUZIDO")) {
       float x0 = -1, ty0 = -1; int anda = 0, n = 0;
-      ctx_abrir(hi.indice);
+      ABRIR(hi.indice);
       for (i = 0; i < 12; i++) {
         quadro(NULL);
         if (!ctx_r8_geo(&g) || g.superficieA < 0.01f) continue;
@@ -448,7 +488,7 @@ int main(int argc, char **argv) {
       while (ev < 5 && t + 1e-6 >= EV[ev]) {
         SDL_Event e; memset(&e, 0, sizeof e); e.type = SDL_KEYDOWN;
         ctx_atualizar(0.0f, base + (Uint32)(EV[ev] * 1000.0 + 0.5));
-        if (ev == 0) { ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ctx_abrir(hi.indice); }
+        if (ev == 0) { ctx_fileira("pop_movie", "Populares"); ctx_dispensar_retomar(0); ABRIR(hi.indice); }
         else { e.key.keysym.sym = ev == 1 || ev == 2 ? SDLK_DOWN : ev == 3 ? SDLK_UP : SDLK_ESCAPE; ctx_evento(&e); }
         ctx_atualizar(0.0f, base + (Uint32)(EV[ev] * 1000.0 + 0.5));
         // A CURVA COMECA QUANDO O FUNDO ESTA PRONTO (ctxmenu_r8.inc, r8Espera):
@@ -505,7 +545,7 @@ int main(int argc, char **argv) {
           if (!strcmp(orig, "colecao")) ctx_abrir_fileira("pop_movie", "Populares");
           else if (home_item_focado(&hi)) {
             ctx_fileira(strcmp(orig, "hero") ? "pop_movie" : NULL, "Populares");
-            ctx_dispensar_retomar(0); ctx_abrir(hi.indice);
+            ctx_dispensar_retomar(0); ABRIR(hi.indice);
           }
           printf("menu aberto: %d (indice %d)\n", ctx_aberto(), hi.indice);
         }

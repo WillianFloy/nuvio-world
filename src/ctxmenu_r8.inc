@@ -262,20 +262,20 @@ static void r8Arte(GfxRect r, const char *url, float raioPx, float a) {
 }
 
 // ---------------------------------------------------------------- o fundo
-// Home congelada: recuo e veu da Folha (prancha: 0,975 e 50 %). A prancha recua em torno de (50 %, 60 %) da tela com a
-// fileira SEM o cartaz em foco; aqui a copia tem o cartaz dentro, entao o recuo
-// e em torno do CENTRO DO CARTAZ: a copia dele encolhe para dentro do proprio
-// lugar e o cartaz vivo, por cima, a cobre inteira (sem borda dupla). Sem
-// cartaz, o ponto da prancha.
+// Home congelada atras da Folha: SO ESCURECE, no lugar (dono, 27/11: "a Home
+// nao deve sofrer zoom out ou recuar. O restante da tela permanece no lugar e
+// apenas escurece"; o recuo de 0,975 da prancha saiu). Escurecimento de 50 %
+// (proposta aprovada em 27/11). O cartaz do menu fica FORA da copia
+// (home_copia_sem_cartaz) e volta por cima, vivo, crescendo (r8CartazVivo).
 int ctx_r8_fundo(float *esc, float *ox, float *oy, float *veu, unsigned *versao) {
   Uint32 agora = r8Agora();
   float m;
-  if (!r8Visivel(agora)) return 0;
+  if (!r8Visivel(agora)) { home_copia_sem_cartaz(-1); return 0; }
   m = r8Espera ? 0.0f : r8Reduzido ? (aberto ? 1.0f : 0.0f) : r8ab_valor(&r8Ab, r8Seg(agora));
-  *esc = 1.0f - 0.025f * m;
-  { GfxRect F;
-    if (r8Cartaz(&F)) { *ox = F.x + F.w * 0.5f; *oy = F.y + F.h * 0.5f; }
-    else { *ox = R8M_TW * 0.5f; *oy = R8M_TH * 0.6f; } }
+  *esc = 1.0f; *ox = R8M_TW * 0.5f; *oy = R8M_TH * 0.5f;
+  // Uma imagem so do cartaz: a copia sai sem ele quando o menu o desenha por
+  // cima (o cartao da Home, focado e com o mesmo indice: home.c confere).
+  home_copia_sem_cartaz(temCartaz && !cartazFixo ? idx : -1);
   *veu = 0.5f * (r8Reduzido ? r8ab_linear(&r8Ab, r8Seg(agora)) : m);
   *versao = r8FundoVer;
   return 1;
@@ -322,12 +322,21 @@ static const char *r8ArteCartaz(void) {
   return NULL;
 }
 // O cartaz por cima do veu: o proprio cartao da Home (ou, fora dela, a arte).
-static void r8CartazVivo(GfxRect F, float a) {
+// O CARTAZ CRESCE COM A GAVETA (proposta aprovada pelo dono, 27/11): 4 % em
+// torno do proprio centro, com a sombra suave, no mesmo valor `m` da gaveta e
+// do escurecimento. Nas animacoes reduzidas nao cresce (so opacidade) e a
+// sombra acompanha a opacidade.
+#define R8M_CARTAZ_CRESCE 0.04f
+static void r8CartazVivo(GfxRect F, float a, float m) {
   // Da Home: o proprio cartao dela por cima, quando ainda e ele o focado. Se o
   // estilo trocado ao vivo nao mostra mais o titulo (Heroi), nada: a copia ja
   // mostra a fileira como ela esta. Antes a arte guardada era desenhada no
   // retangulo antigo e ficava flutuando sobre a fileira nova (TCL, 26/11).
-  if (temCartaz && !cartazFixo) { (void)cartaoDaHome(); return; }
+  if (temCartaz && !cartazFixo) {
+    float s = r8Reduzido ? 1.0f : 1.0f + R8M_CARTAZ_CRESCE * m;
+    r8Geo.cartazEscala = cartaoDaHomeCrescer(s, r8Reduzido ? a : m) ? s : 0.0f;
+    return;
+  }
   if (temCartaz && cartazArte[0]) {
     r8Geo.cartazGuardado = 1;
     float raio = ajustes_raio_poster_px() / gfx_escala_ui();
@@ -497,7 +506,7 @@ static void r8DesenharFolha(const CatItem *ci, double t, float m, float aGeral) 
   r8LinPad = R8M_FOLHA_P - R8M_FOLHA_LX;
   r8Geo.superficie = S; r8Geo.superficieA = sa;
   if (!r8FundoOk) r8_veu(0.5f * m * aGeral);      // sem a copia parada, o veu vai aqui
-  if (temF) r8CartazVivo(F, aGeral);
+  if (temF) r8CartazVivo(F, aGeral, m);
   // A Home escurece ate a beirada: o cartao que fica sob ela some no escuro
   // em vez de aparecer cortado.
   r8_escuro_lateral(x - R8M_ESCURO, x, R8M_ESCURO_A * m * aGeral);
