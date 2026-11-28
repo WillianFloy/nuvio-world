@@ -305,8 +305,18 @@ int main(int argc, char **argv) {
     if (!getenv("NV_REDUZIDO") && !getenv("NV_SEM_SEGURAR")) {
       static unsigned char base[1920 * 1080 * 4];
       int antes = 0, cedo = 0, n = 0, fora = 0, dentro = 0, abriu = -1, k;
+      unsigned long uplBase = 0, uplMeio = 0;
       float pior = 0, meio = -1, claro = 0, escuro = 255, difCartaz = 0;
       GfxRect R = hi.rect;
+      // AS ARTES CHEGAM EM FIOS DE TEMPO REAL (na CI, bem mais devagar): antes
+      // de apertar, 400 ms reais sem textura nova (teto 15 s). Senao a arte do
+      // cartaz pode chegar no meio da medida e mudar o miolo dele.
+      { unsigned long u0 = tex_upl_total; Uint32 quieto = SDL_GetTicks(), ini = quieto;
+        while (SDL_GetTicks() - quieto < 400u && SDL_GetTicks() - ini < 15000u) {
+          quadro(NULL); SDL_Delay(8);
+          if (tex_upl_total != u0) { u0 = tex_upl_total; quieto = SDL_GetTicks(); }
+        }
+        printf("segurar: artes assentadas em %u ms reais\n", SDL_GetTicks() - ini); }
       relogio = SDL_GetTicks();
       { SDL_Event ok; memset(&ok, 0, sizeof ok); ok.type = SDL_KEYDOWN; ok.key.keysym.sym = SDLK_RETURN; home_evento(&ok); }
       for (k = 1; k <= 50 && abriu < 0; k++) {
@@ -317,7 +327,7 @@ int main(int argc, char **argv) {
         if (ctx_aberto()) { abriu = (int)tms; break; }
         // O cartaz ja afunda no KEYDOWN (pressdip.h, 91,8 %, de antes): a base
         // de comparacao e ele afundado, ainda sem contorno (112 ms).
-        if (k == 7) memcpy(base, homeLida(), sizeof base);
+        if (k == 7) { memcpy(base, (homeLida(), homeLida()), sizeof base); uplBase = tex_upl_total; }
         if (tms < 150.0f) { if (p >= 0.0f) cedo++; continue; }
         if (p < 0.0f) { antes++; continue; }
         esp = (tms - 150.0f) / 550.0f; if (esp > 1.0f) esp = 1.0f;
@@ -329,6 +339,7 @@ int main(int argc, char **argv) {
           // Duas vezes: um texto novo (a dica antiga) so rasteriza no quadro
           // seguinte (orcamento de texto por quadro).
           const unsigned char *a = (homeLida(), homeLida());
+          uplMeio = tex_upl_total;
           HomeItem fh;
           if (home_item_focado(&fh)) R = fh.rect;
           int yA = (int)(R.y - 2.0f), xC = (int)(R.x + R.w * 0.5f);
@@ -356,7 +367,8 @@ int main(int argc, char **argv) {
       if (ajustes_vidro()) printf("(segurar: conferencia de pixel do anel so sem vidro, como na TCL)\n");
       else OKC(meio > 0 && claro > 200.0f && escuro < 110.0f,
           "segurar: o traco branco anda no sentido horario a partir do meio do topo (topo direito %.0f, topo esquerdo %.0f, em %.0f %%)", claro, escuro, meio * 100.0f);
-      OKC(meio > 0 && difCartaz < 0.02f, "segurar: nada e desenhado dentro do cartaz (diferenca %.2f)", difCartaz);
+      OKC(meio > 0 && difCartaz < 0.02f, "segurar: nada e desenhado dentro do cartaz (diferenca %.2f; texturas chegadas entre os dois quadros: %lu)",
+          difCartaz, uplMeio - uplBase);
       OKC(abriu >= 690 && abriu <= 720 && home_segurar_contorno() < 0.0f, "segurar: o menu abre em 700 ms (%d ms) e o contorno sai com ele", abriu);
       // Fecha e solta: o resto do comportamento parte da Home parada.
       { SDL_Event e2; memset(&e2, 0, sizeof e2); e2.type = SDL_KEYDOWN; e2.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e2);
