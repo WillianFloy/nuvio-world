@@ -3587,6 +3587,49 @@ void gfx_arco(GfxRect r, float esp, float ini, float frac,
   gfx_rect(r, 0, GFX_ANEL, 0, esp / r.h, frac >= 0.999f ? 0.0f : -frac, 0.5f, cr, cg, cb, ca);
   gfx_desliza_atual = 0.0f;
 }
+void gfx_arco_contorno(GfxRect r, float raio, float esp, float ini, float frac,
+                       float cr, float cg, float cb, float ca) {
+  if (r.h <= 0.0f || frac <= 0.0f) return;
+  gfx_desliza_atual = ini;
+  gfx_rect(r, 0, GFX_ANEL, 0, esp / r.h, frac >= 0.999f ? 0.0f : -frac, raio, cr, cg, cb, ca);
+  gfx_desliza_atual = 0.0f;
+}
+float gfx_contorno_angulo(float w, float h, float rp, float p) {
+  const float PI = 3.14159265f;
+  float teto = 0.5f * (w < h ? w : h), seg[9], tot = 0.0f, L, x = 0.0f, y = 0.0f, a;
+  int i;
+  if (p <= 0.0f) return 0.0f;
+  if (p >= 1.0f) return 1.0f;
+  if (rp > teto) rp = teto;
+  if (rp < 0.0f) rp = 0.0f;
+  // Meio do topo -> canto sup. dir. -> lado dir. -> ... -> volta ao meio do topo.
+  seg[0] = w * 0.5f - rp; seg[1] = PI * 0.5f * rp; seg[2] = h - 2.0f * rp; seg[3] = PI * 0.5f * rp;
+  seg[4] = w - 2.0f * rp; seg[5] = PI * 0.5f * rp; seg[6] = h - 2.0f * rp; seg[7] = PI * 0.5f * rp;
+  seg[8] = w * 0.5f - rp;
+  for (i = 0; i < 9; i++) tot += seg[i];
+  L = p * tot;
+  for (i = 0; i < 9 && L > seg[i]; i++) L -= seg[i];
+  // Coordenadas em relacao ao centro, y para baixo.
+  {
+    const float hw = w * 0.5f, hh = h * 0.5f, k = seg[i] > 0.0f ? L / seg[i] : 0.0f, t = k * PI * 0.5f;
+    switch (i) {
+      case 0: x = L; y = -hh; break;
+      case 1: x = hw - rp + rp * sinf(t); y = -hh + rp - rp * cosf(t); break;
+      case 2: x = hw; y = -hh + rp + L; break;
+      case 3: x = hw - rp + rp * cosf(t); y = hh - rp + rp * sinf(t); break;
+      case 4: x = hw - rp - L; y = hh; break;
+      case 5: x = -hw + rp - rp * sinf(t); y = hh - rp + rp * cosf(t); break;
+      case 6: x = -hw; y = hh - rp - L; break;
+      case 7: x = -hw + rp - rp * cosf(t); y = -hh + rp - rp * sinf(t); break;
+      default: x = -hw + rp + L; y = -hh; break;
+    }
+  }
+  a = atan2f(x, -y) / (2.0f * PI);
+  if (a < 0.0f) a += 1.0f;
+  // Os ultimos pixels antes do meio do topo dao ~0,99999: nao vira 0.
+  if (p > 0.5f && a < 0.25f) a = 1.0f;
+  return a;
+}
 // CONCENTRICO: o rect cresce g = folga + esp de cada lado e o raio em pixels
 // cresce o MESMO g. Com o raio normalizado copiado da peca (o erro comum), o
 // canto do anel fica mais fechado que o da peca e o vao entre os dois engorda

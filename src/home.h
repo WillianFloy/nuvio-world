@@ -60,6 +60,9 @@ int  home_cartao_foco_crescer(int indice, float s, float sombra);
 // A copia parada do menu sai sem o cartao `indice` quando ele e o focado (o
 // menu o desenha por cima, crescendo). -1 = copia inteira.
 void home_copia_sem_cartaz(int indice);
+// Segurar OK: o progresso 0..1 do contorno desenhado no ultimo quadro da Home
+// (-1 = nao desenhou). So para os testes.
+float home_segurar_contorno(void);
 int  home_item_focado(HomeItem *out);      // 0 se o foco ainda nao foi desenhado
 // Retangulo (tela real) do cartao focado de qualquer fileira, pilha e pasta
 // inclusas. 0 sem cartao focado neste quadro (destaque, fileira vazia).

@@ -1,3 +1,4 @@
+#include "fileiras.h"
 // O LADO "APP" DO COMPARADOR (tools/r8/comparar.py): abre a peca na Home real
 // com arte de verdade e grava os quadros nos MESMOS instantes da prancha
 // (tempo da prancha; a abertura comeca onde a prancha comeca a abrir).
@@ -111,6 +112,19 @@ static float difCopiaNoCartaz(GfxRect r) {
   }
   return n ? (float)(soma / n) : 0.0f;
 }
+// A Home desenhada agora (sem atualizar), lida da tela.
+static const unsigned char *homeLida(void) {
+  static unsigned char a[1920 * 1080 * 4];
+  glClearColor(NV_COR_FUNDO_R, NV_COR_FUNDO_G, NV_COR_FUNDO_B, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  home_desenhar(relogio); menu_desenhar(relogio);
+  glReadPixels(0, 0, janW, janH, GL_RGBA, GL_UNSIGNED_BYTE, a);
+  return a;
+}
+static float luz(const unsigned char *a, int x, int y) {
+  const unsigned char *q = a + ((long)(janH - 1 - y) * janW + x) * 4;
+  return (q[0] + q[1] + q[2]) / 3.0f;
+}
 static Uint32 relogioFalso(void) { return relogio; }
 static void atrasHome(void *ctx) { (void)ctx; home_desenhar(relogio); menu_desenhar(relogio); }
 // O CUSTO DA PINTURA NA GPU (TCL, 26/11: 45-60 ms, que caem no quadro
@@ -215,6 +229,8 @@ int main(int argc, char **argv) {
   if (getenv("NV_REDUZIDO")) fprintf(a, "animacoes 1\nperformanceAutoVersaoLocal 1\nvidroOpacVersaoLocal 1\n");
   fclose(a);
   ajustes_dir(dir);
+  // Como a TCL do dono (log de 27/11: vidro=0): pelo mesmo caminho dos Ajustes.
+  if (getenv("NV_SEM_VIDRO_TV")) ajustes_definir_vidro(0);
   if (!home_iniciar("deploy/app/art")) return 1;
   printf("escala: ui %.3f texto %.3f\n", gfx_escala_ui_base(), gfx_escala_txt());
   // A Home exige um addon ligado mesmo com o catalogo de fixture (carrossel_shot.c),
@@ -247,6 +263,12 @@ int main(int argc, char **argv) {
   if (!strcmp(peca, "SV")) for (int i = 0; i < 12; i++) salvos_definir(&itens[i], 1);
   // A Home assenta (artes carregadas) antes de abrir.
   for (k = 0; k < 120; k++) quadro(NULL);
+  // NV_TIPO=FIL_TIPO_* (fileiras.h): o estilo da fileira dos cartazes, depois
+  // de ela existir (16 = Poster grande, o da TCL do dono).
+  if (getenv("NV_TIPO")) {
+    if (!fil_definir_tipo("pop_movie", atoi(getenv("NV_TIPO")))) { printf("FALHOU: estilo NV_TIPO nao aplicado\n"); return 1; }
+    for (k = 0; k < 90; k++) quadro(NULL);
+  }
   // MENU: o foco desce para a primeira fileira e vai ao terceiro cartaz.
   if (!strcmp(peca, "MC") || !strcmp(peca, "COMP")) {
     SDL_Event e;
@@ -277,6 +299,74 @@ int main(int argc, char **argv) {
 #define OKC(c, ...) do { if (!(c)) { printf("FALHOU: "); printf(__VA_ARGS__); printf("\n"); falhas++; } \
                          else { printf("ok  "); printf(__VA_ARGS__); printf("\n"); } } while (0)
     if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz\n"); return 1; }
+    // SEGURAR OK, OPCAO A (dono, 27/11): o anel de foco vira o progresso, de
+    // 150 ms (antes disso e o toque) a 700 ms (abre o menu). A Home marca o
+    // inicio com SDL_GetTicks: o relogio do teste parte dele.
+    if (!getenv("NV_REDUZIDO") && !getenv("NV_SEM_SEGURAR")) {
+      static unsigned char base[1920 * 1080 * 4];
+      int antes = 0, cedo = 0, n = 0, fora = 0, dentro = 0, abriu = -1, k;
+      float pior = 0, meio = -1, claro = 0, escuro = 255, difCartaz = 0;
+      GfxRect R = hi.rect;
+      relogio = SDL_GetTicks();
+      { SDL_Event ok; memset(&ok, 0, sizeof ok); ok.type = SDL_KEYDOWN; ok.key.keysym.sym = SDLK_RETURN; home_evento(&ok); }
+      for (k = 1; k <= 50 && abriu < 0; k++) {
+        float tms, p, esp;
+        quadro(NULL);
+        tms = 16.0f * (float)k;
+        p = home_segurar_contorno();
+        if (ctx_aberto()) { abriu = (int)tms; break; }
+        // O cartaz ja afunda no KEYDOWN (pressdip.h, 91,8 %, de antes): a base
+        // de comparacao e ele afundado, ainda sem contorno (112 ms).
+        if (k == 7) memcpy(base, homeLida(), sizeof base);
+        if (tms < 150.0f) { if (p >= 0.0f) cedo++; continue; }
+        if (p < 0.0f) { antes++; continue; }
+        esp = (tms - 150.0f) / 550.0f; if (esp > 1.0f) esp = 1.0f;
+        if (fabsf(p - esp) > pior) pior = fabsf(p - esp);
+        n++;
+        // No meio do caminho: o topo a direita do centro ja foi percorrido
+        // (branco); a esquerda, ainda nao (apagado). Dentro do cartaz, nada.
+        if (meio < 0 && p >= 0.45f && p <= 0.6f) {
+          // Duas vezes: um texto novo (a dica antiga) so rasteriza no quadro
+          // seguinte (orcamento de texto por quadro).
+          const unsigned char *a = (homeLida(), homeLida());
+          HomeItem fh;
+          if (home_item_focado(&fh)) R = fh.rect;
+          int yA = (int)(R.y - 2.0f), xC = (int)(R.x + R.w * 0.5f);
+          meio = p;
+          claro = luz(a, xC + (int)(R.w * 0.25f), yA);
+          // NV_SEG_PNG=arquivo.bmp: guarda este quadro (o contorno pela metade).
+          if (getenv("NV_SEG_PNG")) { SDL_Surface *sv = SDL_CreateRGBSurfaceWithFormat(0, janW, janH, 32, SDL_PIXELFORMAT_RGBA32);
+            for (int y = 0; y < janH; y++) memcpy((char *)sv->pixels + y * sv->pitch, a + (size_t)(janH - 1 - y) * janW * 4, (size_t)janW * 4);
+            SDL_SaveBMP(sv, getenv("NV_SEG_PNG")); SDL_FreeSurface(sv);
+            printf("  rect %.0f %.0f %.0f %.0f\n", R.x, R.y, R.w, R.h); }
+          escuro = luz(a, xC - (int)(R.w * 0.25f), yA);
+          { double s = 0; long m = 0;
+            for (int y = (int)R.y + 6; y < (int)(R.y + R.h) - 6; y += 3)
+              for (int x = (int)R.x + 6; x < (int)(R.x + R.w) - 6; x += 3) {
+                const unsigned char *q1 = a + ((long)(janH - 1 - y) * janW + x) * 4, *q0 = base + ((long)(janH - 1 - y) * janW + x) * 4;
+                for (int c = 0; c < 3; c++) s += abs(q1[c] - q0[c]);
+                m += 3;
+              }
+            difCartaz = m ? (float)(s / m) : 0; }
+        }
+      }
+      (void)fora; (void)dentro;
+      OKC(!cedo, "segurar: nos primeiros 150 ms (o toque) nao aparece nada (%d quadros com contorno)", cedo);
+      OKC(n >= 25 && !antes && pior < 0.04f, "segurar: o contorno acompanha o tempo de 150 a 700 ms (%d quadros, pior diferenca %.3f)", n, pior);
+      if (ajustes_vidro()) printf("(segurar: conferencia de pixel do anel so sem vidro, como na TCL)\n");
+      else OKC(meio > 0 && claro > 200.0f && escuro < 110.0f,
+          "segurar: o traco branco anda no sentido horario a partir do meio do topo (topo direito %.0f, topo esquerdo %.0f, em %.0f %%)", claro, escuro, meio * 100.0f);
+      OKC(meio > 0 && difCartaz < 0.02f, "segurar: nada e desenhado dentro do cartaz (diferenca %.2f)", difCartaz);
+      OKC(abriu >= 690 && abriu <= 720 && home_segurar_contorno() < 0.0f, "segurar: o menu abre em 700 ms (%d ms) e o contorno sai com ele", abriu);
+      // Fecha e solta: o resto do comportamento parte da Home parada.
+      { SDL_Event e2; memset(&e2, 0, sizeof e2); e2.type = SDL_KEYDOWN; e2.key.keysym.sym = SDLK_ESCAPE; ctx_evento(&e2);
+        for (k = 0; k < 40; k++) quadro(NULL);
+        e2.type = SDL_KEYUP; e2.key.keysym.sym = SDLK_RETURN; home_evento(&e2);
+        for (k = 0; k < 20; k++) quadro(NULL); }
+      if (!home_item_focado(&hi)) { printf("FALHOU: sem cartaz depois do segurar\n"); return 1; }
+      // NV_SO_SEGURAR: so esta parte (a passada sem vidro, como a TCL).
+      if (getenv("NV_SO_SEGURAR")) { printf("r8_menu_segurar: %d falhas\n", falhas); return falhas ? 1 : 0; }
+    }
     // A PINTURA DA COPIA CUSTA NA GPU (TCL: 45-60 ms no quadro seguinte):
     // simulado aqui (NV_GPU_PINTURA), a gaveta tem de comecar do zero mesmo assim.
     setenv("NV_GPU_PINTURA", "60", 0);

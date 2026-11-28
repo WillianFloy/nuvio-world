@@ -431,6 +431,14 @@ static int okPressionando = 0;
 static int okLongDisparado = 0;
 static int okConsumirSoltura = 0;
 static float okHold = 0.0f;
+// O progresso do contorno do segurar OK desenhado neste quadro (-1 = nao
+// desenhou), para os testes (home_segurar_contorno).
+static float segurar_contorno_p = -1.0f;
+// Alfa da PLACA do anel de foco no cartao em pintura (1 = normal). O segurar OK
+// a apaga para 20 %: a placa e opaca e vai no lote adiado do gfx, entao um veu
+// por cima dela nao sobrevive; quem apaga e ela mesma.
+static float anelFocoAlfa = 1.0f;
+float home_segurar_contorno(void) { return segurar_contorno_p; }
 static float okDip = 1.0f;   // escala do card sob o OK apertado (pressdip.h)
 
 // --- hero-carrossel ---
@@ -8300,10 +8308,10 @@ static void pintarCartao(const CartaoFoco *k, float raio) {
             // fechado que o de dentro — as "pontas feias" da foto do dono
             // (21/09/2026). Pelo lado menor (ate 21/11) o cartaz em pe saia
             // ~1,5 px mais redondo; dentro das Collections, bem mais.
-            { if (ajustes_vidro()) gfx_vidro_cartao((GfxRect){px, py, w, h}, raio, f, 1.0f);
+            { if (ajustes_vidro()) gfx_vidro_cartao((GfxRect){px, py, w, h}, raio, f, anelFocoAlfa);
               else
               gfx_cor(borda, foco_anel_raio((GfxRect){px, py, w, h}, raio),
-                      ar, ag, ab, f); }
+                      ar, ag, ab, f * anelFocoAlfa); }
           }
           GfxRect card = { px, py, w, h };
           // Capturas (tests/homelayouts_shot.c, NV_RECTS): o retangulo de cada
@@ -8817,6 +8825,7 @@ static void home_desenhar_(Uint32 agora) {
   fileirasVistasEm = agora ? agora : 1u;
   fileirasVistasQuadro = gfx_quadro_n;
   temCartaoFoco = 0;
+  segurar_contorno_p = -1.0f;
   temAncoraFoco = 0;
   // A LUZ DO FOCO: uma varredura por foco novo, nenhuma com a tecla presa.
   float varreFoco = revela_varre(&revVarre,
@@ -9306,9 +9315,17 @@ static void home_desenhar_(Uint32 agora) {
           // A COPIA PARADA DO MENU SEM O CARTAO DO MENU (home_copia_sem_cartaz):
           // ele e desenhado por cima, vivo e crescendo; aqui ficaria a segunda
           // imagem (TCL, 27/11).
+          // SEGURAR OK (opcao A, abaixo): o anel deste cartao apaga enquanto o
+          // traco do progresso o percorre.
+          const int segurandoAqui = !focoHero && okPressionando && okDesde && okHold > 0.0f &&
+              segurar_barra_visivel(agora - okDesde) &&
+              foco_pode_pressao_longa() && focus_indice(&foco, r, c);
+          const float segurarDesde = segurandoAqui ? (float)(agora - okDesde) - (float)NV_HOLD_TOQUE_MS : 0.0f;
+          anelFocoAlfa = segurandoAqui ? 1.0f - 0.8f * anim_clamp(segurarDesde / 80.0f, 0.0f, 1.0f) : 1.0f;
           if (!(homePintandoParada && homeSemCartaz >= 0 && idxCat == homeSemCartaz &&
                 !focoHero && focus_indice(&foco, r, c)))
             pintarCartao(&ck, raio);
+          anelFocoAlfa = 1.0f;
           // MARCADOR "PRIMEIRA FILEIRA PINTADA" (#7 do handoff de desempenho,
           // 05/10). "primeira fileira da rede pronta" e "catalogo da rede
           // publicado" (descoberta.c) medem quando o DADO esta pronto; nada
@@ -9333,26 +9350,28 @@ static void home_desenhar_(Uint32 agora) {
             cartaoFoco.caminhoB = caminhoB ? cartaoFocoArteB : NULL; }
 
 
-          // Feedback progressivo do gesto, sem duplicar o menu contextual. A
-          // barra aparece somente enquanto o mesmo item esta sob pressao;
-          // atingido o limiar, ctxmenu ja foi aberto e a soltura e consumida.
-          // Mesma guarda: segurar o OK no destaque desenhava a barra de
-          // progresso no primeiro card, que nao e o item sob pressao.
-          if (!focoHero && okPressionando && okDesde && okHold > 0.0f &&
-              segurar_barra_visivel(agora - okDesde) &&
-              foco_pode_pressao_longa() && focus_indice(&foco, r, c)) {
-            float bx = px + NV_HOME_TEXT_GUTTER;
-            float bw = w - NV_HOME_TEXT_GUTTER * 2.0f;
-            GfxRect trilho = { bx, py + h - 12.0f, bw, 4.0f };
-            if (ajustes_vidro()) gfx_vidro_chip(trilho, 0.5f, 0.92f, 1.0f);
-            else gfx_cor(trilho, 0.5f, 0.18f, 0.19f, 0.22f, 0.92f);
-            gfx_cor((GfxRect){ bx, trilho.y, bw * okHold, trilho.h },
-                    0.5f, 0.92f, 0.93f, 0.96f, 1.0f);
-            TxtLinha dica = txt_linha(TXT_MINI,
-                                      okHold >= 1.0f ? "Solte para abrir opções"
-                                                     : "Segure para opções",
-                                      225, 228, 235, 255);
-            txt_desenhar_alpha(dica, bx, py + h - 38.0f, 0.92f);
+          // SEGURAR OK: O CONTORNO QUE SE COMPLETA (dono, 27/11, opcao A da
+          // proposta animada). Era um trilho de 4 px DENTRO do cartaz e o texto
+          // "Segure para opcoes" 38 px acima da base, em cima da sinopse do
+          // Poster grande (TCL, 27/11). Agora o proprio anel de foco e o
+          // progresso: ele apaga para 20 % (anelFocoAlfa, na propria placa) e um
+          // traco branco da mesma espessura percorre o contorno a partir do
+          // meio do topo, no sentido horario, com velocidade constante ao longo
+          // do contorno. Vazio quando aparece (150 ms, segurar_barra_visivel) e
+          // completo em NV_HOLD_MS, quando o menu abre e o anel normal volta.
+          // Nenhum pixel dentro do cartaz; nenhum texto. Os tempos nao mudam.
+          // Mesma guarda de antes: segurar o OK no destaque nao desenha no
+          // primeiro card, que nao e o item sob pressao.
+          if (segurandoAqui) {
+            const float p = anim_clamp(segurarDesde / (float)(NV_HOLD_MS - NV_HOLD_TOQUE_MS), 0.0f, 1.0f);
+            GfxRect borda = { px - NV_ANEL_FOCO, py - NV_ANEL_FOCO,
+                              w + NV_ANEL_FOCO * 2, h + NV_ANEL_FOCO * 2 };
+            float rn = foco_anel_raio((GfxRect){ px, py, w, h }, raio);
+            segurar_contorno_p = p;
+            gfx_arco_contorno(borda, rn, NV_ANEL_FOCO, 0.0f,
+                              gfx_contorno_angulo(borda.w - NV_ANEL_FOCO, borda.h - NV_ANEL_FOCO,
+                                                  rn * borda.h - NV_ANEL_FOCO * 0.5f, p),
+                              1.0f, 1.0f, 1.0f, 1.0f);
           }
         }
       }

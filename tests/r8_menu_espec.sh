@@ -32,6 +32,14 @@ for d in "" 1; do
   if ! env ${d:+NV_DESDOBRAR_GRAVADO=1} NUVIO_DADOS="$work/comp$d" NV_POSTER=1 "$work/shot" COMP "$work" 0 > "$work/comp$d.log" 2>&1; then rc=1; fi
   grep -E "^ok|FALHOU|comportamento" "$work/comp$d.log" || { echo "COMP$d: sem resultado"; rc=1; }
 done
+# Segurar OK (opcao A) sem vidro, como a TCL do dono (vidro=0): o anel apaga e
+# o traco percorre o contorno; a conferencia de pixel so vale sem vidro.
+# Nos estilos: padrao e Poster grande (16, o da TCL).
+for t in "" 16; do
+  mkdir -p "$work/seg$t"
+  if ! env ${t:+NV_TIPO=$t} NUVIO_DADOS="$work/seg$t" NV_POSTER=1 NV_SEM_VIDRO_TV=1 NV_SO_SEGURAR=1 "$work/shot" COMP "$work" 0 > "$work/seg$t.log" 2>&1; then rc=1; fi
+  grep -E "segurar|FALHOU" "$work/seg$t.log" || { echo "SEG$t: sem resultado"; rc=1; }
+done
 # Reduzir animacoes, nos dois casos.
 for d in "" 1; do
   mkdir -p "$work/red$d"

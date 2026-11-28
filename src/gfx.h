@@ -785,6 +785,17 @@ void gfx_anel(GfxRect r, float raio, float esp,
 // volta, 0 = topo) por `frac` voltas no sentido horario. Um quad (GFX_ANEL).
 void gfx_arco(GfxRect r, float esp, float ini, float frac,
               float cr, float cg, float cb, float ca);
+// O mesmo arco no CONTORNO ARREDONDADO de r (raio na convencao do gfx_cor,
+// fracao da altura), nao no circulo inscrito: o corte e pelo angulo visto do
+// centro (o mesmo do shader), entao `frac` e fracao de volta em ANGULO, nao de
+// comprimento. Quem quer o traco andando por comprimento converte com
+// gfx_contorno_angulo.
+void gfx_arco_contorno(GfxRect r, float raio, float esp, float ini, float frac,
+                       float cr, float cg, float cb, float ca);
+// O ponto do contorno arredondado de r (raio em PIXELS) a `p` (0..1) do
+// comprimento, a partir do meio do topo, no sentido horario, como fracao de
+// volta em angulo visto do centro (a medida do gfx_arco_contorno).
+float gfx_contorno_angulo(float w, float h, float raioPx, float p);
 // Painel opaco grande de cor com canto arredondado: clear tesourado no miolo,
 // faixa de borda pelo shader (mesmo pixel de gfx_cor; bem mais barato na GPU).
 void gfx_cor_painel(GfxRect r, float raio, float cr, float cg, float cb, float ca);
